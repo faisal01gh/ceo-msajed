@@ -16,6 +16,12 @@ let currentTab="";
 let searchText="";
 let priorityFilter="";
 let statusFilter="";
+let departmentFilter="";
+let employeeFilter="";
+let originFilter="";
+let lateOnly=false;
+let dateFrom="";
+let dateTo="";
 let page=1;
 let searchTimer=null;
 
@@ -121,7 +127,9 @@ async function boot(){
 }
 async function loadList(){
   listData=await post(CONFIG.txFn,baseBody("list",{
-    tab:currentTab,search:searchText,priority:priorityFilter,status:statusFilter,page,page_size:50
+    tab:currentTab,search:searchText,priority:priorityFilter,status:statusFilter,
+    department:departmentFilter,employee:employeeFilter,origin:originFilter,late_only:lateOnly,
+    date_from:dateFrom,date_to:dateTo,page,page_size:50
   }));
 }
 function renderApp(){
@@ -134,7 +142,7 @@ function renderApp(){
         <h1>المعاملات</h1>
         <div class="user-box">
           <span class="user-name">${esc(session.display_name)}</span>
-          <button class="btn btn-white" id="notifBtn">التنبيهات</button>
+          <button class="btn btn-white" id="notifBtn">التنبيهات${unread?" ("+unread+")":""}</button>
           <button class="btn btn-white" id="logoutBtn">تسجيل الخروج</button>
         </div>
       </div>
@@ -144,6 +152,12 @@ function renderApp(){
       ${tabs.map(([k,n])=>`<button class="nav-tab ${currentTab===k?"active":""}" data-tab="${k}">${n}</button>`).join("")}
     </nav>
 
+    <div class="trx-stats">
+      <span>وارد جديد <b>${Number(listData.counters?.incoming||0)}</b></span>
+      <span>متأخر <b>${Number(listData.counters?.late||0)}</b></span>
+      <span>بانتظار اعتماد <b>${Number(listData.counters?.pending_approval||0)}</b></span>
+      <span>مغلق اليوم <b>${Number(listData.counters?.closed_today||0)}</b></span>
+    </div>
     <div class="toolbar">
       <input class="field search" id="search" placeholder="بحث" value="${esc(searchText)}">
       <select class="field" id="statusFilter">
@@ -157,6 +171,22 @@ function renderApp(){
         <option value="عاجل" ${priorityFilter==="عاجل"?"selected":""}>عاجل</option>
         <option value="عادي" ${priorityFilter==="عادي"?"selected":""}>عادي</option>
       </select>
+      <select class="field" id="departmentFilter">
+        <option value="">الإدارة</option>
+        ${(directoryData.units||[]).filter(u=>["department","independent","branch"].includes(u.unit_type)).map(u=>'<option value="'+esc(u.name)+'" '+(departmentFilter===u.name?"selected":"")+'>'+esc(u.name)+'</option>').join("")}
+      </select>
+      <select class="field" id="employeeFilter">
+        <option value="">الموظف</option>
+        ${(directoryData.users||[]).map(u=>'<option value="'+esc(u.login_name)+'" '+(employeeFilter===u.login_name?"selected":"")+'>'+esc(u.display_name)+'</option>').join("")}
+      </select>
+      <select class="field" id="originFilter">
+        <option value="">قديم/جديد</option>
+        <option value="legacy" ${originFilter==="legacy"?"selected":""}>قديم</option>
+        <option value="new" ${originFilter==="new"?"selected":""}>جديد</option>
+      </select>
+      <label class="check-filter"><input type="checkbox" id="lateOnly" ${lateOnly?"checked":""}> متأخرة</label>
+      <input class="field date-filter" id="dateFrom" type="date" value="${esc(dateFrom)}">
+      <input class="field date-filter" id="dateTo" type="date" value="${esc(dateTo)}">
       ${session.role!=="employee"?'<button class="btn btn-green" id="createBtn">إنشاء معاملة</button>':""}
       <button class="btn btn-soft" id="excelListBtn">Excel القائمة</button>
       <button class="btn btn-soft" id="pdfListBtn">PDF القائمة</button>
@@ -179,6 +209,12 @@ function renderApp(){
   };
   document.getElementById("statusFilter").onchange=async e=>{statusFilter=e.target.value;page=1;await refresh()};
   document.getElementById("priorityFilter").onchange=async e=>{priorityFilter=e.target.value;page=1;await refresh()};
+  document.getElementById("departmentFilter").onchange=async e=>{departmentFilter=e.target.value;page=1;await refresh()};
+  document.getElementById("employeeFilter").onchange=async e=>{employeeFilter=e.target.value;page=1;await refresh()};
+  document.getElementById("originFilter").onchange=async e=>{originFilter=e.target.value;page=1;await refresh()};
+  document.getElementById("lateOnly").onchange=async e=>{lateOnly=e.target.checked;page=1;await refresh()};
+  document.getElementById("dateFrom").onchange=async e=>{dateFrom=e.target.value;page=1;await refresh()};
+  document.getElementById("dateTo").onchange=async e=>{dateTo=e.target.value;page=1;await refresh()};
   if(document.getElementById("createBtn"))document.getElementById("createBtn").onclick=openCreate;
   document.getElementById("excelListBtn").onclick=exportListExcel;
   document.getElementById("pdfListBtn").onclick=printList;
@@ -222,6 +258,7 @@ function renderTable(){
           <td>${esc(r.days||"—")}</td>
           <td>${esc(fmtDate(r.last_activity_at))}</td>
           <td><div class="actions">
+            ${r.pending_transfer?'<button class="row-btn btn-green" data-act="accept-transfer" data-route="'+r.pending_transfer.id+'">قبول</button><button class="row-btn btn-red" data-act="reject-transfer" data-route="'+r.pending_transfer.id+'">رفض</button>':""}
             ${open&&r.can_act?'<button class="row-btn btn-soft" data-act="action" data-id="'+r.id+'">إجراء</button>':""}
             ${open&&r.can_act?'<button class="row-btn btn-soft" data-act="route" data-id="'+r.id+'">إحالة</button>':""}
             ${open?'<button class="row-btn btn-red" data-act="close" data-id="'+r.id+'" data-direct="'+(r.can_close?"1":"0")+'">'+closeLabel+'</button>':""}
@@ -239,6 +276,8 @@ function renderTable(){
     if(a==="route")openReferral(id);
     if(a==="close")openReason(btn.dataset.direct==="1"?"close":"request_close",id,btn.dataset.direct==="1"?"إغلاق":"طلب إغلاق");
     if(a==="reopen")openReason(btn.dataset.direct==="1"?"reopen":"request_reopen",id,btn.dataset.direct==="1"?"استرجاع المعاملة":"طلب استرجاع");
+    if(a==="accept-transfer")decideTransfer(btn.dataset.route,true);
+    if(a==="reject-transfer")decideTransfer(btn.dataset.route,false);
   });
 }
 function renderPager(){
@@ -470,14 +509,38 @@ function openReason(action,id,title){
   w.querySelector("[data-exit]").onclick=()=>w.remove();
   w.querySelector("#save").onclick=async()=>{const reason=w.querySelector("#reason").value.trim();if(!reason)return;await post(CONFIG.txFn,baseBody(action,{transaction_id:id,reason}));w.remove();await refresh()};
 }
+async function decideTransfer(routeId,approve){
+  if(approve){
+    await post(CONFIG.txFn,baseBody("decide_assistant_transfer",{route_id:routeId,approve:true,reason:""}));
+    await refresh();return;
+  }
+  const w=modal("رفض التحويل",'<label>السبب</label><textarea class="field" id="transferRejectReason"></textarea>',
+    '<button class="btn btn-red" id="saveReject">رفض</button><button class="btn btn-soft" data-exit>خروج</button>');
+  w.querySelector("[data-exit]").onclick=()=>w.remove();
+  w.querySelector("#saveReject").onclick=async()=>{
+    const reason=w.querySelector("#transferRejectReason").value.trim();if(!reason)return;
+    await post(CONFIG.txFn,baseBody("decide_assistant_transfer",{route_id:routeId,approve:false,reason}));
+    w.remove();await refresh();
+  };
+}
 async function openDetails(id){
   const d=await post(CONFIG.txFn,baseBody("details",{transaction_id:id})),t=d.transaction;
   const assignments=(d.assignments||[]).map(a=>{
     const names=(a.transaction_assignment_targets||[]).map(x=>x.display_name).join("، ");
-    return '<div class="action-item"><div class="action-top"><span>'+esc(a.assignment_type==="supporting"?"إدارة مساندة":"إسناد")+'</span><span>'+esc(fmtDate(a.created_at))+'</span></div><div class="action-text">'+esc(a.directive||"")+(names?'<br>'+esc(names):"")+'</div></div>';
+    return '<div class="action-item"><div class="action-top"><span>'+esc(a.assignment_type==="supporting"?"إدارة مساندة":a.assignment_type==="direct"?"إسناد مباشر":"الإدارة المسؤولة")+'</span><span>'+esc(fmtDate(a.created_at))+'</span></div><div class="action-text">'+esc(a.directive||"")+(names?'<br>'+esc(names):"")+'</div></div>';
   }).join("")||'<div class="muted">—</div>';
-  const actions=(d.actions||[]).map(a=>'<div class="action-item"><div class="action-top"><span>'+esc(a.actor_name||"—")+'</span><span>'+esc(fmtDate(a.created_at))+'</span></div><div class="action-text">'+esc(a.action_text||"")+'</div></div>').join("")||'<div class="muted">—</div>';
+  const versionsByAction=new Map();
+  for(const v of d.action_versions||[]){if(!versionsByAction.has(v.action_id))versionsByAction.set(v.action_id,[]);versionsByAction.get(v.action_id).push(v)}
+  const actions=(d.actions||[]).map(a=>{
+    const vs=versionsByAction.get(a.id)||[];
+    const history=vs.length>1?'<div class="version-list">'+vs.map(v=>'<div>نسخة '+esc(v.version_no)+': '+esc(v.body)+(v.decision_status?'<br>'+esc(v.decision_status==="rejected"?"مرفوض":"معتمد")+(v.decision_reason?" — "+esc(v.decision_reason):""):"")+'</div>').join("")+'</div>':"";
+    return '<div class="action-item"><div class="action-top"><span>'+esc(a.actor_name||"—")+'</span><span>'+esc(fmtDate(a.created_at))+'</span></div><div class="action-text">'+esc(a.action_text||"")+'</div><div class="badge '+(a.status==="rejected"?"pri-vh":a.status==="approved"?"st-open":"pri-n")+'">'+esc(a.status==="rejected"?"مرفوض":a.status==="approved"?"معتمد":"مسجل")+'</div>'+history+'</div>';
+  }).join("")||'<div class="muted">—</div>';
   const periods=(d.periods||[]).map(p=>'<div class="action-item"><div class="action-top"><span>الدورة '+esc(p.cycle_no)+'</span><span>'+esc(p.ended_at?(p.duration_days||"—")+" يوم":"مستمرة")+'</span></div><div class="action-text">'+esc(fmtDate(p.started_at))+(p.ended_at?" — "+esc(fmtDate(p.ended_at)):"")+'</div></div>').join("");
+  const routes=(d.routes||[]).map(r=>'<div class="action-item"><div class="action-top"><span>'+esc(r.from_name||"—")+' → '+esc(r.to_name||"—")+'</span><span>'+esc(fmtDate(r.created_at))+'</span></div><div class="action-text">'+esc(r.directive||r.raise_reason||r.transfer_reason||"")+(r.proposed_decision?'<br>القرار المقترح: '+esc(r.proposed_decision):"")+(r.rejection_reason?'<br>سبب الرفض: '+esc(r.rejection_reason):"")+'</div></div>').join("")||'<div class="muted">—</div>';
+  const canDecide=["manager","assistant","ceo","ceo_office_manager","ceo_secretary"].includes(session.role);
+  const requests=(d.requests||[]).map(r=>'<div class="action-item"><div class="action-top"><span>'+esc(r.requested_by_name||"—")+'</span><span>'+esc(fmtDate(r.created_at))+'</span></div><div class="action-text">'+esc(r.reason||"")+'</div>'+(r.status==="pending"&&canDecide?'<div class="request-actions"><button class="row-btn btn-green" data-request-approve="'+r.id+'">اعتماد</button><button class="row-btn btn-red" data-request-reject="'+r.id+'">رفض</button></div>':'<div class="badge '+(r.status==="approved"?"st-open":r.status==="rejected"?"pri-vh":"pri-n")+'">'+esc(r.status==="approved"?"معتمد":r.status==="rejected"?"مرفوض":"قيد الانتظار")+'</div>')+'</div>').join("")||'<div class="muted">—</div>';
+  const hist=(d.history||[]).map(h=>'<div class="action-item"><div class="action-top"><span>'+esc(h.actor_name||"—")+'</span><span>'+esc(fmtDate(h.created_at))+'</span></div><div class="action-text">'+esc(h.detail||h.event_type||"")+'</div></div>').join("")||'<div class="muted">—</div>';
   const w=modal(t.title,`
     <div class="details-grid">
       <div class="detail"><div class="detail-k">رقم المعاملة</div><div class="detail-v">${esc(t.number)}</div></div>
@@ -492,19 +555,70 @@ async function openDetails(id){
     ${periods?'<div class="section-title">المدة</div>'+periods:""}
     <div class="section-title">الإسناد والإدارات</div>${assignments}
     <div class="section-title">إجراءات العمل</div>${actions}
+    <div class="section-title">الإحالات والتوجيهات</div>${routes}
+    <div class="section-title">الطلبات</div>${requests}
+    <div class="section-title">السجل</div>${hist}
   `,`
+    ${t.status==="open"?'<button class="btn btn-soft" id="priorityBtn">الأولوية</button>':""}
+    ${t.status==="open"&&session.role!=="employee"?'<button class="btn btn-soft" id="dueBtn">تاريخ الاستحقاق</button>':""}
+    ${t.status==="open"?'<button class="btn btn-soft" id="responsibleBtn">مسؤول المعاملة</button>':""}
+    ${t.status==="open"&&["manager","assistant","ceo","ceo_office_manager","ceo_secretary"].includes(session.role)?'<button class="btn btn-soft" id="ceoViewBtn">إطلاع الرئيس</button>':""}
+    ${t.status==="open"?'<button class="btn btn-red" id="cancelBtn">إلغاء المعاملة</button>':""}
+    ${t.status==="open"&&session.role==="ceo_office_manager"&&!t.workflow_started?'<button class="btn btn-red" id="deleteBtn">حذف نهائي</button>':""}
     <button class="btn btn-soft" id="waBtn">نسخ واتساب</button>
     <button class="btn btn-soft" id="excelBtn">Excel المعاملة</button>
     <button class="btn btn-soft" id="pdfBtn">PDF المعاملة</button>
   `);
+  w.querySelectorAll("[data-request-approve]").forEach(b=>b.onclick=()=>decideRequest(b.dataset.requestApprove,true,w,id));
+  w.querySelectorAll("[data-request-reject]").forEach(b=>b.onclick=()=>decideRequest(b.dataset.requestReject,false,w,id));
+  if(w.querySelector("#priorityBtn"))w.querySelector("#priorityBtn").onclick=()=>openPriority(id,w);
+  if(w.querySelector("#dueBtn"))w.querySelector("#dueBtn").onclick=()=>openDueDate(id,w,t.due_at);
+  if(w.querySelector("#responsibleBtn"))w.querySelector("#responsibleBtn").onclick=()=>openResponsible(id,w);
+  if(w.querySelector("#ceoViewBtn"))w.querySelector("#ceoViewBtn").onclick=async()=>{await post(CONFIG.txFn,baseBody("mark_ceo_view",{transaction_id:id}));w.remove();await refresh()};
+  if(w.querySelector("#cancelBtn"))w.querySelector("#cancelBtn").onclick=()=>{w.remove();openReason("request_cancel",id,"إلغاء المعاملة")};
+  if(w.querySelector("#deleteBtn"))w.querySelector("#deleteBtn").onclick=async()=>{await post(CONFIG.txFn,baseBody("delete_hard",{transaction_id:id}));w.remove();await refresh()};
   w.querySelector("#waBtn").onclick=()=>copyWhatsApp(d);
   w.querySelector("#excelBtn").onclick=()=>exportTransactionExcel(d);
   w.querySelector("#pdfBtn").onclick=()=>printTransaction(d);
 }
+async function decideRequest(requestId,approve,parent,txId){
+  if(approve){
+    await post(CONFIG.txFn,baseBody("decide_request",{request_id:requestId,approve:true,decision_reason:""}));
+    parent.remove();await refresh();return;
+  }
+  const w=modal("رفض الطلب",'<label>سبب الرفض</label><textarea class="field" id="decisionReason"></textarea>',
+    '<button class="btn btn-red" id="saveDecision">رفض</button><button class="btn btn-soft" data-exit>خروج</button>');
+  w.querySelector("[data-exit]").onclick=()=>w.remove();
+  w.querySelector("#saveDecision").onclick=async()=>{
+    const reason=w.querySelector("#decisionReason").value.trim();if(!reason)return;
+    await post(CONFIG.txFn,baseBody("decide_request",{request_id:requestId,approve:false,decision_reason:reason}));
+    w.remove();parent.remove();await refresh();
+  };
+}
+function openPriority(id,parent){
+  const w=modal("الأولوية",'<label>الأولوية</label><select class="field" id="newPriority"><option>عادي</option><option>عاجل</option><option>عاجل جدًا</option></select>',
+    '<button class="btn btn-green" id="save">حفظ</button><button class="btn btn-soft" data-exit>خروج</button>');
+  w.querySelector("[data-exit]").onclick=()=>w.remove();
+  w.querySelector("#save").onclick=async()=>{await post(CONFIG.txFn,baseBody("change_priority",{transaction_id:id,priority:w.querySelector("#newPriority").value}));w.remove();parent.remove();await refresh()};
+}
+function openDueDate(id,parent,current){
+  const v=current?String(current).slice(0,10):"";
+  const w=modal("تاريخ الاستحقاق",'<label>تاريخ الاستحقاق</label><input class="field" type="date" id="newDue" value="'+esc(v)+'">',
+    '<button class="btn btn-green" id="save">حفظ</button><button class="btn btn-soft" data-exit>خروج</button>');
+  w.querySelector("[data-exit]").onclick=()=>w.remove();
+  w.querySelector("#save").onclick=async()=>{await post(CONFIG.txFn,baseBody("set_due_date",{transaction_id:id,due_at:w.querySelector("#newDue").value}));w.remove();parent.remove();await refresh()};
+}
+function openResponsible(id,parent){
+  const w=modal("مسؤول المعاملة",'<label>المسؤول الجديد</label><select class="field" id="newResponsible">'+userOptions(()=>true)+'</select><label>السبب</label><textarea class="field" id="respReason"></textarea>',
+    '<button class="btn btn-green" id="save">حفظ</button><button class="btn btn-soft" data-exit>خروج</button>');
+  w.querySelector("[data-exit]").onclick=()=>w.remove();
+  w.querySelector("#save").onclick=async()=>{const reason=w.querySelector("#respReason").value.trim();if(!reason)return;await post(CONFIG.txFn,baseBody("change_responsible",{transaction_id:id,to_login:w.querySelector("#newResponsible").value,reason}));w.remove();parent.remove();await refresh()};
+}
 async function openNotifications(){
   const n=await post(CONFIG.txFn,baseBody("notifications"));
   const rows=n.rows||[];
-  modal("التنبيهات",rows.length?rows.map(x=>'<div class="action-item"><div class="action-top"><span>'+esc(x.title)+'</span><span>'+esc(fmtDate(x.created_at))+'</span></div><div class="action-text">'+esc(x.body||"")+'</div></div>').join(""):'<div class="empty">لا توجد تنبيهات</div>');
+  const w=modal("التنبيهات",rows.length?rows.map(x=>'<button class="notification-item '+(x.read_at?"read":"")+'" data-notif="'+x.id+'"><span>'+esc(x.title)+'</span><small>'+esc(fmtDate(x.created_at))+'</small><b>'+esc(x.body||"")+'</b></button>').join(""):'<div class="empty">لا توجد تنبيهات</div>');
+  w.querySelectorAll("[data-notif]").forEach(b=>b.onclick=async()=>{await post(CONFIG.txFn,baseBody("notification_read",{notification_id:b.dataset.notif}));b.classList.add("read")});
 }
 function copyWhatsApp(d){
   const t=d.transaction;
@@ -526,6 +640,9 @@ function exportTransactionExcel(d){
   const t=d.transaction,rows=[
     ["رقم المعاملة",t.number],["عنوان المعاملة",t.title],["موضوع المعاملة",t.subject||""],["الأولوية",t.priority],["الحالة",t.status],["مسؤول المعاملة",t.responsible_name||""],["تاريخ الإنشاء",fmtDate(t.created_at)],["تاريخ الاستحقاق",fmtDate(t.due_at)],
     [],["إجراءات العمل"],["التاريخ","بواسطة","الإجراء"],...(d.actions||[]).map(a=>[fmtDate(a.created_at),a.actor_name||"",a.action_text||""]),
+    [],["الإسناد"],["التاريخ","النوع","التوجيه","الموظفون"],...(d.assignments||[]).map(a=>[fmtDate(a.created_at),a.assignment_type,a.directive||"",(a.transaction_assignment_targets||[]).map(x=>x.display_name).join("، ")]),
+    [],["الإحالات"],["التاريخ","من","إلى","التوجيه","سبب الرفع","القرار المقترح"],...(d.routes||[]).map(r=>[fmtDate(r.created_at),r.from_name||"",r.to_name||"",r.directive||"",r.raise_reason||r.transfer_reason||"",r.proposed_decision||""]),
+    [],["الطلبات"],["التاريخ","الطالب","النوع","السبب","الحالة"],...(d.requests||[]).map(r=>[fmtDate(r.created_at),r.requested_by_name||"",r.request_type,r.reason,r.status]),
     [],["السجل"],["التاريخ","الحدث","بواسطة","التفاصيل"],...(d.history||[]).map(h=>[fmtDate(h.created_at),h.event_type,h.actor_name||"",h.detail||""])
   ];
   download("معاملة-"+t.number+".xls","application/vnd.ms-excel;charset=utf-8",excelXml(rows));

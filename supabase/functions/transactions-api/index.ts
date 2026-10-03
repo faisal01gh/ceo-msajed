@@ -429,7 +429,7 @@ async function createRequest(who:Who,tx:any,type:string,reason:string,extra:any=
 }
 
 Deno.serve(async(req:Request)=>{
-  if(req.method==="GET")return out(req,{ok:true,service:"transactions-api",version:16});
+  if(req.method==="GET")return out(req,{ok:true,service:"transactions-api",version:17});
   if(req.method==="OPTIONS")return new Response("ok",{headers:cors(req)});
   if(req.method!=="POST")return out(req,{error:"method_not_allowed"},405);
   let b:any;try{b=await req.json()}catch{return out(req,{error:"bad_request"},400)}
@@ -482,8 +482,16 @@ Deno.serve(async(req:Request)=>{
       }
       const visibleRows=[...rows];
       const {count:unreadNotifications}=await db.from("notifications").select("id",{count:"exact",head:true}).eq("target_login_name",who.login_name).is("read_at",null);
-      const pendingVisibleIds=new Set(visibleRows.map(r=>r.id));
-      const pendingApprovals=ctx.requests.filter((r:any)=>r.status==="pending"&&pendingVisibleIds.has(r.transaction_id)).length;
+      const visibleById=new Map(visibleRows.map((r:any)=>[r.id,r]));
+      const pendingApprovals=ctx.requests.filter((r:any)=>{
+        if(r.status!=="pending")return false;
+        const tx:any=visibleById.get(r.transaction_id);if(!tx)return false;
+        const requesterRole=clean(r.meta?.requester_role);
+        if(isExec(who.role))return true;
+        if(who.role==="assistant")return tx.flags.scope&&["employee","manager"].includes(requesterRole);
+        if(who.role==="manager")return tx.flags.scope&&requesterRole==="employee";
+        return false;
+      }).length;
       const counters={
         incoming:visibleRows.filter(r=>r.flags.incoming&&r.status==="open").length,
         late:visibleRows.filter(r=>r.late).length,

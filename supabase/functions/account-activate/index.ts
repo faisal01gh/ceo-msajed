@@ -9,7 +9,7 @@ const OLD_FN=OLD_URL+"/functions/v1";
 
 function cors(req:Request){
   const origin=req.headers.get("origin")||"";
-  const ok=origin==="https://faisal01gh.github.io"||/^https:\/\/[a-z0-9.-]+\.pages\.dev$/i.test(origin);
+  const ok=origin==="https://faisal01gh.github.io";
   const h:Record<string,string>={
     "Access-Control-Allow-Methods":"POST,OPTIONS",
     "Access-Control-Allow-Headers":"content-type,apikey",

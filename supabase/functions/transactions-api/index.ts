@@ -350,6 +350,10 @@ async function history(txId:string,event:string,who:Who,detail:string,meta:any={
   await db.from("transaction_history").insert({
     transaction_id:txId,event_type:event,actor_name:who.display_name,detail,meta
   });
+  await db.from("audit_log").insert({
+    actor_id:null,event_type:event,entity_type:"transaction",entity_id:txId,detail,
+    meta:{...meta,actor_login:who.login_name,actor_name:who.display_name,actor_role:who.role}
+  });
 }
 async function txRow(id:string){
   const {data}=await db.from("transactions").select("*").eq("id",id).maybeSingle();
@@ -425,7 +429,7 @@ async function createRequest(who:Who,tx:any,type:string,reason:string,extra:any=
 }
 
 Deno.serve(async(req:Request)=>{
-  if(req.method==="GET")return out(req,{ok:true,service:"transactions-api",version:15});
+  if(req.method==="GET")return out(req,{ok:true,service:"transactions-api",version:16});
   if(req.method==="OPTIONS")return new Response("ok",{headers:cors(req)});
   if(req.method!=="POST")return out(req,{error:"method_not_allowed"},405);
   let b:any;try{b=await req.json()}catch{return out(req,{error:"bad_request"},400)}
@@ -921,6 +925,10 @@ Deno.serve(async(req:Request)=>{
         db.from("transaction_assignments").select("id",{count:"exact",head:true}).eq("transaction_id",id)
       ]);
       if(tx.workflow_started||Number(routes||0)>0||Number(acts||0)>0||Number(assigns||0)>0)return out(req,{error:"workflow_started"},409);
+      await db.from("audit_log").insert({
+        actor_id:null,event_type:"hard_delete",entity_type:"transaction",entity_id:id,
+        detail:"حذف نهائي لمعاملة لم يبدأ سيرها",meta:{actor_login:who.login_name,actor_name:who.display_name,actor_role:who.role,number:tx.number,title:tx.title}
+      });
       await db.from("transactions").delete().eq("id",id);
       return out(req,{ok:true});
     }

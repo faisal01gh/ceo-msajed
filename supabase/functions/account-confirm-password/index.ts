@@ -9,7 +9,7 @@ const admin=createClient(
 
 function cors(req:Request){
   const origin=req.headers.get("origin")||"";
-  const ok=origin==="https://faisal01gh.github.io";
+  const ok=origin==="https://faisal01gh.github.io"||origin==="https://ceo-msajed.pages.dev";
   const h:Record<string,string>={
     "Access-Control-Allow-Methods":"POST,OPTIONS",
     "Access-Control-Allow-Headers":"content-type,apikey",

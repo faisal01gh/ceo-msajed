@@ -4,19 +4,20 @@ const CONFIG={
   supabaseUrl:"https://movzojtnkkmdsjhmlgtq.supabase.co",
   publishableKey:"sb_publishable_FjLQ_5HZEg_CGhdw3CC0CA_KbG3WKj8",
   loginFn:"legacy-login",
-  readFn:"legacy-read",
   txFn:"transactions-api"
 };
 
-const app=document.getElementById("app");
-const KEY="msajed_session";
+const root=document.getElementById("app");
+const SESSION_KEY="msajed_session";
 let session=null;
-let legacyRows=[];
-let newRows=[];
+let directoryData={users:[],units:[],me:null};
+let listData={rows:[],total:0,page:1,page_size:50,counters:{}};
 let currentTab="";
 let searchText="";
-let statusFilter="";
 let priorityFilter="";
+let statusFilter="";
+let page=1;
+let searchTimer=null;
 
 function esc(v){return String(v??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m]));}
 function fmtDate(v){
@@ -24,7 +25,7 @@ function fmtDate(v){
   const d=new Date(v);if(Number.isNaN(d.getTime()))return String(v);
   return new Intl.DateTimeFormat("ar-SA-u-ca-gregory",{year:"numeric",month:"2-digit",day:"2-digit"}).format(d);
 }
-function apiUrl(fn){return CONFIG.supabaseUrl+"/functions/v1/"+fn;}
+function apiUrl(fn){return CONFIG.supabaseUrl+"/functions/v1/"+fn}
 async function post(fn,body){
   const r=await fetch(apiUrl(fn),{
     method:"POST",
@@ -35,17 +36,29 @@ async function post(fn,body){
   if(!r.ok){const e=new Error(data.error||"request_failed");e.status=r.status;e.data=data;throw e}
   return data;
 }
-function saveSession(){sessionStorage.setItem(KEY,JSON.stringify(session));}
-function loadSession(){
-  try{session=JSON.parse(sessionStorage.getItem(KEY)||"null")}catch{session=null}
-  return session;
+function saveSession(){sessionStorage.setItem(SESSION_KEY,JSON.stringify(session))}
+function loadSession(){try{session=JSON.parse(sessionStorage.getItem(SESSION_KEY)||"null")}catch{session=null}}
+function clearSession(){sessionStorage.removeItem(SESSION_KEY);session=null}
+function mapRole(s){
+  if(s.app==="ceo")return s.legacy_role==="secretary"?"ceo_secretary":"ceo_office_manager";
+  if(s.legacy_role==="manager")return "manager";
+  if(s.legacy_role==="employee")return "employee";
+  return "assistant";
 }
-function clearSession(){sessionStorage.removeItem(KEY);session=null;}
+function isExec(){return ["ceo","ceo_office_manager","ceo_secretary"].includes(session?.role)}
+function tabsFor(role){
+  if(role==="ceo")return [["incoming","وارد إليّ"],["ceo_view","معاملات للاطلاع"],["shared","معاملات مشتركة"],["all","جميع معاملات الجمعية"],["closed","المعاملات المغلقة"]];
+  if(role==="ceo_office_manager"||role==="ceo_secretary")return [["incoming","وارد إليّ"],["ceo","معاملات الرئيس التنفيذي"],["shared","معاملات مشتركة"],["all","جميع معاملات الجمعية"],["closed","المعاملات المغلقة"]];
+  if(role==="assistant"||role==="manager")return [["incoming","وارد إليّ"],["shared","معاملات مشتركة"],["scope","معاملات نطاقي"],["closed","المعاملات المغلقة"]];
+  return [["incoming","وارد إليّ"],["shared","معاملات مشتركة"],["closed","المعاملات المغلقة"]];
+}
+function defaultTab(role){return role==="ceo"?"incoming":isExec()?"all":(role==="assistant"||role==="manager")?"scope":"incoming"}
+function baseBody(action,extra={}){return {app:session.app,token:session.token,action,...extra}}
 
 function loginView(){
-  app.innerHTML=`
+  root.innerHTML=`
   <section class="login-shell">
-    <form class="login-card" id="loginForm" autocomplete="on">
+    <form class="login-card" id="loginForm">
       <h1 class="login-title">جمعية عمارة المساجد</h1>
       <label for="username">اسم المستخدم</label>
       <input class="field" id="username" autocomplete="username" autocapitalize="off" spellcheck="false">
@@ -56,384 +69,483 @@ function loginView(){
       <p class="login-foot">أهلاً وسهلاً بكم</p>
     </form>
   `;
-  const f=document.getElementById("loginForm");
-  f.addEventListener("submit",login);
+  document.getElementById("loginForm").addEventListener("submit",login);
   document.getElementById("username").focus();
 }
 async function login(e){
   e.preventDefault();
   const username=document.getElementById("username").value.trim();
   const password=document.getElementById("password").value;
-  const btn=document.getElementById("loginBtn");
-  const msg=document.getElementById("loginMsg");
+  const btn=document.getElementById("loginBtn"),msg=document.getElementById("loginMsg");
   if(!username||!password){msg.textContent="أكمل الحقلين";return}
   btn.disabled=true;btn.textContent="…";msg.textContent="";
   try{
     const r=await post(CONFIG.loginFn,{username,password});
     session={
       app:r.app,token:r.token,username,
-      display_name:r.display_name||username,
-      legacy_role:r.role||"",
-      dept_name:r.dept_name||"",
-      dept_names:r.dept_names||[],
-      org_name:r.org_name||""
+      display_name:r.display_name||username,legacy_role:r.role||"",
+      dept_name:r.dept_name||"",dept_names:r.dept_names||[],org_name:r.org_name||""
     };
     session.role=mapRole(session);
     saveSession();
+    currentTab="";
     await boot();
   }catch(err){
-    if(err.status===429)msg.textContent="محاولات كثيرة — انتظر "+(err.data?.minutes||15)+" دقيقة";
-    else msg.textContent="اسم المستخدم أو كلمة السر غير صحيحة";
+    msg.textContent=err.status===429?"محاولات كثيرة — انتظر "+(err.data?.minutes||15)+" دقيقة":"اسم المستخدم أو كلمة السر غير صحيحة";
     document.getElementById("password").value="";
-    document.getElementById("password").focus();
   }finally{
     if(document.getElementById("loginBtn")){btn.disabled=false;btn.textContent="دخول"}
   }
 }
-function mapRole(s){
-  if(s.app==="ceo")return s.legacy_role==="secretary"?"ceo_secretary":"ceo_office_manager";
-  if(s.legacy_role==="manager")return "manager";
-  if(s.legacy_role==="employee")return "employee";
-  return "assistant";
-}
-function tabsFor(role){
-  if(role==="ceo_office_manager"||role==="ceo_secretary"){
-    return [
-      ["incoming","وارد إليّ"],
-      ["ceo","معاملات الرئيس التنفيذي"],
-      ["shared","معاملات مشتركة"],
-      ["all","جميع معاملات الجمعية"],
-      ["closed","المعاملات المغلقة"]
-    ];
-  }
-  if(role==="assistant"||role==="manager"){
-    return [
-      ["incoming","وارد إليّ"],
-      ["shared","معاملات مشتركة"],
-      ["scope","معاملات نطاقي"],
-      ["closed","المعاملات المغلقة"]
-    ];
-  }
-  return [["incoming","وارد إليّ"],["shared","معاملات مشتركة"],["closed","المعاملات المغلقة"]];
-}
-function defaultTab(role){
-  if(role==="ceo_office_manager"||role==="ceo_secretary")return "all";
-  if(role==="assistant"||role==="manager")return "scope";
-  return "incoming";
-}
 async function boot(){
   if(!session){loginView();return}
-  app.innerHTML='<div class="loading">جارٍ التحميل…</div>';
+  root.innerHTML='<div class="loading">جارٍ التحميل…</div>';
   try{
-    await Promise.all([loadLegacy(),loadNew()]);
+    directoryData=await post(CONFIG.txFn,baseBody("directory"));
+    if(directoryData.me){
+      session.role=directoryData.me.role||session.role;
+      session.display_name=directoryData.me.display_name||session.display_name;
+      session.org_name=directoryData.me.org_name||session.org_name;
+      session.dept_name=directoryData.me.dept_name||session.dept_name;
+      session.dept_names=directoryData.me.dept_names||session.dept_names;
+      session.login_name=directoryData.me.login_name||session.username;
+      saveSession();
+    }
+    if(!currentTab)currentTab=defaultTab(session.role);
+    await loadList();
     renderApp();
   }catch(err){
     if(err.status===401){clearSession();loginView();return}
-    renderApp();
+    root.innerHTML='<div class="loading">تعذّر تحميل المعاملات</div>';
   }
 }
-async function loadLegacy(){
-  const r=await post(CONFIG.readFn,{app:session.app,token:session.token});
-  const payload=r.data||{};
-  legacyRows=session.app==="ceo"
-    ? normalizeCeoLegacy(payload?.data?.transactions||[])
-    : normalizePortalLegacy(payload);
-}
-function normalizeCeoLegacy(list){
-  return (Array.isArray(list)?list:[]).map((t,i)=>({
-    source:"legacy",
-    id:null,
-    key:"legacy-"+String(t.sn||t._sid||i),
-    number:String(t.sn||t._sid||""),
-    title:String(t.name||""),
-    subject:String(t.note||""),
-    department:String(t.dept||""),
-    supporting:0,
-    responsible:"",
-    assignee:"",
-    priority:t.urgent?"عاجل":"عادي",
-    status:t.done?"closed":"open",
-    created_at:t.createdAt||t.date||null,
-    closed_at:t.doneDate||null,
-    last_activity_at:t.doneDate||t.date||t.createdAt||null,
-    channel:String(t.channel||""),
-    attachment_url:String(t.mailUrl||""),
-    acts:Array.isArray(t.acts)?t.acts:[],
-    refs:Array.isArray(t.refs)?t.refs:[],
-    route:Array.isArray(t.route)?t.route:[],
-    raw:t
+async function loadList(){
+  listData=await post(CONFIG.txFn,baseBody("list",{
+    tab:currentTab,search:searchText,priority:priorityFilter,status:statusFilter,page,page_size:50
   }));
-}
-function normalizePortalLegacy(p){
-  const rows=[];
-  const seen=new Set();
-  function add(x,kind){
-    if(!x)return;
-    const title=String(x.name||x.title||x.task_title||"").trim();
-    if(!title)return;
-    const key=String(x.id||x._sid||title);
-    if(seen.has(key+"|"+kind))return;seen.add(key+"|"+kind);
-    rows.push({
-      source:"legacy",id:null,key:"portal-"+key,number:String(x.sn||x.id||""),
-      title,subject:String(x.note||x.reply||""),department:String(x.dept_name||x.dept_scope||session.dept_name||""),
-      supporting:0,responsible:String(x.from_user||""),assignee:String(x.assignee||""),
-      priority:x.urgent?"عاجل":(x.priority==="daily"?"عاجل":"عادي"),
-      status:x.done||x.status==="done"||x.status==="approved"?"closed":"open",
-      created_at:x.created_at||x.date||x.start_date||null,closed_at:x.done_at||x.decided_at||null,
-      last_activity_at:x.updated_at||x.last_update_date||x.created_at||null,
-      acts:[],refs:[],route:[],raw:x
-    });
-  }
-  ["ceo_trx","ceo_trx_replied","items","transfers","team_tasks"].forEach(k=>{
-    const arr=Array.isArray(p?.[k])?p[k]:[];
-    arr.forEach(x=>{if(k!=="items"||x.kind==="trx")add(x,k)});
-  });
-  return rows;
-}
-async function loadNew(){
-  const r=await post(CONFIG.txFn,{app:session.app,token:session.token,action:"list"});
-  newRows=(r.rows||[]).map(t=>({
-    source:"new",id:t.id,key:"new-"+t.id,number:t.number,title:t.title,subject:t.subject||"",
-    department:t.legacy_department_name||"",supporting:0,responsible:"",
-    assignee:"",priority:t.priority,status:t.status,created_at:t.created_at,closed_at:t.closed_at,
-    last_activity_at:t.last_activity_at,attachment_url:t.attachment_url||"",periods:t.transaction_periods||[],raw:t
-  }));
-}
-function mergedRows(){
-  const numbers=new Set(newRows.filter(x=>x.raw?.origin==="legacy").map(x=>String(x.raw.legacy_sn||x.number)));
-  return [...newRows,...legacyRows.filter(x=>!numbers.has(String(x.number)))];
 }
 function renderApp(){
-  if(!currentTab)currentTab=defaultTab(session.role);
   const tabs=tabsFor(session.role);
-  app.innerHTML=`
-    <div class="shell">
-      <header class="top-header">
-        <div class="header-row">
-          <h1>المعاملات</h1>
-          <div class="user-box">
-            <span class="user-name">${esc(session.display_name)}</span>
-            <button class="btn btn-white" id="logoutBtn">تسجيل الخروج</button>
-          </div>
+  const unread=Number(listData?.counters?.notifications||0);
+  root.innerHTML=`
+  <div class="shell">
+    <header class="top-header">
+      <div class="header-row">
+        <h1>المعاملات</h1>
+        <div class="user-box">
+          <span class="user-name">${esc(session.display_name)}</span>
+          <button class="btn btn-white" id="notifBtn">التنبيهات</button>
+          <button class="btn btn-white" id="logoutBtn">تسجيل الخروج</button>
         </div>
-      </header>
-      <nav class="nav-tabs" id="tabs">
-        ${tabs.map(([k,n])=>`<button class="nav-tab ${currentTab===k?"active":""}" data-tab="${k}">${n}</button>`).join("")}
-      </nav>
-      <div class="toolbar">
-        <input class="field search" id="search" placeholder="بحث" value="${esc(searchText)}">
-        <select class="field" id="statusFilter">
-          <option value="">الحالة</option>
-          <option value="open" ${statusFilter==="open"?"selected":""}>مفتوحة</option>
-          <option value="closed" ${statusFilter==="closed"?"selected":""}>مغلقة</option>
-        </select>
-        <select class="field" id="priorityFilter">
-          <option value="">الأولوية</option>
-          <option value="عاجل جدًا" ${priorityFilter==="عاجل جدًا"?"selected":""}>عاجل جدًا</option>
-          <option value="عاجل" ${priorityFilter==="عاجل"?"selected":""}>عاجل</option>
-          <option value="عادي" ${priorityFilter==="عادي"?"selected":""}>عادي</option>
-        </select>
-        ${canCreate()?`<button class="btn btn-green" id="createBtn">إنشاء معاملة</button>`:""}
       </div>
-      <section class="card">
-        <div class="card-head"><span class="card-title">${esc(tabs.find(x=>x[0]===currentTab)?.[1]||"المعاملات")}</span><span class="count" id="rowCount">0</span></div>
-        <div id="tableHost"></div>
-      </section>
+    </header>
+
+    <nav class="nav-tabs">
+      ${tabs.map(([k,n])=>`<button class="nav-tab ${currentTab===k?"active":""}" data-tab="${k}">${n}</button>`).join("")}
+    </nav>
+
+    <div class="toolbar">
+      <input class="field search" id="search" placeholder="بحث" value="${esc(searchText)}">
+      <select class="field" id="statusFilter">
+        <option value="">الحالة</option>
+        <option value="open" ${statusFilter==="open"?"selected":""}>مفتوحة</option>
+        <option value="closed" ${statusFilter==="closed"?"selected":""}>مغلقة</option>
+      </select>
+      <select class="field" id="priorityFilter">
+        <option value="">الأولوية</option>
+        <option value="عاجل جدًا" ${priorityFilter==="عاجل جدًا"?"selected":""}>عاجل جدًا</option>
+        <option value="عاجل" ${priorityFilter==="عاجل"?"selected":""}>عاجل</option>
+        <option value="عادي" ${priorityFilter==="عادي"?"selected":""}>عادي</option>
+      </select>
+      ${session.role!=="employee"?'<button class="btn btn-green" id="createBtn">إنشاء معاملة</button>':""}
+      <button class="btn btn-soft" id="excelListBtn">Excel القائمة</button>
+      <button class="btn btn-soft" id="pdfListBtn">PDF القائمة</button>
     </div>
-  `;
+
+    <section class="card">
+      <div class="card-head">
+        <span class="card-title">${esc(tabs.find(x=>x[0]===currentTab)?.[1]||"المعاملات")}</span>
+        <span class="count">${Number(listData.total||0)}</span>
+      </div>
+      <div id="tableHost"></div>
+      <div id="pagerHost"></div>
+    </section>
+  </div>`;
   document.getElementById("logoutBtn").onclick=logout;
-  document.querySelectorAll("[data-tab]").forEach(b=>b.onclick=()=>{currentTab=b.dataset.tab;renderApp()});
-  document.getElementById("search").oninput=e=>{searchText=e.target.value;renderTable()};
-  document.getElementById("statusFilter").onchange=e=>{statusFilter=e.target.value;renderTable()};
-  document.getElementById("priorityFilter").onchange=e=>{priorityFilter=e.target.value;renderTable()};
+  document.getElementById("notifBtn").onclick=openNotifications;
+  document.querySelectorAll("[data-tab]").forEach(b=>b.onclick=async()=>{currentTab=b.dataset.tab;page=1;await refresh()});
+  document.getElementById("search").oninput=e=>{
+    searchText=e.target.value;page=1;clearTimeout(searchTimer);searchTimer=setTimeout(()=>refresh(),300);
+  };
+  document.getElementById("statusFilter").onchange=async e=>{statusFilter=e.target.value;page=1;await refresh()};
+  document.getElementById("priorityFilter").onchange=async e=>{priorityFilter=e.target.value;page=1;await refresh()};
   if(document.getElementById("createBtn"))document.getElementById("createBtn").onclick=openCreate;
+  document.getElementById("excelListBtn").onclick=exportListExcel;
+  document.getElementById("pdfListBtn").onclick=printList;
   renderTable();
+  renderPager();
 }
-function canCreate(){return ["ceo_office_manager","ceo_secretary","assistant","manager"].includes(session.role)}
-function latestStage(row){
-  if(row.source==="new")return row.raw?.current_level||"";
-  const rr=Array.isArray(row.route)?row.route:[];
-  return rr.length?String(rr[rr.length-1]?.stage||""):"";
-}
-function tabMatch(row){
-  if(currentTab==="closed")return row.status==="closed";
-  if(row.status==="closed")return false;
-  if(currentTab==="all")return true;
-  if(currentTab==="scope")return true;
-  if(currentTab==="ceo")return latestStage(row)==="ceo"||row.raw?.current_level==="ceo";
-  if(currentTab==="shared")return (row.refs?.length||0)>0;
-  if(currentTab==="incoming"){
-    if(row.source==="new")return row.raw?.created_by_name===session.display_name||row.raw?.created_by_name===session.username;
-    const rr=Array.isArray(row.route)?row.route:[];
-    const last=rr[rr.length-1]||{};
-    return [session.display_name,session.username].includes(String(last.person||last.assignee||""));
-  }
-  return true;
-}
-function visibleRows(){
-  const q=searchText.trim().toLowerCase();
-  return mergedRows().filter(r=>{
-    if(!tabMatch(r))return false;
-    if(statusFilter&&r.status!==statusFilter)return false;
-    if(priorityFilter&&r.priority!==priorityFilter)return false;
-    if(q){
-      const hay=[r.number,r.title,r.subject,r.department,r.responsible,r.assignee].join(" ").toLowerCase();
-      if(!hay.includes(q))return false;
-    }
-    return true;
-  });
-}
-function daysInfo(r){
-  if(r.source==="new"&&Array.isArray(r.periods)&&r.periods.length){
-    const ps=[...r.periods].sort((a,b)=>a.cycle_no-b.cycle_no);
-    const last=ps[ps.length-1];
-    const d=last.ended_at?Number(last.duration_days||0):Math.max(1,Math.floor((Date.now()-new Date(last.started_at).getTime())/86400000)+1);
-    return String(d);
-  }
-  if(!r.created_at)return "—";
-  const start=new Date(r.created_at);if(Number.isNaN(start.getTime()))return "—";
-  const end=r.status==="closed"&&r.closed_at?new Date(r.closed_at):new Date();
-  return String(Math.max(1,Math.floor((end.getTime()-start.getTime())/86400000)+1));
-}
-function timeStatus(r){
+async function refresh(){await loadList();renderApp()}
+function priorityClass(p){return p==="عاجل جدًا"?"pri-vh":p==="عاجل"?"pri-h":"pri-n"}
+function statusBadge(r){
   if(r.status==="closed")return ["مغلقة","st-closed"];
-  const d=Number(daysInfo(r));
-  if(!Number.isFinite(d))return ["مفتوحة","st-open"];
-  if(d<=2)return ["جديدة","st-new"];
-  if(d<=5)return ["قيد الإجراء","st-progress"];
-  return ["متأخرة","st-late"];
+  if(r.status==="cancelled")return ["ملغاة","st-closed"];
+  if(r.late)return ["متأخرة","st-late"];
+  if(Number(r.days||0)<=2)return ["جديدة","st-new"];
+  return ["قيد الإجراء","st-progress"];
 }
-function priClass(p){return p==="عاجل جدًا"?"pri-vh":p==="عاجل"?"pri-h":"pri-n"}
 function renderTable(){
-  const rows=visibleRows();
-  document.getElementById("rowCount").textContent=String(rows.length);
-  const host=document.getElementById("tableHost");
+  const host=document.getElementById("tableHost"),rows=listData.rows||[];
   if(!rows.length){host.innerHTML='<div class="empty">لا توجد معاملات</div>';return}
   host.innerHTML=`
-  <div class="table-wrap">
-    <table>
-      <thead><tr>
-        <th>رقم المعاملة</th><th>عنوان المعاملة</th><th>الإدارة المسؤولة</th><th>الإدارات المساندة</th>
-        <th>مسؤول المعاملة</th><th>المحال إليه حاليًا</th><th>الأولوية</th><th>الحالة</th>
-        <th>عدد أيام المعاملة</th><th>آخر تحديث</th><th>الإجراءات</th>
-      </tr></thead>
-      <tbody>
+  <div class="table-wrap"><table>
+    <thead><tr>
+      <th>رقم المعاملة</th><th>عنوان المعاملة</th><th>الإدارة المسؤولة</th><th>الإدارات المساندة</th>
+      <th>مسؤول المعاملة</th><th>المحال إليه حاليًا</th><th>الأولوية</th><th>الحالة</th>
+      <th>عدد أيام المعاملة</th><th>آخر تحديث</th><th>الإجراءات</th>
+    </tr></thead>
+    <tbody>
       ${rows.map(r=>{
-        const [st,sc]=timeStatus(r);
+        const [st,sc]=statusBadge(r);
+        const open=r.status==="open";
+        const closeLabel=r.can_close?"إغلاق":"طلب إغلاق";
+        const reopenLabel=r.can_close?"استرجاع المعاملة":"طلب استرجاع";
         return `<tr>
-          <td>${esc(r.number||"—")}</td>
-          <td class="tx-title">${esc(r.title||"—")}</td>
-          <td>${esc(r.department||"—")}</td>
-          <td>${r.supporting||0}</td>
-          <td>${esc(r.responsible||"—")}</td>
-          <td>${esc(r.assignee||"—")}</td>
-          <td><span class="badge ${priClass(r.priority)}">${esc(r.priority||"عادي")}</span></td>
+          <td>${esc(r.number)}</td>
+          <td class="tx-title">${esc(r.title)}</td>
+          <td>${esc(r.responsible_unit_name||"—")}</td>
+          <td>${Number(r.supporting_count||0)}</td>
+          <td>${esc(r.responsible_name||"—")}</td>
+          <td>${esc((r.current_assignees||[]).join("، ")|| (r.current_level==="ceo"?"الرئيس التنفيذي":"—"))}</td>
+          <td><span class="badge ${priorityClass(r.priority)}">${esc(r.priority)}</span></td>
           <td><span class="badge ${sc}">${st}</span></td>
-          <td>${esc(daysInfo(r))}</td>
+          <td>${esc(r.days||"—")}</td>
           <td>${esc(fmtDate(r.last_activity_at))}</td>
           <td><div class="actions">
-            ${r.source==="new"&&r.status!=="closed"?`<button class="row-btn btn-soft" data-action="act" data-id="${r.id}">إجراء</button>`:""}
-            ${r.source==="new"&&r.status!=="closed"?`<button class="row-btn btn-red" data-action="close" data-id="${r.id}">إغلاق</button>`:""}
-            ${r.source==="new"&&r.status==="closed"?`<button class="row-btn btn-soft" data-action="reopen" data-id="${r.id}">استرجاع المعاملة</button>`:""}
-            <button class="row-btn btn-blue" data-action="open" data-key="${esc(r.key)}">فتح</button>
+            ${open&&r.can_act?'<button class="row-btn btn-soft" data-act="action" data-id="'+r.id+'">إجراء</button>':""}
+            ${open&&r.can_act?'<button class="row-btn btn-soft" data-act="route" data-id="'+r.id+'">إحالة</button>':""}
+            ${open?'<button class="row-btn btn-red" data-act="close" data-id="'+r.id+'" data-direct="'+(r.can_close?"1":"0")+'">'+closeLabel+'</button>':""}
+            ${r.status==="closed"?'<button class="row-btn btn-soft" data-act="reopen" data-id="'+r.id+'" data-direct="'+(r.can_close?"1":"0")+'">'+reopenLabel+'</button>':""}
+            <button class="row-btn btn-blue" data-act="open" data-id="${r.id}">فتح</button>
           </div></td>
         </tr>`
       }).join("")}
-      </tbody>
-    </table>
-  </div>`;
-  host.querySelectorAll("[data-action]").forEach(b=>b.onclick=()=>{
-    const a=b.dataset.action;
-    if(a==="open")openDetails(b.dataset.key);
-    if(a==="act")openAction(b.dataset.id);
-    if(a==="close")openReason("close",b.dataset.id,"إغلاق");
-    if(a==="reopen")openReason("reopen",b.dataset.id,"استرجاع المعاملة");
+    </tbody>
+  </table></div>`;
+  host.querySelectorAll("[data-act]").forEach(btn=>btn.onclick=()=>{
+    const a=btn.dataset.act,id=btn.dataset.id;
+    if(a==="open")openDetails(id);
+    if(a==="action")openAction(id);
+    if(a==="route")openReferral(id);
+    if(a==="close")openReason(btn.dataset.direct==="1"?"close":"request_close",id,btn.dataset.direct==="1"?"إغلاق":"طلب إغلاق");
+    if(a==="reopen")openReason(btn.dataset.direct==="1"?"reopen":"request_reopen",id,btn.dataset.direct==="1"?"استرجاع المعاملة":"طلب استرجاع");
   });
 }
-function modal(title,body,foot=""){
-  const wrap=document.createElement("div");wrap.className="overlay";
-  wrap.innerHTML=`<section class="modal"><div class="modal-head"><h2>${esc(title)}</h2><button class="modal-close" data-close>×</button></div><div class="modal-body">${body}</div>${foot?`<div class="modal-foot">${foot}</div>`:""}</section>`;
-  document.body.appendChild(wrap);
-  wrap.querySelector("[data-close]").onclick=()=>wrap.remove();
-  wrap.addEventListener("click",e=>{if(e.target===wrap)wrap.remove()});
-  return wrap;
+function renderPager(){
+  const h=document.getElementById("pagerHost"),total=Number(listData.total||0),size=Number(listData.page_size||50);
+  const pages=Math.max(1,Math.ceil(total/size));
+  if(pages<=1){h.innerHTML="";return}
+  h.innerHTML=`<div class="pager"><button class="btn btn-soft" id="prevPage" ${page<=1?"disabled":""}>السابق</button><span>${page} / ${pages}</span><button class="btn btn-soft" id="nextPage" ${page>=pages?"disabled":""}>التالي</button></div>`;
+  document.getElementById("prevPage").onclick=async()=>{if(page>1){page--;await refresh()}};
+  document.getElementById("nextPage").onclick=async()=>{if(page<pages){page++;await refresh()}};
 }
-function openCreate(){
+function modal(title,body,footer=""){
+  const w=document.createElement("div");w.className="overlay";
+  w.innerHTML=`<section class="modal"><div class="modal-head"><h2>${esc(title)}</h2><button class="modal-close" data-close>×</button></div><div class="modal-body">${body}</div>${footer?'<div class="modal-foot">'+footer+'</div>':""}</section>`;
+  document.body.appendChild(w);
+  w.querySelector("[data-close]").onclick=()=>w.remove();
+  w.addEventListener("click",e=>{if(e.target===w)w.remove()});
+  return w;
+}
+function userOptions(filter,selected=[]){
+  return (directoryData.users||[]).filter(filter).map(u=>`<option value="${esc(u.login_name)}" ${selected.includes(u.login_name)?"selected":""}>${esc(u.display_name)}</option>`).join("");
+}
+function unitOptions(filter){
+  return (directoryData.units||[]).filter(filter).map(u=>`<option value="${u.id}">${esc(u.name)}</option>`).join("");
+}
+function myDeptNames(){return [...new Set([session.dept_name,...(session.dept_names||[])].filter(Boolean))]}
+function managerUnits(){const n=myDeptNames();return (directoryData.units||[]).filter(u=>u.unit_type==="department"&&n.includes(u.name))}
+function sectorUnits(){
+  const all=directoryData.units||[],rootUnit=all.find(u=>u.name===session.org_name&&u.parent_id===null);
+  if(!rootUnit)return [];
+  const ids=new Set([rootUnit.id]);let changed=true;
+  while(changed){changed=false;for(const u of all)if(u.parent_id&&ids.has(u.parent_id)&&!ids.has(u.id)){ids.add(u.id);changed=true}}
+  return all.filter(u=>ids.has(u.id)&&u.unit_type==="department");
+}
+async function openCreate(){
+  let rolePart="";
+  if(session.role==="manager"){
+    rolePart=`
+      <div class="wide"><label>المسار</label><select class="field" id="createMode"><option value="assign">إسناد لموظف أو أكثر</option><option value="raise">رفع للمساعد</option></select></div>
+      <div class="wide" id="createRouteFields"></div>`;
+  }else if(isExec()){
+    rolePart=`
+      <div class="wide"><label>المساعد</label><select class="field" name="assistant">${userOptions(u=>u.role==="assistant")}</select></div>
+      <div class="wide"><label>التوجيه</label><textarea class="field" name="directive" required></textarea></div>`;
+  }
   const w=modal("إنشاء معاملة",`
-    <form id="createForm">
-      <div class="form-grid">
-        <div class="wide"><label>عنوان المعاملة</label><input class="field" name="title" required></div>
-        <div class="wide"><label>موضوع المعاملة</label><textarea class="field" name="subject"></textarea></div>
-        <div><label>الأولوية</label><select class="field" name="priority"><option>عادي</option><option>عاجل</option><option>عاجل جدًا</option></select></div>
-        <div><label>رابط المرفقات</label><input class="field" type="url" name="attachment_url"></div>
-      </div>
-    </form>
-  `,`<button class="btn btn-green" id="saveCreate">حفظ</button><button class="btn btn-soft" data-close2>خروج</button>`);
-  w.querySelector("[data-close2]").onclick=()=>w.remove();
+    <form id="createForm"><div class="form-grid">
+      <div class="wide"><label>عنوان المعاملة</label><input class="field" name="title" required></div>
+      <div class="wide"><label>موضوع المعاملة</label><textarea class="field" name="subject"></textarea></div>
+      <div><label>الأولوية</label><select class="field" name="priority"><option>عادي</option><option>عاجل</option><option>عاجل جدًا</option></select></div>
+      <div><label>رابط المرفقات</label><input class="field" name="attachment_url" type="url"></div>
+      ${rolePart}
+    </div></form>
+  `,`<button class="btn btn-green" id="saveCreate">حفظ</button><button class="btn btn-soft" data-exit>خروج</button>`);
+  w.querySelector("[data-exit]").onclick=()=>w.remove();
+  if(session.role==="manager"){
+    const mode=w.querySelector("#createMode"),host=w.querySelector("#createRouteFields");
+    const draw=()=>{
+      host.innerHTML=mode.value==="assign"?`
+        <label>الإدارة</label><select class="field" name="unit_id">${managerUnits().map(u=>'<option value="'+u.id+'">'+esc(u.name)+'</option>').join("")}</select>
+        <label>الموظفون</label><select class="field multi" name="targets" multiple>${userOptions(u=>u.role==="employee"&&u.dept_names.some(d=>myDeptNames().includes(d)))}</select>
+        <label>التوجيه</label><textarea class="field" name="directive"></textarea>`
+      :`<label>سبب الرفع</label><textarea class="field" name="raise_reason"></textarea><label>القرار المقترح</label><textarea class="field" name="proposed_decision"></textarea>`;
+    };mode.onchange=draw;draw();
+  }
   w.querySelector("#saveCreate").onclick=async()=>{
-    const f=new FormData(w.querySelector("#createForm"));
-    const title=String(f.get("title")||"").trim();if(!title)return;
-    const b=w.querySelector("#saveCreate");b.disabled=true;
+    const f=w.querySelector("#createForm"),fd=new FormData(f);
+    const title=String(fd.get("title")||"").trim();if(!title)return;
+    const btn=w.querySelector("#saveCreate");btn.disabled=true;
     try{
-      await post(CONFIG.txFn,{app:session.app,token:session.token,action:"create",title,subject:f.get("subject"),priority:f.get("priority"),attachment_url:f.get("attachment_url")});
-      await loadNew();w.remove();renderApp();
-    }finally{if(document.body.contains(b))b.disabled=false}
+      const created=await post(CONFIG.txFn,baseBody("create",{title,subject:fd.get("subject"),priority:fd.get("priority"),attachment_url:fd.get("attachment_url")}));
+      if(session.role==="manager"){
+        const mode=w.querySelector("#createMode").value;
+        if(mode==="assign"){
+          const targets=[...w.querySelector('[name="targets"]').selectedOptions].map(o=>o.value);
+          await post(CONFIG.txFn,baseBody("route_manager_employees",{transaction_id:created.row.id,unit_id:fd.get("unit_id"),targets,directive:fd.get("directive")}));
+        }else{
+          await post(CONFIG.txFn,baseBody("route_manager_assistant",{transaction_id:created.row.id,raise_reason:fd.get("raise_reason"),proposed_decision:fd.get("proposed_decision")}));
+        }
+      }else if(isExec()){
+        await post(CONFIG.txFn,baseBody("route_exec_assistant",{transaction_id:created.row.id,to_login:fd.get("assistant"),directive:fd.get("directive")}));
+      }
+      w.remove();await refresh();
+    }catch(e){btn.disabled=false}
   };
 }
-function findRow(key){return mergedRows().find(x=>x.key===key)}
-async function openDetails(key){
-  const r=findRow(key);if(!r)return;
-  let actions=r.acts||[],periods=r.periods||[];
-  if(r.source==="new"){
-    try{
-      const d=await post(CONFIG.txFn,{app:session.app,token:session.token,action:"details",transaction_id:r.id});
-      actions=d.actions||[];periods=d.periods||[];
-    }catch{}
+async function openReferral(id){
+  if(session.role==="employee")return childEmployeeRaise(id,null);
+  const choices=[];
+  if(session.role==="manager"){
+    choices.push(["assign","إسناد لموظف أو أكثر"],["raise","رفع للمساعد"]);
+  }else if(session.role==="assistant"){
+    choices.push(["scope","إحالة داخل القطاع"],["transfer","تحويل لمساعد آخر"],["ceo","رفع للرئيس التنفيذي"]);
+  }else if(isExec()){
+    choices.push(["assistant","إحالة للمساعد"],["direct","إسناد مباشر لموظف"]);
   }
-  const actionHtml=(actions||[]).length?(actions||[]).map(a=>`
-    <div class="action-item"><div class="action-top"><span>${esc(a.actor_name||a.by||"—")}</span><span>${esc(fmtDate(a.created_at||a.date))}</span></div><div class="action-text">${esc(a.action_text||a.text||"")}</div></div>
-  `).join(""):'<div class="muted">—</div>';
-  const periodHtml=(periods||[]).length?(periods||[]).map(p=>`
-    <div class="action-item"><div class="action-top"><span>الدورة ${esc(p.cycle_no)}</span><span>${esc(p.ended_at?String(p.duration_days||"—"):daysInfo({...r,periods:[p]}))} يوم</span></div><div class="action-text">${esc(fmtDate(p.started_at))}${p.ended_at?" — "+esc(fmtDate(p.ended_at)):""}</div></div>
-  `).join(""):"";
-  modal(r.title,`
-    <div class="details-grid">
-      <div class="detail"><div class="detail-k">رقم المعاملة</div><div class="detail-v">${esc(r.number||"—")}</div></div>
-      <div class="detail"><div class="detail-k">الإدارة المسؤولة</div><div class="detail-v">${esc(r.department||"—")}</div></div>
-      <div class="detail"><div class="detail-k">الأولوية</div><div class="detail-v">${esc(r.priority||"عادي")}</div></div>
-      <div class="detail"><div class="detail-k">مسؤول المعاملة</div><div class="detail-v">${esc(r.responsible||"—")}</div></div>
-      <div class="detail"><div class="detail-k">المحال إليه حاليًا</div><div class="detail-v">${esc(r.assignee||"—")}</div></div>
-      <div class="detail"><div class="detail-k">تاريخ الإنشاء</div><div class="detail-v">${esc(fmtDate(r.created_at))}</div></div>
-    </div>
-    <div class="section-title">موضوع المعاملة</div><div class="action-item"><div class="action-text">${esc(r.subject||"—")}</div></div>
-    ${r.attachment_url?`<div class="section-title">رابط المرفقات</div><a href="${esc(r.attachment_url)}" target="_blank" rel="noopener noreferrer">${esc(r.attachment_url)}</a>`:""}
-    ${periodHtml?`<div class="section-title">المدة</div>${periodHtml}`:""}
-    <div class="section-title">إجراءات العمل</div>${actionHtml}
-  `);
+  const w=modal("إحالة",`<div class="choice-grid">${choices.map(([k,n])=>'<button class="choice-btn" data-choice="'+k+'">'+n+'</button>').join("")}</div>`,
+    '<button class="btn btn-soft" data-exit>خروج</button>');
+  w.querySelector("[data-exit]").onclick=()=>w.remove();
+  w.querySelectorAll("[data-choice]").forEach(b=>b.onclick=()=>{
+    const c=b.dataset.choice;w.remove();
+    if(c==="assign")childManagerAssign(id);
+    if(c==="raise")childManagerRaise(id);
+    if(c==="scope")childAssistantScope(id);
+    if(c==="transfer")childAssistantTransfer(id);
+    if(c==="ceo")childAssistantCeo(id);
+    if(c==="assistant")childExecAssistant(id);
+    if(c==="direct")childExecDirect(id);
+  });
+}
+function backFooter(parentFn){return '<button class="btn btn-soft" data-back>رجوع</button>'}
+function wireBack(w,id){w.querySelector("[data-back]").onclick=()=>{w.remove();openReferral(id)}}
+function childEmployeeRaise(id){
+  const w=modal("رفع للمدير",'<label>سبب الرفع</label><textarea class="field" id="raiseReason"></textarea><label>القرار المقترح</label><textarea class="field" id="proposed"></textarea>',
+    '<button class="btn btn-green" id="save">حفظ</button>');
+  w.querySelector("#save").onclick=async()=>{await post(CONFIG.txFn,baseBody("route_employee_manager",{transaction_id:id,raise_reason:w.querySelector("#raiseReason").value,proposed_decision:w.querySelector("#proposed").value}));w.remove();await refresh()};
+}
+function childManagerAssign(id){
+  const w=modal("إسناد لموظف أو أكثر",`
+    <label>الإدارة</label><select class="field" id="unit">${managerUnits().map(u=>'<option value="'+u.id+'">'+esc(u.name)+'</option>').join("")}</select>
+    <label>الموظفون</label><select class="field multi" id="targets" multiple>${userOptions(u=>u.role==="employee"&&u.dept_names.some(d=>myDeptNames().includes(d)))}</select>
+    <label>التوجيه</label><textarea class="field" id="directive"></textarea>`,
+    '<button class="btn btn-green" id="save">حفظ</button>'+backFooter());
+  wireBack(w,id);
+  w.querySelector("#save").onclick=async()=>{
+    const targets=[...w.querySelector("#targets").selectedOptions].map(o=>o.value);
+    await post(CONFIG.txFn,baseBody("route_manager_employees",{transaction_id:id,unit_id:w.querySelector("#unit").value,targets,directive:w.querySelector("#directive").value}));
+    w.remove();await refresh();
+  };
+}
+function childManagerRaise(id){
+  const w=modal("رفع للمساعد",'<label>سبب الرفع</label><textarea class="field" id="reason"></textarea><label>القرار المقترح</label><textarea class="field" id="proposed"></textarea>',
+    '<button class="btn btn-green" id="save">حفظ</button>'+backFooter());
+  wireBack(w,id);
+  w.querySelector("#save").onclick=async()=>{await post(CONFIG.txFn,baseBody("route_manager_assistant",{transaction_id:id,raise_reason:w.querySelector("#reason").value,proposed_decision:w.querySelector("#proposed").value}));w.remove();await refresh()};
+}
+function employeesForUnit(unitId){
+  const u=(directoryData.units||[]).find(x=>x.id===unitId);if(!u)return [];
+  return (directoryData.users||[]).filter(x=>["employee","manager"].includes(x.role)&&x.dept_names.includes(u.name));
+}
+function supportBlock(index){
+  const units=sectorUnits();
+  return `<div class="support-block" data-support="${index}">
+    <label>الإدارة المساندة</label><select class="field s-unit">${units.map(u=>'<option value="'+u.id+'">'+esc(u.name)+'</option>').join("")}</select>
+    <label>الموظفون</label><select class="field multi s-targets" multiple></select>
+    <label>التوجيه</label><textarea class="field s-directive"></textarea>
+    <button class="btn btn-red s-remove" type="button">حذف</button>
+  </div>`;
+}
+function fillTargetSelect(block){
+  const unit=block.querySelector(".s-unit").value,sel=block.querySelector(".s-targets");
+  sel.innerHTML=employeesForUnit(unit).map(u=>'<option value="'+esc(u.login_name)+'">'+esc(u.display_name)+'</option>').join("");
+}
+function childAssistantScope(id){
+  const units=sectorUnits();
+  const w=modal("إحالة داخل القطاع",`
+    <label>الإدارة المسؤولة</label><select class="field" id="responsibleUnit">${units.map(u=>'<option value="'+u.id+'">'+esc(u.name)+'</option>').join("")}</select>
+    <label>الموظفون</label><select class="field multi" id="responsibleTargets" multiple></select>
+    <label>التوجيه</label><textarea class="field" id="directive"></textarea>
+    <div id="supports"></div>
+    <button class="btn btn-soft" id="addSupport" type="button">إضافة إدارة مساندة</button>`,
+    '<button class="btn btn-green" id="save">حفظ</button>'+backFooter());
+  wireBack(w,id);
+  const ru=w.querySelector("#responsibleUnit"),rt=w.querySelector("#responsibleTargets");
+  const fill=()=>{rt.innerHTML=employeesForUnit(ru.value).map(u=>'<option value="'+esc(u.login_name)+'">'+esc(u.display_name)+'</option>').join("")};ru.onchange=fill;fill();
+  let n=0;
+  w.querySelector("#addSupport").onclick=()=>{
+    const host=w.querySelector("#supports");host.insertAdjacentHTML("beforeend",supportBlock(++n));
+    const b=host.lastElementChild;fillTargetSelect(b);b.querySelector(".s-unit").onchange=()=>fillTargetSelect(b);b.querySelector(".s-remove").onclick=()=>b.remove();
+  };
+  w.querySelector("#save").onclick=async()=>{
+    const targets=[...rt.selectedOptions].map(o=>o.value);
+    const supporting=[...w.querySelectorAll("[data-support]")].map(b=>({
+      unit_id:b.querySelector(".s-unit").value,
+      targets:[...b.querySelector(".s-targets").selectedOptions].map(o=>o.value),
+      directive:b.querySelector(".s-directive").value
+    }));
+    await post(CONFIG.txFn,baseBody("route_assistant_scope",{transaction_id:id,responsible_unit_id:ru.value,targets,directive:w.querySelector("#directive").value,supporting}));
+    w.remove();await refresh();
+  };
+}
+function childAssistantTransfer(id){
+  const w=modal("تحويل لمساعد آخر",`
+    <label>المساعد</label><select class="field" id="to">${userOptions(u=>u.role==="assistant"&&u.login_name!==session.login_name)}</select>
+    <label>سبب التحويل</label><textarea class="field" id="reason"></textarea>
+    <label>التوجيه</label><textarea class="field" id="directive"></textarea>`,
+    '<button class="btn btn-green" id="save">حفظ</button>'+backFooter());
+  wireBack(w,id);
+  w.querySelector("#save").onclick=async()=>{await post(CONFIG.txFn,baseBody("transfer_assistant",{transaction_id:id,to_login:w.querySelector("#to").value,transfer_reason:w.querySelector("#reason").value,directive:w.querySelector("#directive").value}));w.remove();await refresh()};
+}
+function childAssistantCeo(id){
+  const w=modal("رفع للرئيس التنفيذي",'<label>سبب الرفع</label><textarea class="field" id="reason"></textarea><label>القرار المقترح</label><textarea class="field" id="proposed"></textarea>',
+    '<button class="btn btn-green" id="save">حفظ</button>'+backFooter());
+  wireBack(w,id);
+  w.querySelector("#save").onclick=async()=>{await post(CONFIG.txFn,baseBody("route_assistant_ceo",{transaction_id:id,raise_reason:w.querySelector("#reason").value,proposed_decision:w.querySelector("#proposed").value}));w.remove();await refresh()};
+}
+function childExecAssistant(id){
+  const w=modal("إحالة للمساعد",'<label>المساعد</label><select class="field" id="to">'+userOptions(u=>u.role==="assistant")+'</select><label>التوجيه</label><textarea class="field" id="directive"></textarea>',
+    '<button class="btn btn-green" id="save">حفظ</button>'+backFooter());
+  wireBack(w,id);
+  w.querySelector("#save").onclick=async()=>{await post(CONFIG.txFn,baseBody("route_exec_assistant",{transaction_id:id,to_login:w.querySelector("#to").value,directive:w.querySelector("#directive").value}));w.remove();await refresh()};
+}
+function childExecDirect(id){
+  const depts=(directoryData.units||[]).filter(u=>u.unit_type==="department"||u.unit_type==="independent"||u.unit_type==="branch");
+  const w=modal("إسناد مباشر لموظف",`
+    <label>الإدارة</label><select class="field" id="unit">${depts.map(u=>'<option value="'+u.id+'">'+esc(u.name)+'</option>').join("")}</select>
+    <label>الموظفون</label><select class="field multi" id="targets" multiple></select>
+    <label>التوجيه</label><textarea class="field" id="directive"></textarea>
+    <label>نطاق الظهور</label><select class="field" id="visibility">
+      <option value="employee_exec">الموظف + مستوى الرئيس فقط</option>
+      <option value="manager">إظهار مدير الإدارة</option>
+      <option value="assistant">إظهار المساعد</option>
+      <option value="manager_assistant">إظهار المدير + المساعد</option>
+    </select>`,
+    '<button class="btn btn-green" id="save">حفظ</button>'+backFooter());
+  wireBack(w,id);
+  const unit=w.querySelector("#unit"),targets=w.querySelector("#targets");
+  const fill=()=>{targets.innerHTML=employeesForUnit(unit.value).map(u=>'<option value="'+esc(u.login_name)+'">'+esc(u.display_name)+'</option>').join("")};unit.onchange=fill;fill();
+  w.querySelector("#save").onclick=async()=>{await post(CONFIG.txFn,baseBody("direct_exec_employee",{transaction_id:id,unit_id:unit.value,targets:[...targets.selectedOptions].map(o=>o.value),directive:w.querySelector("#directive").value,visibility_scope:w.querySelector("#visibility").value}));w.remove();await refresh()};
 }
 function openAction(id){
-  const w=modal("إجراء",`<label>إجراء العمل</label><textarea class="field" id="actionText"></textarea>`,
-    `<button class="btn btn-green" id="saveAction">حفظ</button><button class="btn btn-soft" data-close2>خروج</button>`);
-  w.querySelector("[data-close2]").onclick=()=>w.remove();
-  w.querySelector("#saveAction").onclick=async()=>{
-    const text=w.querySelector("#actionText").value.trim();if(!text)return;
-    await post(CONFIG.txFn,{app:session.app,token:session.token,action:"add_action",transaction_id:id,text});
-    await loadNew();w.remove();renderApp();
-  };
+  const w=modal("إجراء",'<label>إجراء العمل</label><textarea class="field" id="actionText"></textarea>',
+    '<button class="btn btn-green" id="save">حفظ</button><button class="btn btn-soft" data-exit>خروج</button>');
+  w.querySelector("[data-exit]").onclick=()=>w.remove();
+  w.querySelector("#save").onclick=async()=>{const text=w.querySelector("#actionText").value.trim();if(!text)return;await post(CONFIG.txFn,baseBody("add_action",{transaction_id:id,text}));w.remove();await refresh()};
 }
 function openReason(action,id,title){
-  const w=modal(title,`<label>السبب</label><textarea class="field" id="reason"></textarea>`,
-    `<button class="btn btn-green" id="confirmReason">حفظ</button><button class="btn btn-soft" data-close2>خروج</button>`);
-  w.querySelector("[data-close2]").onclick=()=>w.remove();
-  w.querySelector("#confirmReason").onclick=async()=>{
-    const reason=w.querySelector("#reason").value.trim();if(!reason)return;
-    await post(CONFIG.txFn,{app:session.app,token:session.token,action,transaction_id:id,reason});
-    await loadNew();w.remove();renderApp();
-  };
+  const w=modal(title,'<label>السبب</label><textarea class="field" id="reason"></textarea>',
+    '<button class="btn btn-green" id="save">حفظ</button><button class="btn btn-soft" data-exit>خروج</button>');
+  w.querySelector("[data-exit]").onclick=()=>w.remove();
+  w.querySelector("#save").onclick=async()=>{const reason=w.querySelector("#reason").value.trim();if(!reason)return;await post(CONFIG.txFn,baseBody(action,{transaction_id:id,reason}));w.remove();await refresh()};
 }
-async function logout(){
-  clearSession();legacyRows=[];newRows=[];currentTab="";loginView();
+async function openDetails(id){
+  const d=await post(CONFIG.txFn,baseBody("details",{transaction_id:id})),t=d.transaction;
+  const assignments=(d.assignments||[]).map(a=>{
+    const names=(a.transaction_assignment_targets||[]).map(x=>x.display_name).join("، ");
+    return '<div class="action-item"><div class="action-top"><span>'+esc(a.assignment_type==="supporting"?"إدارة مساندة":"إسناد")+'</span><span>'+esc(fmtDate(a.created_at))+'</span></div><div class="action-text">'+esc(a.directive||"")+(names?'<br>'+esc(names):"")+'</div></div>';
+  }).join("")||'<div class="muted">—</div>';
+  const actions=(d.actions||[]).map(a=>'<div class="action-item"><div class="action-top"><span>'+esc(a.actor_name||"—")+'</span><span>'+esc(fmtDate(a.created_at))+'</span></div><div class="action-text">'+esc(a.action_text||"")+'</div></div>').join("")||'<div class="muted">—</div>';
+  const periods=(d.periods||[]).map(p=>'<div class="action-item"><div class="action-top"><span>الدورة '+esc(p.cycle_no)+'</span><span>'+esc(p.ended_at?(p.duration_days||"—")+" يوم":"مستمرة")+'</span></div><div class="action-text">'+esc(fmtDate(p.started_at))+(p.ended_at?" — "+esc(fmtDate(p.ended_at)):"")+'</div></div>').join("");
+  const w=modal(t.title,`
+    <div class="details-grid">
+      <div class="detail"><div class="detail-k">رقم المعاملة</div><div class="detail-v">${esc(t.number)}</div></div>
+      <div class="detail"><div class="detail-k">الأولوية</div><div class="detail-v">${esc(t.priority)}</div></div>
+      <div class="detail"><div class="detail-k">مسؤول المعاملة</div><div class="detail-v">${esc(t.responsible_name||"—")}</div></div>
+      <div class="detail"><div class="detail-k">تاريخ الإنشاء</div><div class="detail-v">${esc(fmtDate(t.created_at))}</div></div>
+      <div class="detail"><div class="detail-k">تاريخ الاستحقاق</div><div class="detail-v">${esc(fmtDate(t.due_at))}</div></div>
+      <div class="detail"><div class="detail-k">الحالة</div><div class="detail-v">${esc(t.status==="closed"?"مغلقة":t.status==="cancelled"?"ملغاة":"مفتوحة")}</div></div>
+    </div>
+    <div class="section-title">موضوع المعاملة</div><div class="action-item"><div class="action-text">${esc(t.subject||"—")}</div></div>
+    ${t.attachment_url?'<div class="section-title">رابط المرفقات</div><a href="'+esc(t.attachment_url)+'" target="_blank" rel="noopener noreferrer">'+esc(t.attachment_url)+'</a>':""}
+    ${periods?'<div class="section-title">المدة</div>'+periods:""}
+    <div class="section-title">الإسناد والإدارات</div>${assignments}
+    <div class="section-title">إجراءات العمل</div>${actions}
+  `,`
+    <button class="btn btn-soft" id="waBtn">نسخ واتساب</button>
+    <button class="btn btn-soft" id="excelBtn">Excel المعاملة</button>
+    <button class="btn btn-soft" id="pdfBtn">PDF المعاملة</button>
+  `);
+  w.querySelector("#waBtn").onclick=()=>copyWhatsApp(d);
+  w.querySelector("#excelBtn").onclick=()=>exportTransactionExcel(d);
+  w.querySelector("#pdfBtn").onclick=()=>printTransaction(d);
 }
+async function openNotifications(){
+  const n=await post(CONFIG.txFn,baseBody("notifications"));
+  const rows=n.rows||[];
+  modal("التنبيهات",rows.length?rows.map(x=>'<div class="action-item"><div class="action-top"><span>'+esc(x.title)+'</span><span>'+esc(fmtDate(x.created_at))+'</span></div><div class="action-text">'+esc(x.body||"")+'</div></div>').join(""):'<div class="empty">لا توجد تنبيهات</div>');
+}
+function copyWhatsApp(d){
+  const t=d.transaction;
+  const text=['*'+t.title+'*','رقم المعاملة: '+t.number,'الأولوية: '+t.priority,'الحالة: '+(t.status==="closed"?"مغلقة":"مفتوحة"),t.subject?'الموضوع: '+t.subject:""].filter(Boolean).join("\n");
+  navigator.clipboard.writeText(text);
+}
+function xmlCell(v){return '<Cell><Data ss:Type="String">'+String(v??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")+'</Data></Cell>'}
+function download(name,type,content){
+  const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([content],{type}));a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1000);
+}
+function excelXml(rows){
+  return '<?xml version="1.0"?><?mso-application progid="Excel.Sheet"?><Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"><Worksheet ss:Name="المعاملات"><Table>'+rows.map(r=>'<Row>'+r.map(xmlCell).join("")+'</Row>').join("")+'</Table></Worksheet></Workbook>';
+}
+function exportListExcel(){
+  const rows=[["رقم المعاملة","عنوان المعاملة","الإدارة المسؤولة","مسؤول المعاملة","الأولوية","الحالة","عدد الأيام","آخر تحديث"],...(listData.rows||[]).map(r=>[r.number,r.title,r.responsible_unit_name||"",r.responsible_name||"",r.priority,r.status,r.days,fmtDate(r.last_activity_at)])];
+  download("المعاملات.xls","application/vnd.ms-excel;charset=utf-8",excelXml(rows));
+}
+function exportTransactionExcel(d){
+  const t=d.transaction,rows=[
+    ["رقم المعاملة",t.number],["عنوان المعاملة",t.title],["موضوع المعاملة",t.subject||""],["الأولوية",t.priority],["الحالة",t.status],["مسؤول المعاملة",t.responsible_name||""],["تاريخ الإنشاء",fmtDate(t.created_at)],["تاريخ الاستحقاق",fmtDate(t.due_at)],
+    [],["إجراءات العمل"],["التاريخ","بواسطة","الإجراء"],...(d.actions||[]).map(a=>[fmtDate(a.created_at),a.actor_name||"",a.action_text||""]),
+    [],["السجل"],["التاريخ","الحدث","بواسطة","التفاصيل"],...(d.history||[]).map(h=>[fmtDate(h.created_at),h.event_type,h.actor_name||"",h.detail||""])
+  ];
+  download("معاملة-"+t.number+".xls","application/vnd.ms-excel;charset=utf-8",excelXml(rows));
+}
+function printHtml(title,body){
+  const w=window.open("","_blank");if(!w)return;
+  w.document.write('<!doctype html><html dir="rtl" lang="ar"><head><meta charset="utf-8"><title>'+esc(title)+'</title><style>body{font-family:Tahoma,Arial;padding:28px;color:#1f2937}h1{color:#0f2b4d}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ddd;padding:7px;text-align:right}th{background:#0E7490;color:white}.sec{margin-top:24px}</style></head><body>'+body+'</body></html>');
+  w.document.close();w.focus();setTimeout(()=>w.print(),200);
+}
+function printList(){
+  const rows=(listData.rows||[]).map(r=>'<tr><td>'+esc(r.number)+'</td><td>'+esc(r.title)+'</td><td>'+esc(r.responsible_unit_name||"")+'</td><td>'+esc(r.priority)+'</td><td>'+esc(r.status)+'</td></tr>').join("");
+  printHtml("المعاملات",'<h1>المعاملات</h1><table><thead><tr><th>الرقم</th><th>العنوان</th><th>الإدارة</th><th>الأولوية</th><th>الحالة</th></tr></thead><tbody>'+rows+'</tbody></table>');
+}
+function printTransaction(d){
+  const t=d.transaction;
+  const acts=(d.actions||[]).map(a=>'<tr><td>'+esc(fmtDate(a.created_at))+'</td><td>'+esc(a.actor_name||"")+'</td><td>'+esc(a.action_text||"")+'</td></tr>').join("");
+  const routes=(d.routes||[]).map(r=>'<tr><td>'+esc(fmtDate(r.created_at))+'</td><td>'+esc(r.from_name||"")+'</td><td>'+esc(r.to_name||"")+'</td><td>'+esc(r.directive||r.raise_reason||r.transfer_reason||"")+'</td></tr>').join("");
+  printHtml("معاملة "+t.number,'<h1>'+esc(t.title)+'</h1><table><tr><th>رقم المعاملة</th><td>'+esc(t.number)+'</td></tr><tr><th>الموضوع</th><td>'+esc(t.subject||"")+'</td></tr><tr><th>الأولوية</th><td>'+esc(t.priority)+'</td></tr></table><h2 class="sec">إجراءات العمل</h2><table><tr><th>التاريخ</th><th>بواسطة</th><th>الإجراء</th></tr>'+acts+'</table><h2 class="sec">الإحالات والتوجيهات</h2><table><tr><th>التاريخ</th><th>من</th><th>إلى</th><th>التفاصيل</th></tr>'+routes+'</table>');
+}
+async function logout(){clearSession();directoryData={users:[],units:[],me:null};listData={rows:[]};currentTab="";loginView()}
 
 loadSession();
 boot();

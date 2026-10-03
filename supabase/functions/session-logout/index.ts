@@ -2,6 +2,8 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
 const LEGACY_FN="https://urgkbbconlxeagfgyjee.supabase.co/functions/v1";
 const LEGACY_AUTH="https://urgkbbconlxeagfgyjee.supabase.co";
+const NEW_AUTH=Deno.env.get("SUPABASE_URL")!+"/auth/v1";
+const NEW_PUBLIC=Deno.env.get("SUPABASE_ANON_KEY")!;
 const LEGACY_PUBLIC="sb_publishable_76BLD35YhIoDSI8d-qdp7A_EWhsjEVT";
 
 function cors(req:Request){
@@ -36,6 +38,11 @@ Deno.serve(async(req:Request)=>{
       await fetch(LEGACY_AUTH+"/auth/v1/logout",{
         method:"POST",
         headers:{apikey:LEGACY_PUBLIC,Authorization:"Bearer "+token}
+      });
+    }else if(app==="new"){
+      await fetch(NEW_AUTH+"/logout",{
+        method:"POST",
+        headers:{apikey:NEW_PUBLIC,Authorization:"Bearer "+token}
       });
     }
   }catch{}

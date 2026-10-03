@@ -359,6 +359,7 @@ Deno.serve(async(req:Request)=>{
   let b:any;try{b=await req.json()}catch{return out(req,{error:"bad_request"},400)}
   const who=await identity(clean(b.app),clean(b.token));
   if(!who)return out(req,{error:"unauthorized"},401);
+  const directoryDataCache=await directory();
   const action=clean(b.action);
 
   try{
@@ -406,6 +407,15 @@ Deno.serve(async(req:Request)=>{
       if(q)rows=rows.filter(r=>[r.number,r.title,r.responsible_name,r.responsible_unit_name,...r.current_assignees].join(" ").toLowerCase().includes(q));
       const pri=clean(b.priority);if(pri)rows=rows.filter(r=>r.priority===pri);
       const st=clean(b.status);if(st)rows=rows.filter(r=>r.status===st);
+      const dep=clean(b.department);if(dep)rows=rows.filter(r=>r.responsible_unit_name===dep);
+      const emp=clean(b.employee);if(emp)rows=rows.filter(r=>r.responsible_login_name===emp||(r.current_assignees||[]).some((n:string)=>{
+        const u=(directoryDataCache||[]).find((x:any)=>x.login_name===emp);return u?u.display_name===n:false;
+      }));
+      const origin=clean(b.origin);if(origin)rows=rows.filter(r=>r.origin===origin);
+      if(b.late_only===true)rows=rows.filter(r=>r.late===true);
+      const from=clean(b.date_from),to=clean(b.date_to);
+      if(from){const d=new Date(from+"T00:00:00");rows=rows.filter(r=>new Date(r.created_at)>=d)}
+      if(to){const d=new Date(to+"T23:59:59");rows=rows.filter(r=>new Date(r.created_at)<=d)}
       if(tab==="scope")rows.sort((a,b)=>+new Date(a.created_at)-+new Date(b.created_at));
       else if(tab==="closed")rows.sort((a,b)=>+new Date(b.closed_at||0)-+new Date(a.closed_at||0));
       else rows.sort((a,b)=>+new Date(b.created_at)-+new Date(a.created_at));

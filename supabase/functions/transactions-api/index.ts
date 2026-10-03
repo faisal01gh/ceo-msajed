@@ -7,6 +7,10 @@ const db=createClient(URL,KEY,{auth:{persistSession:false,autoRefreshToken:false
 const LEGACY="https://urgkbbconlxeagfgyjee.supabase.co/functions/v1";
 const LEGACY_PROJECT="https://urgkbbconlxeagfgyjee.supabase.co";
 const LEGACY_PUBLIC="sb_publishable_76BLD35YhIoDSI8d-qdp7A_EWhsjEVT";
+const CACHE_MS=60000;
+let directoryCache:{at:number,data:any[]}={at:0,data:[]};
+let unitsCache:{at:number,data:any[]}={at:0,data:[]};
+const identityCache=new Map<string,{at:number,who:Who}>();
 
 type Who={
   app:string;
@@ -88,89 +92,83 @@ async function legacyCall(app:string,body:any){
   return {ok:r.ok,data};
 }
 async function directory(){
-  const [legacy,authdir]=await Promise.all([
-    db.from("legacy_login_credentials")
-      .select("username,source,display_name,legacy_role,job_title,org_name,dept_name,dept_names,active,migrated_user_id")
-      .eq("active",true).order("display_name"),
-    db.from("legacy_auth_directory")
-      .select("legacy_user_id,login_name,display_name,legacy_role,job_title,sectors,dept_names,active")
-      .eq("active",true).order("display_name")
-  ]);
-  if(legacy.error)throw legacy.error;
-  if(authdir.error)throw authdir.error;
-  const a=(legacy.data||[]).map((u:any)=>({
-    login_name:u.username,
-    display_name:u.display_name||u.username,
-    role:roleMap(u.source,u.legacy_role||"",u.job_title||"",u.org_name||""),
-    legacy_role:u.legacy_role||"",
+  const now=Date.now();
+  if(directoryCache.data.length&&now-directoryCache.at<CACHE_MS)return directoryCache.data;
+  const {data,error}=await db.from("account_migration_users")
+    .select("canonical_key,preferred_login,display_name,role_code,job_title,org_name,dept_names,migrated_user_id,eligible")
+    .eq("eligible",true).order("display_name");
+  if(error)throw error;
+  const rows=(data||[]).map((u:any)=>({
+    canonical_key:u.canonical_key,
+    login_name:u.preferred_login,
+    display_name:u.display_name,
+    role:u.role_code,
+    legacy_role:"",
     job_title:u.job_title||"",
     org_name:u.org_name||"",
-    dept_name:canonicalDept(u.dept_name||""),
+    dept_name:arr(u.dept_names)[0]||(["ceo","ceo_office_manager","ceo_secretary"].includes(u.role_code)?"مكتب الرئيس التنفيذي":""),
     dept_names:arr(u.dept_names).map(canonicalDept),
     user_id:u.migrated_user_id||null,
-    source:u.source
+    source:"migration_registry"
   }));
-  const b=(authdir.data||[]).map((u:any)=>{
-    const role=authRole(u.legacy_role||"",u.job_title||"");
-    const depts=arr(u.dept_names).map(canonicalDept);
-    return {
-      login_name:u.login_name,
-      display_name:u.display_name||u.login_name,
-      role,legacy_role:u.legacy_role||"",job_title:u.job_title||"",
-      org_name:authOrg(u,role),
-      dept_name:depts[0]||(["ceo","ceo_office_manager","ceo_secretary"].includes(role)?"مكتب الرئيس التنفيذي":""),
-      dept_names:depts,
-      user_id:null,
-      legacy_user_id:u.legacy_user_id,
-      source:"legacy_auth"
-    };
-  });
-  return [...a,...b];
+  directoryCache={at:now,data:rows};
+  return rows;
 }
 async function identity(app:string,token:string):Promise<Who|null>{
   if(!token)return null;
+  const cacheKey=app+":"+token;
+  const cached=identityCache.get(cacheKey);
+  if(cached&&Date.now()-cached.at<CACHE_MS)return cached.who;
   const dir=await directory();
+  let who:Who|null=null;
+
   if(app==="auth"){
     const u=await fetch(LEGACY_PROJECT+"/auth/v1/user",{
       headers:{apikey:LEGACY_PUBLIC,Authorization:"Bearer "+token}
     });
     if(!u.ok)return null;
     const user=await u.json().catch(()=>null);
-    const email=clean(user?.email);
+    const email=clean(user?.email).toLowerCase();
     if(!email)return null;
-    const hit=dir.find((x:any)=>x.source==="legacy_auth"&&x.login_name===email);
-    if(!hit)return null;
-    return {
-      app,login_name:hit.login_name,display_name:hit.display_name,role:hit.role,
-      org_name:hit.org_name,dept_name:hit.dept_name,dept_names:hit.dept_names
-    };
-  }
-  if(app==="ceo"){
+    const {data:a}=await db.from("account_migration_aliases").select("canonical_key")
+      .eq("alias",email).eq("active",true).maybeSingle();
+    const hit=a?dir.find((x:any)=>x.canonical_key===a.canonical_key):null;
+    if(hit)who={app,login_name:hit.login_name,display_name:hit.display_name,role:hit.role,
+      org_name:hit.org_name,dept_name:hit.dept_name,dept_names:hit.dept_names};
+  }else if(app==="ceo"){
     const r=await legacyCall("ceo",{action:"whoami",token});
     if(!r.ok||!r.data?.ok)return null;
     const hit=dir.find((u:any)=>u.login_name===r.data.username);
     const role=hit?.role||(r.data.role==="ceo"?"ceo_office_manager":"ceo_secretary");
-    return {
-      app,login_name:r.data.username,display_name:hit?.display_name||r.data.username,role,
-      org_name:"مكتب الرئيس التنفيذي",dept_name:"مكتب الرئيس التنفيذي",dept_names:["مكتب الرئيس التنفيذي"]
-    };
+    who={app,login_name:r.data.username,display_name:hit?.display_name||r.data.username,role,
+      org_name:"مكتب الرئيس التنفيذي",dept_name:"مكتب الرئيس التنفيذي",dept_names:["مكتب الرئيس التنفيذي"]};
+  }else if(app==="portal"){
+    const r=await legacyCall("portal",{action:"pdata",token});
+    if(!r.ok||!r.data?.ok)return null;
+    const display=clean(r.data.display_name),org=clean(r.data.org_name);
+    const {data:legacyUser}=await db.from("legacy_login_credentials").select("username")
+      .eq("display_name",display).eq("org_name",org).eq("active",true).limit(1).maybeSingle();
+    let hit:any=null;
+    if(legacyUser?.username){
+      const {data:a}=await db.from("account_migration_aliases").select("canonical_key")
+        .eq("source","portal_users").eq("source_login",legacyUser.username).eq("active",true).limit(1).maybeSingle();
+      if(a)hit=dir.find((x:any)=>x.canonical_key===a.canonical_key);
+    }
+    const role=hit?.role||(r.data.role==="manager"?"manager":r.data.role==="employee"?"employee":"assistant");
+    who={app,login_name:hit?.login_name||legacyUser?.username||display,display_name:hit?.display_name||display,
+      role,org_name:hit?.org_name||org,dept_name:hit?.dept_name||canonicalDept(r.data.dept_name),
+      dept_names:hit?.dept_names||(arr(r.data.dept_names).length?arr(r.data.dept_names).map(canonicalDept):[])};
   }
-  const r=await legacyCall("portal",{action:"pdata",token});
-  if(!r.ok||!r.data?.ok)return null;
-  const display=clean(r.data.display_name);
-  const org=clean(r.data.org_name);
-  const hit=dir.find((u:any)=>u.display_name===display&&(u.org_name===org||!u.org_name));
-  const role=hit?.role||(r.data.role==="manager"?"manager":r.data.role==="employee"?"employee":"assistant");
-  return {
-    app,login_name:hit?.login_name||display,display_name:display||hit?.display_name||"",
-    role,org_name:org||hit?.org_name||"",dept_name:canonicalDept(r.data.dept_name)||hit?.dept_name||"",
-    dept_names:arr(r.data.dept_names).length?arr(r.data.dept_names).map(canonicalDept):(hit?.dept_names||[])
-  };
+  if(who)identityCache.set(cacheKey,{at:Date.now(),who});
+  return who;
 }
 async function units(){
+  const now=Date.now();
+  if(unitsCache.data.length&&now-unitsCache.at<CACHE_MS)return unitsCache.data;
   const {data,error}=await db.from("organizational_units").select("id,name,unit_type,parent_id,active").eq("active",true);
   if(error)throw error;
-  return data||[];
+  unitsCache={at:now,data:data||[]};
+  return unitsCache.data;
 }
 function descendantIds(all:any[],rootId:string){
   const set=new Set<string>([rootId]);
@@ -429,7 +427,7 @@ async function createRequest(who:Who,tx:any,type:string,reason:string,extra:any=
 }
 
 Deno.serve(async(req:Request)=>{
-  if(req.method==="GET")return out(req,{ok:true,service:"transactions-api",version:17});
+  if(req.method==="GET")return out(req,{ok:true,service:"transactions-api",version:18});
   if(req.method==="OPTIONS")return new Response("ok",{headers:cors(req)});
   if(req.method!=="POST")return out(req,{error:"method_not_allowed"},405);
   let b:any;try{b=await req.json()}catch{return out(req,{error:"bad_request"},400)}
@@ -462,67 +460,34 @@ Deno.serve(async(req:Request)=>{
     }
 
     if(action==="list"){
-      const ctx=await txContext();
-      const asBy=byKey(ctx.assignments,"transaction_id"),tgBy=byKey(ctx.targets,"assignment_id"),rtBy=byKey(ctx.routes,"transaction_id"),rqBy=byKey(ctx.requests,"transaction_id");
-      const scope=scopeOf(who,ctx.units);const unitMap=new Map(ctx.units.map((u:any)=>[u.id,u]));
-      let rows:any[]=[];
-      for(const tx of ctx.txs){
-        const assigns=asBy.get(tx.id)||[],routes=rtBy.get(tx.id)||[];
-        const f=flagsFor(who,tx,assigns,tgBy,routes,scope,unitMap);
-        if(!f.visible)continue;
-        const activeTargets=assigns.flatMap((a:any)=>(tgBy.get(a.id)||[]).filter((t:any)=>a.status==="active"&&t.active));
-        const supportCount=assigns.filter((a:any)=>a.assignment_type==="supporting"&&a.status==="active").length;
-        const responsibleUnit=tx.responsible_unit_id?unitMap.get(tx.responsible_unit_id)?.name:null;
-        const pendingTransfer=routes.find((r:any)=>r.route_type==="assistant_transfer"&&r.status==="pending"&&r.to_login_name===who.login_name)||null;
-        const pendingRequests=(rqBy.get(tx.id)||[]).filter((r:any)=>r.status==="pending");
-        rows.push({...tx,flags:f,current_assignees:unique(activeTargets.map((t:any)=>t.display_name)),
-          supporting_count:supportCount,responsible_unit_name:responsibleUnit||tx.legacy_department_name||null,
-          days:activeDays(tx),late:late(tx),can_act:canAct(who,tx,f),can_close:canClose(who,tx,f),
-          close_authority:closeAuthority(tx),pending_transfer:pendingTransfer,pending_requests_count:pendingRequests.length});
-      }
-      const visibleRows=[...rows];
-      const {count:unreadNotifications}=await db.from("notifications").select("id",{count:"exact",head:true}).eq("target_login_name",who.login_name).is("read_at",null);
-      const visibleById=new Map(visibleRows.map((r:any)=>[r.id,r]));
-      const pendingApprovals=ctx.requests.filter((r:any)=>{
-        if(r.status!=="pending")return false;
-        const tx:any=visibleById.get(r.transaction_id);if(!tx)return false;
-        const requesterRole=clean(r.meta?.requester_role);
-        if(isExec(who.role))return true;
-        if(who.role==="assistant")return tx.flags.scope&&["employee","manager"].includes(requesterRole);
-        if(who.role==="manager")return tx.flags.scope&&requesterRole==="employee";
-        return false;
-      }).length;
-      const counters={
-        incoming:visibleRows.filter(r=>r.flags.incoming&&r.status==="open").length,
-        late:visibleRows.filter(r=>r.late).length,
-        pending_approval:pendingApprovals,
-        closed_today:visibleRows.filter(r=>r.status==="closed"&&r.closed_at&&new Date(r.closed_at).toDateString()===new Date().toDateString()).length,
-        notifications:Number(unreadNotifications||0)
-      };
-      const tab=clean(b.tab)||"all";
-      rows=visibleRows.filter(r=>tab==="all"?true:tab==="incoming"?r.flags.incoming:tab==="shared"?r.flags.shared:
-        tab==="scope"?r.flags.scope:tab==="ceo"?r.flags.ceo:tab==="ceo_view"?r.ceo_attention===true:
-        tab==="closed"?r.status==="closed":true);
-      if(tab!=="closed")rows=rows.filter(r=>r.status!=="closed");
-      const q=clean(b.search).toLowerCase();
-      if(q)rows=rows.filter(r=>[r.number,r.title,r.responsible_name,r.responsible_unit_name,...r.current_assignees].join(" ").toLowerCase().includes(q));
-      const pri=clean(b.priority);if(pri)rows=rows.filter(r=>r.priority===pri);
-      const st=clean(b.status);if(st)rows=rows.filter(r=>r.status===st);
-      const dep=clean(b.department);if(dep)rows=rows.filter(r=>r.responsible_unit_name===dep);
-      const emp=clean(b.employee);if(emp)rows=rows.filter(r=>r.responsible_login_name===emp||(r.current_assignees||[]).some((n:string)=>{
-        const u=(directoryDataCache||[]).find((x:any)=>x.login_name===emp);return u?u.display_name===n:false;
-      }));
-      const origin=clean(b.origin);if(origin)rows=rows.filter(r=>r.origin===origin);
-      if(b.late_only===true)rows=rows.filter(r=>r.late===true);
-      const from=clean(b.date_from),to=clean(b.date_to);
-      if(from){const d=new Date(from+"T00:00:00");rows=rows.filter(r=>new Date(r.created_at)>=d)}
-      if(to){const d=new Date(to+"T23:59:59");rows=rows.filter(r=>new Date(r.created_at)<=d)}
-      if(tab==="scope")rows.sort((a,b)=>+new Date(a.created_at)-+new Date(b.created_at));
-      else if(tab==="closed")rows.sort((a,b)=>+new Date(b.closed_at||0)-+new Date(a.closed_at||0));
-      else rows.sort((a,b)=>+new Date(b.created_at)-+new Date(a.created_at));
-      const page=Math.max(1,Number(b.page)||1),size=Math.min(100,Math.max(10,Number(b.page_size)||50));
-      const total=rows.length;const start=(page-1)*size;
-      return out(req,{ok:true,me:who,total,page,page_size:size,counters,rows:rows.slice(start,start+size)});
+      const [listed,notif]=await Promise.all([
+        db.rpc("list_transactions_internal",{
+          p_login:who.login_name,
+          p_name:who.display_name,
+          p_role:who.role,
+          p_org:who.org_name,
+          p_depts:who.dept_names,
+          p_tab:clean(b.tab)||"all",
+          p_search:clean(b.search),
+          p_priority:clean(b.priority),
+          p_status:clean(b.status),
+          p_department:clean(b.department),
+          p_employee:clean(b.employee),
+          p_origin:clean(b.origin),
+          p_late_only:b.late_only===true,
+          p_date_from:clean(b.date_from)||null,
+          p_date_to:clean(b.date_to)||null,
+          p_page:Math.max(1,Number(b.page)||1),
+          p_page_size:Math.min(100,Math.max(10,Number(b.page_size)||50))
+        }),
+        db.from("notifications").select("id",{count:"exact",head:true})
+          .eq("target_login_name",who.login_name).is("read_at",null)
+      ]);
+      if(listed.error)throw listed.error;
+      const result:any=listed.data||{ok:true,total:0,page:1,page_size:50,counters:{},rows:[]};
+      result.me=who;
+      result.counters={...(result.counters||{}),notifications:Number(notif.count||0)};
+      return out(req,result);
     }
 
     if(action==="details"){

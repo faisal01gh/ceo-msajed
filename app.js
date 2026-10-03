@@ -546,6 +546,7 @@ async function openDetails(id){
   }).join("")||'<div class="muted">—</div>';
   const versionsByAction=new Map();
   for(const v of d.action_versions||[]){if(!versionsByAction.has(v.action_id))versionsByAction.set(v.action_id,[]);versionsByAction.get(v.action_id).push(v)}
+  const canDecide=["manager","assistant","ceo","ceo_office_manager","ceo_secretary"].includes(session.role);
   const actions=(d.actions||[]).map(a=>{
     const vs=versionsByAction.get(a.id)||[];
     const history=vs.length>1?'<div class="version-list">'+vs.map(v=>'<div>نسخة '+esc(v.version_no)+': '+esc(v.body)+(v.decision_status?'<br>'+esc(v.decision_status==="rejected"?"مرفوض":"معتمد")+(v.decision_reason?" — "+esc(v.decision_reason):""):"")+'</div>').join("")+'</div>':"";
@@ -555,7 +556,6 @@ async function openDetails(id){
   }).join("")||'<div class="muted">—</div>';
   const periods=(d.periods||[]).map(p=>'<div class="action-item"><div class="action-top"><span>الدورة '+esc(p.cycle_no)+'</span><span>'+esc(p.ended_at?(p.duration_days||"—")+" يوم":"مستمرة")+'</span></div><div class="action-text">'+esc(fmtDate(p.started_at))+(p.ended_at?" — "+esc(fmtDate(p.ended_at)):"")+'</div></div>').join("");
   const routes=(d.routes||[]).map(r=>'<div class="action-item"><div class="action-top"><span>'+esc(r.from_name||"—")+' → '+esc(r.to_name||"—")+'</span><span>'+esc(fmtDate(r.created_at))+'</span></div><div class="action-text">'+esc(r.directive||r.raise_reason||r.transfer_reason||"")+(r.proposed_decision?'<br>القرار المقترح: '+esc(r.proposed_decision):"")+(r.rejection_reason?'<br>سبب الرفض: '+esc(r.rejection_reason):"")+'</div></div>').join("")||'<div class="muted">—</div>';
-  const canDecide=["manager","assistant","ceo","ceo_office_manager","ceo_secretary"].includes(session.role);
   const requests=(d.requests||[]).map(r=>'<div class="action-item"><div class="action-top"><span>'+esc(r.requested_by_name||"—")+'</span><span>'+esc(fmtDate(r.created_at))+'</span></div><div class="action-text">'+esc(r.reason||"")+'</div>'+(r.status==="pending"&&canDecide?'<div class="request-actions"><button class="row-btn btn-green" data-request-approve="'+r.id+'">اعتماد</button><button class="row-btn btn-red" data-request-reject="'+r.id+'">رفض</button></div>':'<div class="badge '+(r.status==="approved"?"st-open":r.status==="rejected"?"pri-vh":"pri-n")+'">'+esc(r.status==="approved"?"معتمد":r.status==="rejected"?"مرفوض":"قيد الانتظار")+'</div>')+'</div>').join("")||'<div class="muted">—</div>';
   const hist=(d.history||[]).map(h=>'<div class="action-item"><div class="action-top"><span>'+esc(h.actor_name||"—")+'</span><span>'+esc(fmtDate(h.created_at))+'</span></div><div class="action-text">'+esc(h.detail||h.event_type||"")+'</div></div>').join("")||'<div class="muted">—</div>';
   const w=modal(t.title,`

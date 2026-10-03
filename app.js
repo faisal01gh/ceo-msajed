@@ -196,7 +196,7 @@ function passwordChangeView(ctx){
     if(p!==p2){msg.textContent="كلمتا المرور غير متطابقتين";return}
     btn.disabled=true;msg.textContent="";
     try{
-      const upd=await fetch(CONFIG.supabaseUrl+"/auth/v1/user",{
+      const {r:upd}=await fetchJson(CONFIG.supabaseUrl+"/auth/v1/user",{
         method:"PUT",
         headers:{"Content-Type":"application/json","apikey":CONFIG.publishableKey,Authorization:"Bearer "+ctx.auth.access_token},
         body:JSON.stringify({password:p})

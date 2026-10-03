@@ -346,7 +346,7 @@ async function createRequest(who:Who,tx:any,type:string,reason:string,extra:any=
 }
 
 Deno.serve(async(req:Request)=>{
-  if(req.method==="GET")return out(req,{ok:true,service:"transactions-api",version:5});
+  if(req.method==="GET")return out(req,{ok:true,service:"transactions-api",version:6});
   if(req.method==="OPTIONS")return new Response("ok",{headers:cors(req)});
   if(req.method!=="POST")return out(req,{error:"method_not_allowed"},405);
   let b:any;try{b=await req.json()}catch{return out(req,{error:"bad_request"},400)}
@@ -372,13 +372,25 @@ Deno.serve(async(req:Request)=>{
         const activeTargets=assigns.flatMap((a:any)=>(tgBy.get(a.id)||[]).filter((t:any)=>a.status==="active"&&t.active));
         const supportCount=assigns.filter((a:any)=>a.assignment_type==="supporting"&&a.status==="active").length;
         const responsibleUnit=tx.responsible_unit_id?unitMap.get(tx.responsible_unit_id)?.name:null;
+        const pendingTransfer=routes.find((r:any)=>r.route_type==="assistant_transfer"&&r.status==="pending"&&r.to_login_name===who.login_name)||null;
+        const {count:pendingRequests}=await db.from("transaction_requests").select("id",{count:"exact",head:true}).eq("transaction_id",tx.id).eq("status","pending");
         rows.push({...tx,flags:f,current_assignees:unique(activeTargets.map((t:any)=>t.display_name)),
           supporting_count:supportCount,responsible_unit_name:responsibleUnit||tx.legacy_department_name||null,
           days:activeDays(tx),late:late(tx),can_act:canAct(who,tx,f),can_close:canClose(who,tx,f),
-          close_authority:closeAuthority(tx)});
+          close_authority:closeAuthority(tx),pending_transfer:pendingTransfer,pending_requests_count:Number(pendingRequests||0)});
       }
+      const visibleRows=[...rows];
+      const {count:unreadNotifications}=await db.from("notifications").select("id",{count:"exact",head:true}).eq("target_login_name",who.login_name).is("read_at",null);
+      const {count:pendingApprovals}=await db.from("transaction_requests").select("id",{count:"exact",head:true}).eq("status","pending");
+      const counters={
+        incoming:visibleRows.filter(r=>r.flags.incoming&&r.status==="open").length,
+        late:visibleRows.filter(r=>r.late).length,
+        pending_approval:Number(pendingApprovals||0),
+        closed_today:visibleRows.filter(r=>r.status==="closed"&&r.closed_at&&new Date(r.closed_at).toDateString()===new Date().toDateString()).length,
+        notifications:Number(unreadNotifications||0)
+      };
       const tab=clean(b.tab)||"all";
-      rows=rows.filter(r=>tab==="all"?true:tab==="incoming"?r.flags.incoming:tab==="shared"?r.flags.shared:
+      rows=visibleRows.filter(r=>tab==="all"?true:tab==="incoming"?r.flags.incoming:tab==="shared"?r.flags.shared:
         tab==="scope"?r.flags.scope:tab==="ceo"?r.flags.ceo:tab==="ceo_view"?r.ceo_attention===true:
         tab==="closed"?r.status==="closed":true);
       if(tab!=="closed")rows=rows.filter(r=>r.status!=="closed");
@@ -389,12 +401,6 @@ Deno.serve(async(req:Request)=>{
       if(tab==="scope")rows.sort((a,b)=>+new Date(a.created_at)-+new Date(b.created_at));
       else if(tab==="closed")rows.sort((a,b)=>+new Date(b.closed_at||0)-+new Date(a.closed_at||0));
       else rows.sort((a,b)=>+new Date(b.created_at)-+new Date(a.created_at));
-      const counters={
-        incoming:rows.filter(r=>r.flags.incoming&&r.status==="open").length,
-        late:rows.filter(r=>r.late).length,
-        pending_approval:0,
-        closed_today:rows.filter(r=>r.status==="closed"&&r.closed_at&&new Date(r.closed_at).toDateString()===new Date().toDateString()).length
-      };
       const page=Math.max(1,Number(b.page)||1),size=Math.min(100,Math.max(10,Number(b.page_size)||50));
       const total=rows.length;const start=(page-1)*size;
       return out(req,{ok:true,me:who,total,page,page_size:size,counters,rows:rows.slice(start,start+size)});
@@ -457,7 +463,7 @@ Deno.serve(async(req:Request)=>{
       if(decision==="rejected"&&!reason)return out(req,{error:"reason_required"},400);
       await db.from("transaction_actions").update({status:decision,updated_at:new Date().toISOString()}).eq("id",actionId);
       await db.from("transaction_action_versions").update({
-        decision_status:decision,decision_reason:reason||null,decision_at:new Date().toISOString()
+        decision_status:decision,decision_reason:reason||null,decision_by_name:who.display_name,decision_at:new Date().toISOString()
       }).eq("action_id",actionId).eq("version_no",act.current_version);
       await history(act.transaction_id,"action_"+decision,who,reason||decision,{action_id:actionId});
       return out(req,{ok:true});
@@ -532,12 +538,26 @@ Deno.serve(async(req:Request)=>{
       if(!id||!responsibleUnit||!directive||!responsibleTargets.length)return out(req,{error:"missing"},400);
       if(!(await scopeCheck(who,responsibleUnit)))return out(req,{error:"forbidden_scope"},403);
       const a=await txAccess(who,id);if(!a||!a.flags.visible)return out(req,{error:"forbidden"},403);
+      const dir=await directory();
+      const allUnits=await units();
+      const responsibleUnitRow=allUnits.find((u:any)=>u.id===responsibleUnit);
+      if(!responsibleUnitRow)return out(req,{error:"invalid_unit"},400);
+      for(const login of responsibleTargets){
+        const u=dir.find((x:any)=>x.login_name===login);
+        if(!u||!u.dept_names.includes(responsibleUnitRow.name))return out(req,{error:"forbidden_target"},403);
+      }
       await completeActive(id);
       await addAssignment(id,responsibleUnit,"responsible",directive,responsibleTargets,null,who);
       for(const s of supports){
         const unitId=clean(s.unit_id),dir=clean(s.directive),targets=unique(arr(s.targets).map(String).filter(Boolean));
         if(!unitId||!dir||!targets.length)return out(req,{error:"invalid_supporting"},400);
         if(!(await scopeCheck(who,unitId)))return out(req,{error:"forbidden_scope"},403);
+        const unitRow=allUnits.find((u:any)=>u.id===unitId);
+        if(!unitRow)return out(req,{error:"invalid_unit"},400);
+        for(const login of targets){
+          const u=dir.find((x:any)=>x.login_name===login);
+          if(!u||!u.dept_names.includes(unitRow.name))return out(req,{error:"forbidden_target"},403);
+        }
         await addAssignment(id,unitId,"supporting",dir,targets,null,who);
       }
       await addRoute(id,"directive",who,{unit_id:responsibleUnit,name:""},{directive,meta:{responsible_targets:responsibleTargets,supporting:supports}});

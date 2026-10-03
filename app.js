@@ -223,7 +223,17 @@ async function boot(){
   if(!session){loginView();return}
   root.innerHTML='<div class="loading">جارٍ التحميل…</div>';
   try{
-    directoryData=await post(CONFIG.txFn,baseBody("directory"));
+    if(!currentTab)currentTab=defaultTab(session.role);
+    const [dir,list]=await Promise.all([
+      post(CONFIG.txFn,baseBody("directory")),
+      post(CONFIG.txFn,baseBody("list",{
+        tab:currentTab,search:searchText,priority:priorityFilter,status:statusFilter,
+        department:departmentFilter,employee:employeeFilter,origin:originFilter,late_only:lateOnly,
+        date_from:dateFrom,date_to:dateTo,page,page_size:50
+      }))
+    ]);
+    directoryData=dir;
+    listData=list;
     if(directoryData.me){
       session.role=directoryData.me.role||session.role;
       session.display_name=directoryData.me.display_name||session.display_name;
@@ -232,9 +242,12 @@ async function boot(){
       session.dept_names=directoryData.me.dept_names||session.dept_names;
       session.login_name=directoryData.me.login_name||session.username;
       saveSession();
+      const wanted=defaultTab(session.role);
+      if(!tabsFor(session.role).some(x=>x[0]===currentTab)){
+        currentTab=wanted;
+        await loadList();
+      }
     }
-    if(!currentTab)currentTab=defaultTab(session.role);
-    await loadList();
     renderApp();
   }catch(err){
     if(err.status===401){clearSession();loginView();return}

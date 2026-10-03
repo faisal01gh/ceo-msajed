@@ -122,7 +122,29 @@ async function identity(app:string,token:string):Promise<Who|null>{
   const dir=await directory();
   let who:Who|null=null;
 
-  if(app==="auth"){
+  if(app==="new"){
+    const auth=await db.auth.getUser(token);
+    if(auth.error||!auth.data.user)return null;
+    const userId=auth.data.user.id;
+    const [{data:p},{data:r},{data:m}]=await Promise.all([
+      db.from("profiles").select("login_name,full_name,active,must_change_password").eq("id",userId).maybeSingle(),
+      db.from("user_roles").select("role_code,is_primary").eq("user_id",userId).order("is_primary",{ascending:false}),
+      db.from("user_memberships").select("membership_role,is_primary,organizational_units(id,name,unit_type,parent_id)").eq("user_id",userId).eq("active",true)
+    ]);
+    if(!p?.active||p.must_change_password===true)return null;
+    const role=clean(r?.[0]?.role_code)||"employee";
+    const memberships=arr(m);
+    const deptNames=memberships.map((x:any)=>clean(x.organizational_units?.name)).filter(Boolean);
+    let org="";
+    if(["ceo","ceo_office_manager","ceo_secretary"].includes(role))org="مكتب الرئيس التنفيذي";
+    else if(role==="assistant")org=clean(memberships.find((x:any)=>x.membership_role==="assistant")?.organizational_units?.name);
+    else{
+      const mine=dir.find((x:any)=>x.login_name===p.login_name);
+      org=mine?.org_name||"";
+    }
+    who={app,login_name:clean(p.login_name),display_name:clean(p.full_name),role,org_name:org,
+      dept_name:deptNames[0]||"",dept_names:deptNames};
+  }else if(app==="auth"){
     const u=await fetch(LEGACY_PROJECT+"/auth/v1/user",{
       headers:{apikey:LEGACY_PUBLIC,Authorization:"Bearer "+token}
     });
@@ -427,7 +449,7 @@ async function createRequest(who:Who,tx:any,type:string,reason:string,extra:any=
 }
 
 Deno.serve(async(req:Request)=>{
-  if(req.method==="GET")return out(req,{ok:true,service:"transactions-api",version:18});
+  if(req.method==="GET")return out(req,{ok:true,service:"transactions-api",version:19});
   if(req.method==="OPTIONS")return new Response("ok",{headers:cors(req)});
   if(req.method!=="POST")return out(req,{error:"method_not_allowed"},405);
   let b:any;try{b=await req.json()}catch{return out(req,{error:"bad_request"},400)}

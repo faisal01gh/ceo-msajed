@@ -32,23 +32,46 @@ let page=1;
 let searchTimer=null;
 
 function esc(v){return String(v??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m]));}
+function safeUrl(v){
+  try{
+    const u=new URL(String(v||""));
+    return ["http:","https:"].includes(u.protocol)?u.href:"";
+  }catch{return ""}
+}
 function fmtDate(v){
   if(!v)return "—";
   const d=new Date(v);if(Number.isNaN(d.getTime()))return String(v);
   return new Intl.DateTimeFormat("ar-SA-u-ca-gregory",{year:"numeric",month:"2-digit",day:"2-digit"}).format(d);
 }
 function apiUrl(fn){return CONFIG.supabaseUrl+"/functions/v1/"+fn}
+async function fetchJson(url,options={},timeoutMs=15000){
+  const controller=new AbortController();
+  const timeoutId=setTimeout(()=>controller.abort(),timeoutMs);
+  try{
+    const r=await fetch(url,{...options,signal:controller.signal});
+    const data=await r.json().catch(()=>({}));
+    return {r,data};
+  }catch(err){
+    if(err?.name==="AbortError"){
+      const e=new Error("network_timeout");
+      e.code="NETWORK_TIMEOUT";
+      throw e;
+    }
+    throw err;
+  }finally{
+    clearTimeout(timeoutId);
+  }
+}
 async function refreshAuthSession(){
   if(!session||!["auth","new"].includes(session.app)||!session.refresh_token)return false;
   const isNew=session.app==="new";
   const url=(isNew?CONFIG.supabaseUrl:CONFIG.legacyAuthUrl)+"/auth/v1/token?grant_type=refresh_token";
   const key=isNew?CONFIG.publishableKey:CONFIG.legacyAuthKey;
-  const r=await fetch(url,{
+  const {r,data}=await fetchJson(url,{
     method:"POST",
     headers:{"Content-Type":"application/json","apikey":key},
     body:JSON.stringify({refresh_token:session.refresh_token})
   });
-  const data=await r.json().catch(()=>({}));
   if(!r.ok||!data.access_token)return false;
   session.token=data.access_token;
   session.refresh_token=data.refresh_token||session.refresh_token;
@@ -56,20 +79,18 @@ async function refreshAuthSession(){
   return true;
 }
 async function post(fn,body,retry=true){
-  let r=await fetch(apiUrl(fn),{
+  let {r,data}=await fetchJson(apiUrl(fn),{
     method:"POST",
     headers:{"Content-Type":"application/json","apikey":CONFIG.publishableKey},
     body:JSON.stringify(body)
   });
-  let data=await r.json().catch(()=>({}));
   if(r.status===401&&retry&&["auth","new"].includes(session?.app)&&await refreshAuthSession()){
     body={...body,token:session.token};
-    r=await fetch(apiUrl(fn),{
+    ({r,data}=await fetchJson(apiUrl(fn),{
       method:"POST",
       headers:{"Content-Type":"application/json","apikey":CONFIG.publishableKey},
       body:JSON.stringify(body)
-    });
-    data=await r.json().catch(()=>({}));
+    }));
   }
   if(!r.ok){const e=new Error(data.error||"request_failed");e.status=r.status;e.data=data;throw e}
   return data;
@@ -78,12 +99,10 @@ async function rpc(name,body={},retry=true){
   if(!session?.token)throw new Error("unauthorized");
   const url=CONFIG.supabaseUrl+"/rest/v1/rpc/"+name;
   const headers={"Content-Type":"application/json","apikey":CONFIG.publishableKey,Authorization:"Bearer "+session.token};
-  let r=await fetch(url,{method:"POST",headers,body:JSON.stringify(body)});
-  let data=await r.json().catch(()=>({}));
+  let {r,data}=await fetchJson(url,{method:"POST",headers,body:JSON.stringify(body)});
   if(r.status===401&&retry&&session?.app==="new"&&await refreshAuthSession()){
     headers.Authorization="Bearer "+session.token;
-    r=await fetch(url,{method:"POST",headers,body:JSON.stringify(body)});
-    data=await r.json().catch(()=>({}));
+    ({r,data}=await fetchJson(url,{method:"POST",headers,body:JSON.stringify(body)}));
   }
   if(!r.ok){const e=new Error(data.message||data.error||"request_failed");e.status=r.status;e.data=data;throw e}
   return data;
@@ -125,22 +144,20 @@ function loginView(){
   document.getElementById("username").focus();
 }
 async function signInNew(email,password){
-  const r=await fetch(CONFIG.supabaseUrl+"/auth/v1/token?grant_type=password",{
+  const {r,data}=await fetchJson(CONFIG.supabaseUrl+"/auth/v1/token?grant_type=password",{
     method:"POST",
     headers:{"Content-Type":"application/json","apikey":CONFIG.publishableKey},
     body:JSON.stringify({email,password})
   });
-  const data=await r.json().catch(()=>({}));
   return r.ok&&data.access_token?data:null;
 }
 async function signInLegacy(username,password){
   if(username.includes("@")){
-    const authRes=await fetch(CONFIG.legacyAuthUrl+"/auth/v1/token?grant_type=password",{
+    const {r:authRes,data:authData}=await fetchJson(CONFIG.legacyAuthUrl+"/auth/v1/token?grant_type=password",{
       method:"POST",
       headers:{"Content-Type":"application/json","apikey":CONFIG.legacyAuthKey},
       body:JSON.stringify({email:username,password})
     });
-    const authData=await authRes.json().catch(()=>({}));
     if(authRes.ok&&authData.access_token){
       return {app:"auth",token:authData.access_token,refresh_token:authData.refresh_token,
         display_name:authData.user?.user_metadata?.full_name||username,role:"auth"};
@@ -149,12 +166,11 @@ async function signInLegacy(username,password){
   return await post(CONFIG.loginFn,{username,password},false);
 }
 async function exchangeRecovery(tokenHash){
-  const r=await fetch(CONFIG.supabaseUrl+"/auth/v1/verify",{
+  const {r,data}=await fetchJson(CONFIG.supabaseUrl+"/auth/v1/verify",{
     method:"POST",
     headers:{"Content-Type":"application/json","apikey":CONFIG.publishableKey},
     body:JSON.stringify({type:"recovery",token_hash:tokenHash})
   });
-  const data=await r.json().catch(()=>({}));
   if(!r.ok||!data.access_token)throw new Error("recovery_failed");
   return data;
 }
@@ -311,10 +327,10 @@ function renderApp(){
     </nav>
 
     <div class="trx-stats">
-      <span>وارد جديد <b>${Number(listData.counters?.incoming||0)}</b></span>
-      <span>متأخر <b>${Number(listData.counters?.late||0)}</b></span>
-      <span>بانتظار اعتماد <b>${Number(listData.counters?.pending_approval||0)}</b></span>
-      <span>مغلق اليوم <b>${Number(listData.counters?.closed_today||0)}</b></span>
+      <span>وارد جديد <b id="statIncoming">${Number(listData.counters?.incoming||0)}</b></span>
+      <span>متأخر <b id="statLate">${Number(listData.counters?.late||0)}</b></span>
+      <span>بانتظار اعتماد <b id="statPending">${Number(listData.counters?.pending_approval||0)}</b></span>
+      <span>مغلق اليوم <b id="statClosedToday">${Number(listData.counters?.closed_today||0)}</b></span>
     </div>
     <div class="toolbar">
       <input class="field search" id="search" placeholder="بحث" value="${esc(searchText)}">
@@ -352,8 +368,8 @@ function renderApp(){
 
     <section class="card">
       <div class="card-head">
-        <span class="card-title">${esc(tabs.find(x=>x[0]===currentTab)?.[1]||"المعاملات")}</span>
-        <span class="count">${Number(listData.total||0)}</span>
+        <span class="card-title" id="cardTitle">${esc(tabs.find(x=>x[0]===currentTab)?.[1]||"المعاملات")}</span>
+        <span class="count" id="rowTotal">${Number(listData.total||0)}</span>
       </div>
       <div id="tableHost"></div>
       <div id="pagerHost"></div>
@@ -379,7 +395,32 @@ function renderApp(){
   renderTable();
   renderPager();
 }
-async function refresh(){await loadList();renderApp()}
+function renderListOnly(){
+  const tabs=tabsFor(session.role);
+  document.querySelectorAll("[data-tab]").forEach(b=>b.classList.toggle("active",b.dataset.tab===currentTab));
+  const cardTitle=document.getElementById("cardTitle");
+  if(cardTitle)cardTitle.textContent=tabs.find(x=>x[0]===currentTab)?.[1]||"المعاملات";
+  const rowTotal=document.getElementById("rowTotal");
+  if(rowTotal)rowTotal.textContent=String(Number(listData.total||0));
+  const notifBtn=document.getElementById("notifBtn");
+  if(notifBtn){
+    const unread=Number(listData?.counters?.notifications||0);
+    notifBtn.textContent="التنبيهات"+(unread?" ("+unread+")":"");
+  }
+  const stats={
+    statIncoming:listData.counters?.incoming,
+    statLate:listData.counters?.late,
+    statPending:listData.counters?.pending_approval,
+    statClosedToday:listData.counters?.closed_today
+  };
+  for(const [id,value] of Object.entries(stats)){
+    const el=document.getElementById(id);
+    if(el)el.textContent=String(Number(value||0));
+  }
+  renderTable();
+  renderPager();
+}
+async function refresh(){await loadList();renderListOnly()}
 function priorityClass(p){return p==="عاجل جدًا"?"pri-vh":p==="عاجل"?"pri-h":"pri-n"}
 function statusBadge(r){
   if(r.status==="closed")return ["مغلقة","st-closed"];
@@ -427,22 +468,25 @@ function renderTable(){
       }).join("")}
     </tbody>
   </table></div>`;
-  host.querySelectorAll("[data-act]").forEach(btn=>btn.onclick=()=>{
-    const a=btn.dataset.act,id=btn.dataset.id;
-    if(a==="open")openDetails(id);
-    if(a==="action")openAction(id);
-    if(a==="route")openReferral(id);
-    if(a==="close")openReason(btn.dataset.direct==="1"?"close":"request_close",id,btn.dataset.direct==="1"?"إغلاق":"طلب إغلاق");
-    if(a==="reopen"){
-      const row=(listData.rows||[]).find(x=>x.id===id);
-      const actionName=btn.dataset.direct==="1"?"reopen":"request_reopen";
-      const title=btn.dataset.direct==="1"?"استرجاع المعاملة":"طلب استرجاع";
-      if(row?.origin==="legacy"&&(!row.responsible_unit_id||!row.responsible_login_name))openLegacyReopen(actionName,id,title);
-      else openReason(actionName,id,title);
-    }
-    if(a==="accept-transfer")decideTransfer(btn.dataset.route,true);
-    if(a==="reject-transfer")decideTransfer(btn.dataset.route,false);
-  });
+}
+function handleTableActionClick(e){
+  const btn=e.target.closest?.("[data-act]");
+  if(!btn||!root.contains(btn))return;
+  e.preventDefault();
+  const a=btn.dataset.act,id=btn.dataset.id;
+  if(a==="open")return openDetails(id);
+  if(a==="action")return openAction(id);
+  if(a==="route")return openReferral(id);
+  if(a==="close")return openReason(btn.dataset.direct==="1"?"close":"request_close",id,btn.dataset.direct==="1"?"إغلاق":"طلب إغلاق");
+  if(a==="reopen"){
+    const row=(listData.rows||[]).find(x=>x.id===id);
+    const actionName=btn.dataset.direct==="1"?"reopen":"request_reopen";
+    const title=btn.dataset.direct==="1"?"استرجاع المعاملة":"طلب استرجاع";
+    if(row?.origin==="legacy"&&(!row.responsible_unit_id||!row.responsible_login_name))return openLegacyReopen(actionName,id,title);
+    return openReason(actionName,id,title);
+  }
+  if(a==="accept-transfer")return decideTransfer(btn.dataset.route,true);
+  if(a==="reject-transfer")return decideTransfer(btn.dataset.route,false);
 }
 function renderPager(){
   const h=document.getElementById("pagerHost"),total=Number(listData.total||0),size=Number(listData.page_size||50);
@@ -581,9 +625,9 @@ function employeesForUnit(unitId){
   const u=(directoryData.units||[]).find(x=>x.id===unitId);if(!u)return [];
   return (directoryData.users||[]).filter(x=>["employee","manager"].includes(x.role)&&x.dept_names.includes(u.name));
 }
-function supportBlock(index){
+function supportBlock(blockId){
   const units=sectorUnits();
-  return `<div class="support-block" data-support="${index}">
+  return `<div class="support-block" data-support="${blockId}">
     <label>الإدارة المساندة</label><select class="field s-unit">${units.map(u=>'<option value="'+u.id+'">'+esc(u.name)+'</option>').join("")}</select>
     <label>الموظفون</label><select class="field multi s-targets" multiple></select>
     <label>التوجيه</label><textarea class="field s-directive"></textarea>
@@ -606,9 +650,9 @@ function childAssistantScope(id){
   wireBack(w,id);
   const ru=w.querySelector("#responsibleUnit"),rt=w.querySelector("#responsibleTargets");
   const fill=()=>{rt.innerHTML=employeesForUnit(ru.value).map(u=>'<option value="'+esc(u.login_name)+'">'+esc(u.display_name)+'</option>').join("")};ru.onchange=fill;fill();
-  let n=0;
   w.querySelector("#addSupport").onclick=()=>{
-    const host=w.querySelector("#supports");host.insertAdjacentHTML("beforeend",supportBlock(++n));
+    const blockId="support-"+(crypto.randomUUID?.()||Date.now()+"-"+Math.random().toString(36).slice(2,8));
+    const host=w.querySelector("#supports");host.insertAdjacentHTML("beforeend",supportBlock(blockId));
     const b=host.lastElementChild;fillTargetSelect(b);b.querySelector(".s-unit").onchange=()=>fillTargetSelect(b);b.querySelector(".s-remove").onclick=()=>b.remove();
   };
   w.querySelector("#save").onclick=async()=>{
@@ -746,7 +790,7 @@ async function openDetails(id){
       <div class="detail"><div class="detail-k">الحالة</div><div class="detail-v">${esc(t.status==="closed"?"مغلقة":t.status==="cancelled"?"ملغاة":"مفتوحة")}</div></div>
     </div>
     <div class="section-title">موضوع المعاملة</div><div class="action-item"><div class="action-text">${esc(t.subject||"—")}</div></div>
-    ${t.attachment_url?'<div class="section-title">رابط المرفقات</div><a href="'+esc(t.attachment_url)+'" target="_blank" rel="noopener noreferrer">'+esc(t.attachment_url)+'</a>':""}
+    ${safeUrl(t.attachment_url)?'<div class="section-title">رابط المرفقات</div><a href="'+esc(safeUrl(t.attachment_url))+'" target="_blank" rel="noopener noreferrer">'+esc(t.attachment_url)+'</a>':""}
     ${periods?'<div class="section-title">المدة</div>'+periods:""}
     <div class="section-title">الإسناد والإدارات</div>${assignments}
     <div class="section-title">إجراءات العمل</div>${actions}
@@ -861,7 +905,11 @@ function copyWhatsApp(d){
   const text=['*'+t.title+'*','رقم المعاملة: '+t.number,'الأولوية: '+t.priority,'الحالة: '+(t.status==="closed"?"مغلقة":"مفتوحة"),t.subject?'الموضوع: '+t.subject:""].filter(Boolean).join("\n");
   navigator.clipboard.writeText(text);
 }
-function xmlCell(v){return '<Cell><Data ss:Type="String">'+String(v??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")+'</Data></Cell>'}
+function xmlCell(v){
+  const value=String(v??"").replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g,"")
+    .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  return '<Cell><Data ss:Type="String">'+value+'</Data></Cell>';
+}
 function download(name,type,content){
   const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([content],{type}));a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1000);
 }
@@ -903,6 +951,8 @@ async function logout(){
   try{if(old?.token)await post(CONFIG.logoutFn,{app:old.app,token:old.token},false)}catch{}
   clearSession();directoryData={users:[],units:[],me:null};listData={rows:[]};currentTab="";loginView();
 }
+
+root.addEventListener("click",handleTableActionClick);
 
 loadSession();
 boot();

@@ -74,6 +74,20 @@ async function post(fn,body,retry=true){
   if(!r.ok){const e=new Error(data.error||"request_failed");e.status=r.status;e.data=data;throw e}
   return data;
 }
+async function rpc(name,body={},retry=true){
+  if(!session?.token)throw new Error("unauthorized");
+  const url=CONFIG.supabaseUrl+"/rest/v1/rpc/"+name;
+  const headers={"Content-Type":"application/json","apikey":CONFIG.publishableKey,Authorization:"Bearer "+session.token};
+  let r=await fetch(url,{method:"POST",headers,body:JSON.stringify(body)});
+  let data=await r.json().catch(()=>({}));
+  if(r.status===401&&retry&&session?.app==="new"&&await refreshAuthSession()){
+    headers.Authorization="Bearer "+session.token;
+    r=await fetch(url,{method:"POST",headers,body:JSON.stringify(body)});
+    data=await r.json().catch(()=>({}));
+  }
+  if(!r.ok){const e=new Error(data.message||data.error||"request_failed");e.status=r.status;e.data=data;throw e}
+  return data;
+}
 function saveSession(){sessionStorage.setItem(SESSION_KEY,JSON.stringify(session))}
 function loadSession(){try{session=JSON.parse(sessionStorage.getItem(SESSION_KEY)||"null")}catch{session=null}}
 function clearSession(){sessionStorage.removeItem(SESSION_KEY);session=null}
@@ -224,14 +238,21 @@ async function boot(){
   root.innerHTML='<div class="loading">جارٍ التحميل…</div>';
   try{
     if(!currentTab)currentTab=defaultTab(session.role);
-    const [dir,list]=await Promise.all([
-      post(CONFIG.txFn,baseBody("directory")),
-      post(CONFIG.txFn,baseBody("list",{
-        tab:currentTab,search:searchText,priority:priorityFilter,status:statusFilter,
-        department:departmentFilter,employee:employeeFilter,origin:originFilter,late_only:lateOnly,
-        date_from:dateFrom,date_to:dateTo,page,page_size:50
-      }))
-    ]);
+    const listArgs={
+      p_tab:currentTab,p_search:searchText,p_priority:priorityFilter,p_status:statusFilter,
+      p_department:departmentFilter,p_employee:employeeFilter,p_origin:originFilter,p_late_only:lateOnly,
+      p_date_from:dateFrom||null,p_date_to:dateTo||null,p_page:page,p_page_size:50
+    };
+    const [dir,list]=session.app==="new"
+      ? await Promise.all([rpc("transaction_directory_my"),rpc("list_my_transactions",listArgs)])
+      : await Promise.all([
+          post(CONFIG.txFn,baseBody("directory")),
+          post(CONFIG.txFn,baseBody("list",{
+            tab:currentTab,search:searchText,priority:priorityFilter,status:statusFilter,
+            department:departmentFilter,employee:employeeFilter,origin:originFilter,late_only:lateOnly,
+            date_from:dateFrom,date_to:dateTo,page,page_size:50
+          }))
+        ]);
     directoryData=dir;
     listData=list;
     if(directoryData.me){
@@ -255,6 +276,14 @@ async function boot(){
   }
 }
 async function loadList(){
+  if(session.app==="new"){
+    listData=await rpc("list_my_transactions",{
+      p_tab:currentTab,p_search:searchText,p_priority:priorityFilter,p_status:statusFilter,
+      p_department:departmentFilter,p_employee:employeeFilter,p_origin:originFilter,p_late_only:lateOnly,
+      p_date_from:dateFrom||null,p_date_to:dateTo||null,p_page:page,p_page_size:50
+    });
+    return;
+  }
   listData=await post(CONFIG.txFn,baseBody("list",{
     tab:currentTab,search:searchText,priority:priorityFilter,status:statusFilter,
     department:departmentFilter,employee:employeeFilter,origin:originFilter,late_only:lateOnly,

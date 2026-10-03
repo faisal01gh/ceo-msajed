@@ -5,6 +5,8 @@ const URL=Deno.env.get("SUPABASE_URL")!;
 const KEY=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const db=createClient(URL,KEY,{auth:{persistSession:false,autoRefreshToken:false}});
 const LEGACY="https://urgkbbconlxeagfgyjee.supabase.co/functions/v1";
+const LEGACY_PROJECT="https://urgkbbconlxeagfgyjee.supabase.co";
+const LEGACY_PUBLIC="sb_publishable_76BLD35YhIoDSI8d-qdp7A_EWhsjEVT";
 
 type Who={
   app:string;
@@ -37,6 +39,24 @@ function out(req:Request,data:unknown,status=200){
 function arr(v:any){return Array.isArray(v)?v:[]}
 function clean(v:any){return String(v??"").trim()}
 function unique<T>(xs:T[]){return [...new Set(xs)]}
+function authRole(legacyRole:string,jobTitle:string){
+  if(jobTitle==="الرئيس التنفيذي")return "ceo";
+  if(jobTitle==="مدير مكتب الرئيس التنفيذي")return "ceo_office_manager";
+  if(jobTitle==="سكرتير الرئيس التنفيذي")return "ceo_secretary";
+  if(jobTitle==="المدير المالي")return "manager";
+  if(legacyRole==="assistant")return "assistant";
+  if(jobTitle.includes("مدير إدارة")||jobTitle.startsWith("مدير الإدارة"))return "manager";
+  return "employee";
+}
+function authOrg(row:any,role:string){
+  if(["ceo","ceo_office_manager","ceo_secretary"].includes(role))return "مكتب الرئيس التنفيذي";
+  if(row.job_title==="المدير المالي"||arr(row.dept_names).includes("الإدارة المالية"))return "المدير المالي";
+  if(arr(row.sectors).includes("technical"))return "مساعد الرئيس التنفيذي للمشاريع والشؤون الفنية";
+  if(arr(row.sectors).includes("admin_financial"))return "مساعد الرئيس التنفيذي للشؤون الإدارية والمالية";
+  const technical=new Set(["إدارة المشاريع","إدارة المشتريات","إدارة الأوقاف والاستثمار","إدارة الخدمات","إدارة المتابعة"]);
+  if(arr(row.dept_names).some((x:any)=>technical.has(String(x))))return "مساعد الرئيس التنفيذي للمشاريع والشؤون الفنية";
+  return "مساعد الرئيس التنفيذي للشؤون الإدارية والمالية";
+}
 function roleMap(source:string,legacyRole:string,jobTitle:string,orgName:string){
   if(source==="ceo_users"){
     if(jobTitle.includes("مدير مكتب"))return "ceo_office_manager";
@@ -61,11 +81,17 @@ async function legacyCall(app:string,body:any){
   return {ok:r.ok,data};
 }
 async function directory(){
-  const {data,error}=await db.from("legacy_login_credentials")
-    .select("username,source,display_name,legacy_role,job_title,org_name,dept_name,dept_names,active,migrated_user_id")
-    .eq("active",true).order("display_name");
-  if(error)throw error;
-  return (data||[]).map((u:any)=>({
+  const [legacy,authdir]=await Promise.all([
+    db.from("legacy_login_credentials")
+      .select("username,source,display_name,legacy_role,job_title,org_name,dept_name,dept_names,active,migrated_user_id")
+      .eq("active",true).order("display_name"),
+    db.from("legacy_auth_directory")
+      .select("legacy_user_id,login_name,display_name,legacy_role,job_title,sectors,dept_names,active")
+      .eq("active",true).order("display_name")
+  ]);
+  if(legacy.error)throw legacy.error;
+  if(authdir.error)throw authdir.error;
+  const a=(legacy.data||[]).map((u:any)=>({
     login_name:u.username,
     display_name:u.display_name||u.username,
     role:roleMap(u.source,u.legacy_role||"",u.job_title||"",u.org_name||""),
@@ -74,12 +100,44 @@ async function directory(){
     org_name:u.org_name||"",
     dept_name:u.dept_name||"",
     dept_names:arr(u.dept_names).map(String),
-    user_id:u.migrated_user_id||null
+    user_id:u.migrated_user_id||null,
+    source:u.source
   }));
+  const b=(authdir.data||[]).map((u:any)=>{
+    const role=authRole(u.legacy_role||"",u.job_title||"");
+    const depts=arr(u.dept_names).map(String);
+    return {
+      login_name:u.login_name,
+      display_name:u.display_name||u.login_name,
+      role,legacy_role:u.legacy_role||"",job_title:u.job_title||"",
+      org_name:authOrg(u,role),
+      dept_name:depts[0]||(["ceo","ceo_office_manager","ceo_secretary"].includes(role)?"مكتب الرئيس التنفيذي":""),
+      dept_names:depts,
+      user_id:null,
+      legacy_user_id:u.legacy_user_id,
+      source:"legacy_auth"
+    };
+  });
+  return [...a,...b];
 }
 async function identity(app:string,token:string):Promise<Who|null>{
   if(!token)return null;
   const dir=await directory();
+  if(app==="auth"){
+    const u=await fetch(LEGACY_PROJECT+"/auth/v1/user",{
+      headers:{apikey:LEGACY_PUBLIC,Authorization:"Bearer "+token}
+    });
+    if(!u.ok)return null;
+    const user=await u.json().catch(()=>null);
+    const email=clean(user?.email);
+    if(!email)return null;
+    const hit=dir.find((x:any)=>x.source==="legacy_auth"&&x.login_name===email);
+    if(!hit)return null;
+    return {
+      app,login_name:hit.login_name,display_name:hit.display_name,role:hit.role,
+      org_name:hit.org_name,dept_name:hit.dept_name,dept_names:hit.dept_names
+    };
+  }
   if(app==="ceo"){
     const r=await legacyCall("ceo",{action:"whoami",token});
     if(!r.ok||!r.data?.ok)return null;

@@ -290,7 +290,13 @@ function renderTable(){
     if(a==="action")openAction(id);
     if(a==="route")openReferral(id);
     if(a==="close")openReason(btn.dataset.direct==="1"?"close":"request_close",id,btn.dataset.direct==="1"?"إغلاق":"طلب إغلاق");
-    if(a==="reopen")openReason(btn.dataset.direct==="1"?"reopen":"request_reopen",id,btn.dataset.direct==="1"?"استرجاع المعاملة":"طلب استرجاع");
+    if(a==="reopen"){
+      const row=(listData.rows||[]).find(x=>x.id===id);
+      const actionName=btn.dataset.direct==="1"?"reopen":"request_reopen";
+      const title=btn.dataset.direct==="1"?"استرجاع المعاملة":"طلب استرجاع";
+      if(row?.origin==="legacy"&&(!row.responsible_unit_id||!row.responsible_login_name))openLegacyReopen(actionName,id,title);
+      else openReason(actionName,id,title);
+    }
     if(a==="accept-transfer")decideTransfer(btn.dataset.route,true);
     if(a==="reject-transfer")decideTransfer(btn.dataset.route,false);
   });
@@ -517,6 +523,28 @@ function openAction(id){
     '<button class="btn btn-green" id="save">حفظ</button><button class="btn btn-soft" data-exit>خروج</button>');
   w.querySelector("[data-exit]").onclick=()=>w.remove();
   w.querySelector("#save").onclick=async()=>{const text=w.querySelector("#actionText").value.trim();if(!text)return;await post(CONFIG.txFn,baseBody("add_action",{transaction_id:id,text}));w.remove();await refresh()};
+}
+function openLegacyReopen(action,id,title){
+  const units=(directoryData.units||[]).filter(u=>["department","independent","branch"].includes(u.unit_type));
+  const w=modal(title,`
+    <label>السبب</label><textarea class="field" id="legacyReopenReason"></textarea>
+    <label>الإدارة المسؤولة</label><select class="field" id="legacyReopenUnit">${units.map(u=>'<option value="'+u.id+'">'+esc(u.name)+'</option>').join("")}</select>
+    <label>مسؤول المعاملة</label><select class="field" id="legacyReopenUser"></select>`,
+    '<button class="btn btn-green" id="saveLegacyReopen">حفظ</button><button class="btn btn-soft" data-exit>خروج</button>');
+  w.querySelector("[data-exit]").onclick=()=>w.remove();
+  const unit=w.querySelector("#legacyReopenUnit"),user=w.querySelector("#legacyReopenUser");
+  const fill=()=>{
+    const selected=units.find(x=>x.id===unit.value);
+    const choices=(directoryData.users||[]).filter(u=>selected&&(u.dept_names||[]).includes(selected.name));
+    user.innerHTML=choices.map(u=>'<option value="'+esc(u.login_name)+'">'+esc(u.display_name)+'</option>').join("");
+  };
+  unit.onchange=fill;fill();
+  w.querySelector("#saveLegacyReopen").onclick=async()=>{
+    const reason=w.querySelector("#legacyReopenReason").value.trim();
+    if(!reason||!unit.value||!user.value)return;
+    await post(CONFIG.txFn,baseBody(action,{transaction_id:id,reason,responsible_unit_id:unit.value,responsible_login_name:user.value}));
+    w.remove();await refresh();
+  };
 }
 function openReason(action,id,title){
   const w=modal(title,'<label>السبب</label><textarea class="field" id="reason"></textarea>',

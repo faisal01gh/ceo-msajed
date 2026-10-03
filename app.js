@@ -198,7 +198,7 @@ async function login(e){
     const resolved=await post(CONFIG.resolveFn,{login:username},false);
     if(!resolved.eligible)throw new Error("invalid_credentials");
 
-    if(resolved.migrated){
+    if(resolved.migrated&&resolved.must_change_password!==true){
       const auth=await signInNew(resolved.internal_email,password);
       if(!auth)throw new Error("invalid_credentials");
       session={

@@ -119,67 +119,66 @@ async function identity(app:string,token:string):Promise<Who|null>{
   const cacheKey=app+":"+token;
   const cached=identityCache.get(cacheKey);
   if(cached&&Date.now()-cached.at<CACHE_MS)return cached.who;
-  const dir=await directory();
   let who:Who|null=null;
 
   if(app==="new"){
     const auth=await db.auth.getUser(token);
     if(auth.error||!auth.data.user)return null;
-    const userId=auth.data.user.id;
-    const [{data:p},{data:r},{data:m}]=await Promise.all([
-      db.from("profiles").select("login_name,full_name,active,must_change_password").eq("id",userId).maybeSingle(),
-      db.from("user_roles").select("role_code,is_primary").eq("user_id",userId).order("is_primary",{ascending:false}),
-      db.from("user_memberships").select("membership_role,is_primary,organizational_units(id,name,unit_type,parent_id)").eq("user_id",userId).eq("active",true)
-    ]);
-    if(!p?.active||p.must_change_password===true)return null;
-    const role=clean(r?.[0]?.role_code)||"employee";
-    const memberships=arr(m);
-    const deptNames=memberships.map((x:any)=>clean(x.organizational_units?.name)).filter(Boolean);
-    let org="";
+    const {data:ctx,error}=await db.rpc("user_context_internal",{p_user_id:auth.data.user.id});
+    if(error||!ctx||ctx.active!==true||ctx.must_change_password===true)return null;
+    const role=clean(ctx.role)||"employee";
+    const deptNames=arr(ctx.dept_names).map(canonicalDept).filter(Boolean);
+    let org=clean(ctx.org_name);
     if(["ceo","ceo_office_manager","ceo_secretary"].includes(role))org="مكتب الرئيس التنفيذي";
-    else if(role==="assistant")org=clean(memberships.find((x:any)=>x.membership_role==="assistant")?.organizational_units?.name);
-    else{
-      const mine=dir.find((x:any)=>x.login_name===p.login_name);
-      org=mine?.org_name||"";
-    }
-    who={app,login_name:clean(p.login_name),display_name:clean(p.full_name),role,org_name:org,
-      dept_name:deptNames[0]||"",dept_names:deptNames};
-  }else if(app==="auth"){
-    const u=await fetch(LEGACY_PROJECT+"/auth/v1/user",{
-      headers:{apikey:LEGACY_PUBLIC,Authorization:"Bearer "+token}
-    });
-    if(!u.ok)return null;
-    const user=await u.json().catch(()=>null);
-    const email=clean(user?.email).toLowerCase();
-    if(!email)return null;
-    const {data:a}=await db.from("account_migration_aliases").select("canonical_key")
-      .eq("alias",email).eq("active",true).maybeSingle();
-    const hit=a?dir.find((x:any)=>x.canonical_key===a.canonical_key):null;
-    if(hit)who={app,login_name:hit.login_name,display_name:hit.display_name,role:hit.role,
-      org_name:hit.org_name,dept_name:hit.dept_name,dept_names:hit.dept_names};
-  }else if(app==="ceo"){
-    const r=await legacyCall("ceo",{action:"whoami",token});
-    if(!r.ok||!r.data?.ok)return null;
-    const hit=dir.find((u:any)=>u.login_name===r.data.username);
-    const role=hit?.role||(r.data.role==="ceo"?"ceo_office_manager":"ceo_secretary");
-    who={app,login_name:r.data.username,display_name:hit?.display_name||r.data.username,role,
-      org_name:"مكتب الرئيس التنفيذي",dept_name:"مكتب الرئيس التنفيذي",dept_names:["مكتب الرئيس التنفيذي"]};
-  }else if(app==="portal"){
-    const r=await legacyCall("portal",{action:"pdata",token});
-    if(!r.ok||!r.data?.ok)return null;
-    const display=clean(r.data.display_name),org=clean(r.data.org_name);
-    const {data:legacyUser}=await db.from("legacy_login_credentials").select("username")
-      .eq("display_name",display).eq("org_name",org).eq("active",true).limit(1).maybeSingle();
-    let hit:any=null;
-    if(legacyUser?.username){
+    else if(role==="assistant")org=clean(ctx.assistant_unit)||org;
+    who={
+      app,
+      login_name:clean(ctx.login_name),
+      display_name:clean(ctx.full_name),
+      role,
+      org_name:org,
+      dept_name:deptNames[0]||"",
+      dept_names:deptNames
+    };
+  }else{
+    const dir=await directory();
+    if(app==="auth"){
+      const u=await fetch(LEGACY_PROJECT+"/auth/v1/user",{
+        headers:{apikey:LEGACY_PUBLIC,Authorization:"Bearer "+token}
+      });
+      if(!u.ok)return null;
+      const user=await u.json().catch(()=>null);
+      const email=clean(user?.email).toLowerCase();
+      if(!email)return null;
       const {data:a}=await db.from("account_migration_aliases").select("canonical_key")
-        .eq("source","portal_users").eq("source_login",legacyUser.username).eq("active",true).limit(1).maybeSingle();
-      if(a)hit=dir.find((x:any)=>x.canonical_key===a.canonical_key);
+        .eq("alias",email).eq("active",true).maybeSingle();
+      const hit=a?dir.find((x:any)=>x.canonical_key===a.canonical_key):null;
+      if(hit)who={app,login_name:hit.login_name,display_name:hit.display_name,role:hit.role,
+        org_name:hit.org_name,dept_name:hit.dept_name,dept_names:hit.dept_names};
+    }else if(app==="ceo"){
+      const r=await legacyCall("ceo",{action:"whoami",token});
+      if(!r.ok||!r.data?.ok)return null;
+      const hit=dir.find((u:any)=>u.login_name===r.data.username);
+      const role=hit?.role||(r.data.role==="ceo"?"ceo_office_manager":"ceo_secretary");
+      who={app,login_name:r.data.username,display_name:hit?.display_name||r.data.username,role,
+        org_name:"مكتب الرئيس التنفيذي",dept_name:"مكتب الرئيس التنفيذي",dept_names:["مكتب الرئيس التنفيذي"]};
+    }else if(app==="portal"){
+      const r=await legacyCall("portal",{action:"pdata",token});
+      if(!r.ok||!r.data?.ok)return null;
+      const display=clean(r.data.display_name),org=clean(r.data.org_name);
+      const {data:legacyUser}=await db.from("legacy_login_credentials").select("username")
+        .eq("display_name",display).eq("org_name",org).eq("active",true).limit(1).maybeSingle();
+      let hit:any=null;
+      if(legacyUser?.username){
+        const {data:a}=await db.from("account_migration_aliases").select("canonical_key")
+          .eq("source","portal_users").eq("source_login",legacyUser.username).eq("active",true).limit(1).maybeSingle();
+        if(a)hit=dir.find((x:any)=>x.canonical_key===a.canonical_key);
+      }
+      const role=hit?.role||(r.data.role==="manager"?"manager":r.data.role==="employee"?"employee":"assistant");
+      who={app,login_name:hit?.login_name||legacyUser?.username||display,display_name:hit?.display_name||display,
+        role,org_name:hit?.org_name||org,dept_name:hit?.dept_name||canonicalDept(r.data.dept_name),
+        dept_names:hit?.dept_names||(arr(r.data.dept_names).length?arr(r.data.dept_names).map(canonicalDept):[])};
     }
-    const role=hit?.role||(r.data.role==="manager"?"manager":r.data.role==="employee"?"employee":"assistant");
-    who={app,login_name:hit?.login_name||legacyUser?.username||display,display_name:hit?.display_name||display,
-      role,org_name:hit?.org_name||org,dept_name:hit?.dept_name||canonicalDept(r.data.dept_name),
-      dept_names:hit?.dept_names||(arr(r.data.dept_names).length?arr(r.data.dept_names).map(canonicalDept):[])};
   }
   if(who)identityCache.set(cacheKey,{at:Date.now(),who});
   return who;
@@ -449,7 +448,7 @@ async function createRequest(who:Who,tx:any,type:string,reason:string,extra:any=
 }
 
 Deno.serve(async(req:Request)=>{
-  if(req.method==="GET")return out(req,{ok:true,service:"transactions-api",version:19});
+  if(req.method==="GET")return out(req,{ok:true,service:"transactions-api",version:20});
   if(req.method==="OPTIONS")return new Response("ok",{headers:cors(req)});
   if(req.method!=="POST")return out(req,{error:"method_not_allowed"},405);
   let b:any;try{b=await req.json()}catch{return out(req,{error:"bad_request"},400)}

@@ -32,8 +32,11 @@
 
 ### الرابط الحالي
 
-GitHub Pages:
-`https://faisal01gh.github.io/ceo-msajed/`
+Cloudflare Pages:
+`https://ceo-msajed.pages.dev/`
+
+تم إنشاء مشروع Cloudflare Pages باسم `ceo-msajed` وربطه بالمستودع `faisal01gh/ceo-msajed` على فرع `main`.
+GitHub يبقى مصدر الكود، وCloudflare هو رابط تشغيل الواجهة.
 
 ### Supabase الجديد
 
@@ -154,7 +157,7 @@ Project Ref:
 - تنظيف أحرف التحكم في تصدير Excel.
 - رفض روابط المرفقات الجديدة إذا لم تكن HTTP/HTTPS، مع حماية العرض في الواجهة.
 - إضافة Content Security Policy للواجهة لتقييد تشغيل السكربتات والاتصالات.
-- قصر CORS للدوال المستخدمة حاليًا على نطاق GitHub Pages الإنتاجي؛ عند الانتقال إلى Cloudflare يجب إضافة النطاق الفعلي فقط.
+- قصر CORS للدوال المستخدمة حاليًا على نطاقات التشغيل المعتمدة، وإضافة `https://ceo-msajed.pages.dev` بعد إنشاء Cloudflare Pages.
 - تم التحقق أن مفاتيح الواجهة الحالية Publishable Keys وليست Service Role.
 - Security Advisor: الملاحظة الأمنية العملية المتبقية هي تعطيل Leaked Password Protection في Supabase Auth، وتحتاج قرارًا قبل تفعيلها لأنها تؤثر على قبول كلمات المرور.
 - تخزين الجلسة ما زال في `sessionStorage`. الانتقال إلى HttpOnly Cookie يتطلب طبقة BFF على نفس نطاق التطبيق؛ Cloudflare Worker خيار مناسب لذلك إذا اعتمده فيصل.

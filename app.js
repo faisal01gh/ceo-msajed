@@ -4,7 +4,9 @@ const CONFIG={
   supabaseUrl:"https://movzojtnkkmdsjhmlgtq.supabase.co",
   publishableKey:"sb_publishable_FjLQ_5HZEg_CGhdw3CC0CA_KbG3WKj8",
   loginFn:"legacy-login",
-  txFn:"transactions-api"
+  txFn:"transactions-api",
+  legacyAuthUrl:"https://urgkbbconlxeagfgyjee.supabase.co",
+  legacyAuthKey:"sb_publishable_76BLD35YhIoDSI8d-qdp7A_EWhsjEVT"
 };
 
 const root=document.getElementById("app");
@@ -86,9 +88,22 @@ async function login(e){
   if(!username||!password){msg.textContent="أكمل الحقلين";return}
   btn.disabled=true;btn.textContent="…";msg.textContent="";
   try{
-    const r=await post(CONFIG.loginFn,{username,password});
+    let r=null;
+    if(username.includes("@")){
+      const authRes=await fetch(CONFIG.legacyAuthUrl+"/auth/v1/token?grant_type=password",{
+        method:"POST",
+        headers:{"Content-Type":"application/json","apikey":CONFIG.legacyAuthKey},
+        body:JSON.stringify({email:username,password})
+      });
+      const authData=await authRes.json().catch(()=>({}));
+      if(authRes.ok&&authData.access_token){
+        r={app:"auth",token:authData.access_token,refresh_token:authData.refresh_token,
+           display_name:authData.user?.user_metadata?.full_name||username,role:"auth"};
+      }
+    }
+    if(!r)r=await post(CONFIG.loginFn,{username,password});
     session={
-      app:r.app,token:r.token,username,
+      app:r.app,token:r.token,refresh_token:r.refresh_token||null,username,
       display_name:r.display_name||username,legacy_role:r.role||"",
       dept_name:r.dept_name||"",dept_names:r.dept_names||[],org_name:r.org_name||""
     };

@@ -32,6 +32,8 @@
 
 ## رابط النظام الحالي
 
-https://faisal01gh.github.io/ceo-msajed/
+https://ceo-msajed.pages.dev/
 
 الواجهة الحالية مرتبطة ببيانات النظام الحقيقي للقراءة وبقاعدة `msajed-ceo-erp` للكتابة الجديدة. قاعدة `msajed-tasks` القديمة تبقى مرجعًا Read-only خلال الانتقال.
+
+الاستضافة الحالية للواجهة: **Cloudflare Pages**، والمستودع في GitHub هو مصدر الكود.

@@ -4,6 +4,9 @@ const CONFIG={
   supabaseUrl:"https://movzojtnkkmdsjhmlgtq.supabase.co",
   publishableKey:"sb_publishable_FjLQ_5HZEg_CGhdw3CC0CA_KbG3WKj8",
   loginFn:"legacy-login",
+  resolveFn:"account-resolve",
+  activateFn:"account-activate",
+  confirmPasswordFn:"account-confirm-password",
   txFn:"transactions-api",
   logoutFn:"session-logout",
   legacyAuthUrl:"https://urgkbbconlxeagfgyjee.supabase.co",
@@ -36,10 +39,13 @@ function fmtDate(v){
 }
 function apiUrl(fn){return CONFIG.supabaseUrl+"/functions/v1/"+fn}
 async function refreshAuthSession(){
-  if(!session||session.app!=="auth"||!session.refresh_token)return false;
-  const r=await fetch(CONFIG.legacyAuthUrl+"/auth/v1/token?grant_type=refresh_token",{
+  if(!session||!["auth","new"].includes(session.app)||!session.refresh_token)return false;
+  const isNew=session.app==="new";
+  const url=(isNew?CONFIG.supabaseUrl:CONFIG.legacyAuthUrl)+"/auth/v1/token?grant_type=refresh_token";
+  const key=isNew?CONFIG.publishableKey:CONFIG.legacyAuthKey;
+  const r=await fetch(url,{
     method:"POST",
-    headers:{"Content-Type":"application/json","apikey":CONFIG.legacyAuthKey},
+    headers:{"Content-Type":"application/json","apikey":key},
     body:JSON.stringify({refresh_token:session.refresh_token})
   });
   const data=await r.json().catch(()=>({}));
@@ -56,7 +62,7 @@ async function post(fn,body,retry=true){
     body:JSON.stringify(body)
   });
   let data=await r.json().catch(()=>({}));
-  if(r.status===401&&retry&&session?.app==="auth"&&await refreshAuthSession()){
+  if(r.status===401&&retry&&["auth","new"].includes(session?.app)&&await refreshAuthSession()){
     body={...body,token:session.token};
     r=await fetch(apiUrl(fn),{
       method:"POST",
@@ -104,6 +110,83 @@ function loginView(){
   document.getElementById("loginForm").addEventListener("submit",login);
   document.getElementById("username").focus();
 }
+async function signInNew(email,password){
+  const r=await fetch(CONFIG.supabaseUrl+"/auth/v1/token?grant_type=password",{
+    method:"POST",
+    headers:{"Content-Type":"application/json","apikey":CONFIG.publishableKey},
+    body:JSON.stringify({email,password})
+  });
+  const data=await r.json().catch(()=>({}));
+  return r.ok&&data.access_token?data:null;
+}
+async function signInLegacy(username,password){
+  if(username.includes("@")){
+    const authRes=await fetch(CONFIG.legacyAuthUrl+"/auth/v1/token?grant_type=password",{
+      method:"POST",
+      headers:{"Content-Type":"application/json","apikey":CONFIG.legacyAuthKey},
+      body:JSON.stringify({email:username,password})
+    });
+    const authData=await authRes.json().catch(()=>({}));
+    if(authRes.ok&&authData.access_token){
+      return {app:"auth",token:authData.access_token,refresh_token:authData.refresh_token,
+        display_name:authData.user?.user_metadata?.full_name||username,role:"auth"};
+    }
+  }
+  return await post(CONFIG.loginFn,{username,password},false);
+}
+async function exchangeRecovery(tokenHash){
+  const r=await fetch(CONFIG.supabaseUrl+"/auth/v1/verify",{
+    method:"POST",
+    headers:{"Content-Type":"application/json","apikey":CONFIG.publishableKey},
+    body:JSON.stringify({type:"recovery",token_hash:tokenHash})
+  });
+  const data=await r.json().catch(()=>({}));
+  if(!r.ok||!data.access_token)throw new Error("recovery_failed");
+  return data;
+}
+function passwordChangeView(ctx){
+  root.innerHTML=`
+  <section class="login-shell">
+    <form class="login-card" id="passwordForm">
+      <h1 class="login-title">تغيير كلمة المرور</h1>
+      <label for="newPassword">كلمة المرور الجديدة</label>
+      <input class="field" id="newPassword" type="password" autocomplete="new-password">
+      <label for="confirmPassword">تأكيد كلمة المرور</label>
+      <input class="field" id="confirmPassword" type="password" autocomplete="new-password">
+      <button class="login-btn" id="passwordBtn" type="submit">حفظ</button>
+      <p class="login-msg" id="passwordMsg" aria-live="polite"></p>
+    </form>
+  </section>`;
+  document.getElementById("passwordForm").onsubmit=async e=>{
+    e.preventDefault();
+    const p=document.getElementById("newPassword").value;
+    const p2=document.getElementById("confirmPassword").value;
+    const msg=document.getElementById("passwordMsg"),btn=document.getElementById("passwordBtn");
+    if(p.length<8){msg.textContent="كلمة المرور يجب أن تكون 8 أحرف على الأقل";return}
+    if(p!==p2){msg.textContent="كلمتا المرور غير متطابقتين";return}
+    btn.disabled=true;msg.textContent="";
+    try{
+      const upd=await fetch(CONFIG.supabaseUrl+"/auth/v1/user",{
+        method:"PUT",
+        headers:{"Content-Type":"application/json","apikey":CONFIG.publishableKey,Authorization:"Bearer "+ctx.auth.access_token},
+        body:JSON.stringify({password:p})
+      });
+      if(!upd.ok)throw new Error("password_update_failed");
+      const confirmed=await post(CONFIG.confirmPasswordFn,{access_token:ctx.auth.access_token},false);
+      try{await post(CONFIG.logoutFn,{app:ctx.legacy.app,token:ctx.legacy.token},false)}catch{}
+      session={
+        app:"new",token:ctx.auth.access_token,refresh_token:ctx.auth.refresh_token||null,
+        username:confirmed.preferred_login,login_name:confirmed.preferred_login,
+        display_name:confirmed.display_name,role:confirmed.role,legacy_role:""
+      };
+      saveSession();currentTab="";await boot();
+    }catch{
+      msg.textContent="تعذر حفظ كلمة المرور";
+      btn.disabled=false;
+    }
+  };
+  document.getElementById("newPassword").focus();
+}
 async function login(e){
   e.preventDefault();
   const username=document.getElementById("username").value.trim();
@@ -112,34 +195,28 @@ async function login(e){
   if(!username||!password){msg.textContent="أكمل الحقلين";return}
   btn.disabled=true;btn.textContent="…";msg.textContent="";
   try{
-    let r=null;
-    if(username.includes("@")){
-      const authRes=await fetch(CONFIG.legacyAuthUrl+"/auth/v1/token?grant_type=password",{
-        method:"POST",
-        headers:{"Content-Type":"application/json","apikey":CONFIG.legacyAuthKey},
-        body:JSON.stringify({email:username,password})
-      });
-      const authData=await authRes.json().catch(()=>({}));
-      if(authRes.ok&&authData.access_token){
-        r={app:"auth",token:authData.access_token,refresh_token:authData.refresh_token,
-           display_name:authData.user?.user_metadata?.full_name||username,role:"auth"};
-      }
+    const resolved=await post(CONFIG.resolveFn,{login:username},false);
+    if(!resolved.eligible)throw new Error("invalid_credentials");
+
+    if(resolved.migrated){
+      const auth=await signInNew(resolved.internal_email,password);
+      if(!auth)throw new Error("invalid_credentials");
+      session={
+        app:"new",token:auth.access_token,refresh_token:auth.refresh_token||null,
+        username:resolved.preferred_login||username,login_name:resolved.preferred_login||username,
+        display_name:resolved.display_name||username,role:resolved.role,legacy_role:""
+      };
+      saveSession();currentTab="";await boot();return;
     }
-    if(!r)r=await post(CONFIG.loginFn,{username,password});
-    session={
-      app:r.app,token:r.token,refresh_token:r.refresh_token||null,username,
-      display_name:r.display_name||username,legacy_role:r.role||"",
-      dept_name:r.dept_name||"",dept_names:r.dept_names||[],org_name:r.org_name||""
-    };
-    session.role=mapRole(session);
-    saveSession();
-    currentTab="";
-    await boot();
+
+    const legacy=await signInLegacy(username,password);
+    const activation=await post(CONFIG.activateFn,{login:username,app:legacy.app,token:legacy.token},false);
+    const auth=await exchangeRecovery(activation.token_hash);
+    passwordChangeView({legacy,activation,auth});
   }catch(err){
     msg.textContent=err.status===429?"محاولات كثيرة — انتظر "+(err.data?.minutes||15)+" دقيقة":"اسم المستخدم أو كلمة السر غير صحيحة";
     document.getElementById("password").value="";
-  }finally{
-    if(document.getElementById("loginBtn")){btn.disabled=false;btn.textContent="دخول"}
+    btn.disabled=false;btn.textContent="دخول";
   }
 }
 async function boot(){

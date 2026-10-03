@@ -8,7 +8,7 @@ const LEGACY_PUBLIC="sb_publishable_76BLD35YhIoDSI8d-qdp7A_EWhsjEVT";
 
 function cors(req:Request){
   const origin=req.headers.get("origin")||"";
-  const ok=origin==="https://faisal01gh.github.io"||/^https:\/\/[a-z0-9.-]+\.pages\.dev$/i.test(origin);
+  const ok=origin==="https://faisal01gh.github.io"||origin==="https://ceo-msajed.pages.dev";
   const h:Record<string,string>={
     "Access-Control-Allow-Methods":"POST,OPTIONS",
     "Access-Control-Allow-Headers":"content-type,apikey",

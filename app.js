@@ -5,6 +5,7 @@ const CONFIG={
   publishableKey:"sb_publishable_FjLQ_5HZEg_CGhdw3CC0CA_KbG3WKj8",
   loginFn:"legacy-login",
   txFn:"transactions-api",
+  logoutFn:"session-logout",
   legacyAuthUrl:"https://urgkbbconlxeagfgyjee.supabase.co",
   legacyAuthKey:"sb_publishable_76BLD35YhIoDSI8d-qdp7A_EWhsjEVT"
 };
@@ -34,13 +35,36 @@ function fmtDate(v){
   return new Intl.DateTimeFormat("ar-SA-u-ca-gregory",{year:"numeric",month:"2-digit",day:"2-digit"}).format(d);
 }
 function apiUrl(fn){return CONFIG.supabaseUrl+"/functions/v1/"+fn}
-async function post(fn,body){
-  const r=await fetch(apiUrl(fn),{
+async function refreshAuthSession(){
+  if(!session||session.app!=="auth"||!session.refresh_token)return false;
+  const r=await fetch(CONFIG.legacyAuthUrl+"/auth/v1/token?grant_type=refresh_token",{
+    method:"POST",
+    headers:{"Content-Type":"application/json","apikey":CONFIG.legacyAuthKey},
+    body:JSON.stringify({refresh_token:session.refresh_token})
+  });
+  const data=await r.json().catch(()=>({}));
+  if(!r.ok||!data.access_token)return false;
+  session.token=data.access_token;
+  session.refresh_token=data.refresh_token||session.refresh_token;
+  saveSession();
+  return true;
+}
+async function post(fn,body,retry=true){
+  let r=await fetch(apiUrl(fn),{
     method:"POST",
     headers:{"Content-Type":"application/json","apikey":CONFIG.publishableKey},
     body:JSON.stringify(body)
   });
-  const data=await r.json().catch(()=>({}));
+  let data=await r.json().catch(()=>({}));
+  if(r.status===401&&retry&&session?.app==="auth"&&await refreshAuthSession()){
+    body={...body,token:session.token};
+    r=await fetch(apiUrl(fn),{
+      method:"POST",
+      headers:{"Content-Type":"application/json","apikey":CONFIG.publishableKey},
+      body:JSON.stringify(body)
+    });
+    data=await r.json().catch(()=>({}));
+  }
   if(!r.ok){const e=new Error(data.error||"request_failed");e.status=r.status;e.data=data;throw e}
   return data;
 }
@@ -748,7 +772,11 @@ function printTransaction(d){
   const routes=(d.routes||[]).map(r=>'<tr><td>'+esc(fmtDate(r.created_at))+'</td><td>'+esc(r.from_name||"")+'</td><td>'+esc(r.to_name||"")+'</td><td>'+esc(r.directive||r.raise_reason||r.transfer_reason||"")+'</td></tr>').join("");
   printHtml("معاملة "+t.number,'<h1>'+esc(t.title)+'</h1><table><tr><th>رقم المعاملة</th><td>'+esc(t.number)+'</td></tr><tr><th>الموضوع</th><td>'+esc(t.subject||"")+'</td></tr><tr><th>الأولوية</th><td>'+esc(t.priority)+'</td></tr></table><h2 class="sec">إجراءات العمل</h2><table><tr><th>التاريخ</th><th>بواسطة</th><th>الإجراء</th></tr>'+acts+'</table><h2 class="sec">الإحالات والتوجيهات</h2><table><tr><th>التاريخ</th><th>من</th><th>إلى</th><th>التفاصيل</th></tr>'+routes+'</table>');
 }
-async function logout(){clearSession();directoryData={users:[],units:[],me:null};listData={rows:[]};currentTab="";loginView()}
+async function logout(){
+  const old=session;
+  try{if(old?.token)await post(CONFIG.logoutFn,{app:old.app,token:old.token},false)}catch{}
+  clearSession();directoryData={users:[],units:[],me:null};listData={rows:[]};currentTab="";loginView();
+}
 
 loadSession();
 boot();

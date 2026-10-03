@@ -141,15 +141,16 @@ function scopeOf(who:Who,all:any[]){
   return {ids,names};
 }
 async function txContext(){
-  const [txr,ar,tr,rr,ur]=await Promise.all([
+  const [txr,ar,tr,rr,qr,ur]=await Promise.all([
     db.from("transactions").select("id,number,origin,legacy_source,legacy_sn,title,subject,attachment_url,priority,status,responsible_unit_id,responsible_login_name,responsible_name,current_level,close_level,ceo_attention,due_at,created_by_name,created_at,closed_at,cancelled_at,last_activity_at,updated_at,legacy_department_name,workflow_started,closed_reason,cancelled_reason,transaction_periods(id,cycle_no,started_at,ended_at,duration_days)").order("created_at",{ascending:false}).limit(1500),
     db.from("transaction_assignments").select("id,transaction_id,unit_id,assignment_type,directive,attachment_url,status,created_at,completed_at,visibility_scope"),
     db.from("transaction_assignment_targets").select("id,assignment_id,user_id,login_name,display_name,active,assigned_at,completed_at"),
     db.from("transaction_routes").select("id,transaction_id,route_type,from_login_name,from_name,to_login_name,to_name,to_unit_id,directive,raise_reason,proposed_decision,transfer_reason,status,rejection_reason,created_at,decided_at,visibility_scope,meta"),
+    db.from("transaction_requests").select("id,transaction_id,request_type,requested_by_login_name,requested_by_name,reason,requested_due_at,status,decision_reason,created_at,meta"),
     db.from("organizational_units").select("id,name,unit_type,parent_id,active").eq("active",true)
   ]);
-  for(const r of [txr,ar,tr,rr,ur])if(r.error)throw r.error;
-  return {txs:txr.data||[],assignments:ar.data||[],targets:tr.data||[],routes:rr.data||[],units:ur.data||[]};
+  for(const r of [txr,ar,tr,rr,qr,ur])if(r.error)throw r.error;
+  return {txs:txr.data||[],assignments:ar.data||[],targets:tr.data||[],routes:rr.data||[],requests:qr.data||[],units:ur.data||[]};
 }
 function byKey(rows:any[],key:string){const m=new Map<string,any[]>();for(const r of rows){const k=String(r[key]||"");if(!m.has(k))m.set(k,[]);m.get(k)!.push(r)}return m}
 function directVisible(who:Who,a:any){
@@ -207,6 +208,12 @@ function canAct(who:Who,tx:any,flags:any){
   if(flags.incoming)return true;
   if(who.role==="manager"&&flags.scope&&["employee","manager"].includes(tx.current_level||""))return true;
   if(who.role==="assistant"&&flags.scope&&tx.current_level!=="ceo")return true;
+  return false;
+}
+function canSetDue(who:Who,tx:any,flags:any){
+  if(isExec(who.role))return true;
+  if(who.role==="assistant")return flags.scope&&tx.current_level!=="ceo";
+  if(who.role==="manager")return flags.scope&&["employee","manager"].includes(tx.current_level||"");
   return false;
 }
 function closeAuthority(tx:any){
@@ -362,7 +369,7 @@ Deno.serve(async(req:Request)=>{
 
     if(action==="list"){
       const ctx=await txContext();
-      const asBy=byKey(ctx.assignments,"transaction_id"),tgBy=byKey(ctx.targets,"assignment_id"),rtBy=byKey(ctx.routes,"transaction_id");
+      const asBy=byKey(ctx.assignments,"transaction_id"),tgBy=byKey(ctx.targets,"assignment_id"),rtBy=byKey(ctx.routes,"transaction_id"),rqBy=byKey(ctx.requests,"transaction_id");
       const scope=scopeOf(who,ctx.units);const unitMap=new Map(ctx.units.map((u:any)=>[u.id,u]));
       let rows:any[]=[];
       for(const tx of ctx.txs){
@@ -373,19 +380,20 @@ Deno.serve(async(req:Request)=>{
         const supportCount=assigns.filter((a:any)=>a.assignment_type==="supporting"&&a.status==="active").length;
         const responsibleUnit=tx.responsible_unit_id?unitMap.get(tx.responsible_unit_id)?.name:null;
         const pendingTransfer=routes.find((r:any)=>r.route_type==="assistant_transfer"&&r.status==="pending"&&r.to_login_name===who.login_name)||null;
-        const {count:pendingRequests}=await db.from("transaction_requests").select("id",{count:"exact",head:true}).eq("transaction_id",tx.id).eq("status","pending");
+        const pendingRequests=(rqBy.get(tx.id)||[]).filter((r:any)=>r.status==="pending");
         rows.push({...tx,flags:f,current_assignees:unique(activeTargets.map((t:any)=>t.display_name)),
           supporting_count:supportCount,responsible_unit_name:responsibleUnit||tx.legacy_department_name||null,
           days:activeDays(tx),late:late(tx),can_act:canAct(who,tx,f),can_close:canClose(who,tx,f),
-          close_authority:closeAuthority(tx),pending_transfer:pendingTransfer,pending_requests_count:Number(pendingRequests||0)});
+          close_authority:closeAuthority(tx),pending_transfer:pendingTransfer,pending_requests_count:pendingRequests.length});
       }
       const visibleRows=[...rows];
       const {count:unreadNotifications}=await db.from("notifications").select("id",{count:"exact",head:true}).eq("target_login_name",who.login_name).is("read_at",null);
-      const {count:pendingApprovals}=await db.from("transaction_requests").select("id",{count:"exact",head:true}).eq("status","pending");
+      const pendingVisibleIds=new Set(visibleRows.map(r=>r.id));
+      const pendingApprovals=ctx.requests.filter((r:any)=>r.status==="pending"&&pendingVisibleIds.has(r.transaction_id)).length;
       const counters={
         incoming:visibleRows.filter(r=>r.flags.incoming&&r.status==="open").length,
         late:visibleRows.filter(r=>r.late).length,
-        pending_approval:Number(pendingApprovals||0),
+        pending_approval:pendingApprovals,
         closed_today:visibleRows.filter(r=>r.status==="closed"&&r.closed_at&&new Date(r.closed_at).toDateString()===new Date().toDateString()).length,
         notifications:Number(unreadNotifications||0)
       };
@@ -538,27 +546,27 @@ Deno.serve(async(req:Request)=>{
       if(!id||!responsibleUnit||!directive||!responsibleTargets.length)return out(req,{error:"missing"},400);
       if(!(await scopeCheck(who,responsibleUnit)))return out(req,{error:"forbidden_scope"},403);
       const a=await txAccess(who,id);if(!a||!a.flags.visible)return out(req,{error:"forbidden"},403);
-      const dir=await directory();
+      const directoryUsers=await directory();
       const allUnits=await units();
       const responsibleUnitRow=allUnits.find((u:any)=>u.id===responsibleUnit);
       if(!responsibleUnitRow)return out(req,{error:"invalid_unit"},400);
       for(const login of responsibleTargets){
-        const u=dir.find((x:any)=>x.login_name===login);
+        const u=directoryUsers.find((x:any)=>x.login_name===login);
         if(!u||!u.dept_names.includes(responsibleUnitRow.name))return out(req,{error:"forbidden_target"},403);
       }
       await completeActive(id);
       await addAssignment(id,responsibleUnit,"responsible",directive,responsibleTargets,null,who);
       for(const s of supports){
-        const unitId=clean(s.unit_id),dir=clean(s.directive),targets=unique(arr(s.targets).map(String).filter(Boolean));
-        if(!unitId||!dir||!targets.length)return out(req,{error:"invalid_supporting"},400);
+        const unitId=clean(s.unit_id),supportDirective=clean(s.directive),targets=unique(arr(s.targets).map(String).filter(Boolean));
+        if(!unitId||!supportDirective||!targets.length)return out(req,{error:"invalid_supporting"},400);
         if(!(await scopeCheck(who,unitId)))return out(req,{error:"forbidden_scope"},403);
         const unitRow=allUnits.find((u:any)=>u.id===unitId);
         if(!unitRow)return out(req,{error:"invalid_unit"},400);
         for(const login of targets){
-          const u=dir.find((x:any)=>x.login_name===login);
+          const u=directoryUsers.find((x:any)=>x.login_name===login);
           if(!u||!u.dept_names.includes(unitRow.name))return out(req,{error:"forbidden_target"},403);
         }
-        await addAssignment(id,unitId,"supporting",dir,targets,null,who);
+        await addAssignment(id,unitId,"supporting",supportDirective,targets,null,who);
       }
       await addRoute(id,"directive",who,{unit_id:responsibleUnit,name:""},{directive,meta:{responsible_targets:responsibleTargets,supporting:supports}});
       await db.from("transactions").update({responsible_unit_id:responsibleUnit,current_level:"employee",close_level:higherLevel(a.tx.close_level,"assistant"),workflow_started:true,updated_at:new Date().toISOString(),last_activity_at:new Date().toISOString()}).eq("id",id);
@@ -663,7 +671,7 @@ Deno.serve(async(req:Request)=>{
 
     if(action==="set_due_date"){
       const id=clean(b.transaction_id),due=clean(b.due_at);
-      const a=await txAccess(who,id);if(!a||!a.flags.visible||who.role==="employee")return out(req,{error:"forbidden"},403);
+      const a=await txAccess(who,id);if(!a||!a.flags.visible||!canSetDue(who,a.tx,a.flags))return out(req,{error:"forbidden"},403);
       const d=due?new Date(due):null;if(d&&Number.isNaN(d.getTime()))return out(req,{error:"bad_date"},400);
       await db.from("transactions").update({due_at:d?d.toISOString():null,updated_at:new Date().toISOString()}).eq("id",id);
       await history(id,"due_date_changed",who,d?d.toISOString():"إزالة تاريخ الاستحقاق");

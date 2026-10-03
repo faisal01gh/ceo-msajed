@@ -68,3 +68,7 @@
 
 - معالجة تقرير مراجعة الواجهة: Network Timeout، Partial Rerender، Event Delegation، معرفات فريدة للإدارات المساندة، تنظيف XML/Excel، حماية روابط HTTP/HTTPS، CSP، وتشديد CORS على النطاق الإنتاجي الحالي.
 - التحقق من أن مفاتيح الواجهة Publishable وليست Service Role، وإعادة تشغيل Security Advisor بعد التعديلات.
+
+- إنشاء Cloudflare Pages للمشروع باسم `ceo-msajed` وربطه بفرع `main` من المستودع `faisal01gh/ceo-msajed`.
+- اعتماد رابط الواجهة الحالي: `https://ceo-msajed.pages.dev/`.
+- إضافة نطاق Cloudflare Pages إلى CORS للدوال المطلوبة قبل تحويل المستودع إلى Private.

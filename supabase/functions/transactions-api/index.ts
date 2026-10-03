@@ -425,7 +425,7 @@ async function createRequest(who:Who,tx:any,type:string,reason:string,extra:any=
 }
 
 Deno.serve(async(req:Request)=>{
-  if(req.method==="GET")return out(req,{ok:true,service:"transactions-api",version:13});
+  if(req.method==="GET")return out(req,{ok:true,service:"transactions-api",version:14});
   if(req.method==="OPTIONS")return new Response("ok",{headers:cors(req)});
   if(req.method!=="POST")return out(req,{error:"method_not_allowed"},405);
   let b:any;try{b=await req.json()}catch{return out(req,{error:"bad_request"},400)}
@@ -823,12 +823,31 @@ Deno.serve(async(req:Request)=>{
     if(action==="reopen"){
       const id=clean(b.transaction_id),reason=clean(b.reason);if(!reason)return out(req,{error:"reason_required"},400);
       const a=await txAccess(who,id);if(!a||!a.flags.visible||!canClose(who,a.tx,a.flags))return out(req,{error:"forbidden"},403);
+      if(a.tx.origin==="legacy"&&(!a.tx.responsible_unit_id||!a.tx.responsible_login_name)){
+        const unitId=clean(b.responsible_unit_id),login=clean(b.responsible_login_name);
+        if(!unitId||!login)return out(req,{error:"legacy_context_required"},409);
+        if(!(await scopeCheck(who,unitId))&&!isExec(who.role))return out(req,{error:"forbidden_scope"},403);
+        const target=await account(login);if(!target)return out(req,{error:"invalid_target"},400);
+        await db.from("transactions").update({
+          responsible_unit_id:unitId,responsible_login_name:target.login_name,responsible_name:target.display_name,
+          current_level:level(target.role),workflow_started:true
+        }).eq("id",id);
+        a.tx.responsible_unit_id=unitId;a.tx.responsible_login_name=target.login_name;a.tx.responsible_name=target.display_name;
+        a.tx.current_level=level(target.role);a.tx.workflow_started=true;
+      }
       await reopenTx(who,a.tx,reason);return out(req,{ok:true});
     }
     if(action==="request_reopen"){
       const id=clean(b.transaction_id),reason=clean(b.reason);if(!reason)return out(req,{error:"reason_required"},400);
       const a=await txAccess(who,id);if(!a||!a.flags.visible)return out(req,{error:"forbidden"},403);
-      const row=await createRequest(who,a.tx,"reopen",reason);return out(req,{ok:true,row});
+      const meta:any={};
+      if(a.tx.origin==="legacy"&&(!a.tx.responsible_unit_id||!a.tx.responsible_login_name)){
+        const unitId=clean(b.responsible_unit_id),login=clean(b.responsible_login_name);
+        if(!unitId||!login)return out(req,{error:"legacy_context_required"},409);
+        const target=await account(login);if(!target)return out(req,{error:"invalid_target"},400);
+        meta.responsible_unit_id=unitId;meta.responsible_login_name=target.login_name;meta.responsible_name=target.display_name;
+      }
+      const row=await createRequest(who,a.tx,"reopen",reason,{meta});return out(req,{ok:true,row});
     }
 
     if(action==="request_cancel"){
@@ -856,7 +875,20 @@ Deno.serve(async(req:Request)=>{
       const now=new Date().toISOString();
       if(approve){
         if(r.request_type==="close")await closeTx(who,a.tx,r.reason);
-        else if(r.request_type==="reopen")await reopenTx(who,a.tx,r.reason);
+        else if(r.request_type==="reopen"){
+          if(a.tx.origin==="legacy"&&(!a.tx.responsible_unit_id||!a.tx.responsible_login_name)){
+            const unitId=clean(r.meta?.responsible_unit_id),login=clean(r.meta?.responsible_login_name);
+            if(!unitId||!login)return out(req,{error:"legacy_context_required"},409);
+            const target=await account(login);if(!target)return out(req,{error:"invalid_target"},409);
+            await db.from("transactions").update({
+              responsible_unit_id:unitId,responsible_login_name:target.login_name,responsible_name:target.display_name,
+              current_level:level(target.role),workflow_started:true
+            }).eq("id",a.tx.id);
+            a.tx.responsible_unit_id=unitId;a.tx.responsible_login_name=target.login_name;a.tx.responsible_name=target.display_name;
+            a.tx.current_level=level(target.role);a.tx.workflow_started=true;
+          }
+          await reopenTx(who,a.tx,r.reason);
+        }
         else if(r.request_type==="cancel"){
           await completeActive(a.tx.id);
           await db.from("transactions").update({status:"cancelled",cancelled_at:now,cancelled_reason:r.reason,updated_at:now}).eq("id",a.tx.id);

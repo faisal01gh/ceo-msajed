@@ -65,3 +65,6 @@
 - تحسين سرعة الواجهة بإضافة Preconnect إلى Supabase وService Worker للأصول الثابتة، وتجهيز `_headers` للاستضافة على Cloudflare Pages عند اعتمادها.
 - قياس استعلام قائمة المعاملات داخل PostgreSQL بنحو 26 ms بعد نقل القراءة الرئيسية إلى RPC مباشر.
 - بدء قسم المهام بجرد البيانات القديمة وإنشاء `docs/tasks/LEGACY_INVENTORY.md` و`docs/tasks/SPEC.md` دون افتراض قرارات جديدة.
+
+- معالجة تقرير مراجعة الواجهة: Network Timeout، Partial Rerender، Event Delegation، معرفات فريدة للإدارات المساندة، تنظيف XML/Excel، حماية روابط HTTP/HTTPS، CSP، وتشديد CORS على النطاق الإنتاجي الحالي.
+- التحقق من أن مفاتيح الواجهة Publishable وليست Service Role، وإعادة تشغيل Security Advisor بعد التعديلات.

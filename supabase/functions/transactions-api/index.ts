@@ -38,6 +38,13 @@ function out(req:Request,data:unknown,status=200){
 }
 function arr(v:any){return Array.isArray(v)?v:[]}
 function clean(v:any){return String(v??"").trim()}
+function canonicalDept(v:any){
+  const n=clean(v);
+  if(n==="إدارة العلاقات العامة")return "إدارة العلاقات العامة والإعلام";
+  if(n==="إدارة تقنية المعلومات")return "إدارة التقنية";
+  if(n==="إدرة المشاريع")return "إدارة المشاريع";
+  return n;
+}
 function unique<T>(xs:T[]){return [...new Set(xs)]}
 function authRole(legacyRole:string,jobTitle:string){
   if(jobTitle==="الرئيس التنفيذي")return "ceo";
@@ -98,14 +105,14 @@ async function directory(){
     legacy_role:u.legacy_role||"",
     job_title:u.job_title||"",
     org_name:u.org_name||"",
-    dept_name:u.dept_name||"",
-    dept_names:arr(u.dept_names).map(String),
+    dept_name:canonicalDept(u.dept_name||""),
+    dept_names:arr(u.dept_names).map(canonicalDept),
     user_id:u.migrated_user_id||null,
     source:u.source
   }));
   const b=(authdir.data||[]).map((u:any)=>{
     const role=authRole(u.legacy_role||"",u.job_title||"");
-    const depts=arr(u.dept_names).map(String);
+    const depts=arr(u.dept_names).map(canonicalDept);
     return {
       login_name:u.login_name,
       display_name:u.display_name||u.login_name,
@@ -156,8 +163,8 @@ async function identity(app:string,token:string):Promise<Who|null>{
   const role=hit?.role||(r.data.role==="manager"?"manager":r.data.role==="employee"?"employee":"assistant");
   return {
     app,login_name:hit?.login_name||display,display_name:display||hit?.display_name||"",
-    role,org_name:org||hit?.org_name||"",dept_name:clean(r.data.dept_name)||hit?.dept_name||"",
-    dept_names:arr(r.data.dept_names).length?arr(r.data.dept_names).map(String):(hit?.dept_names||[])
+    role,org_name:org||hit?.org_name||"",dept_name:canonicalDept(r.data.dept_name)||hit?.dept_name||"",
+    dept_names:arr(r.data.dept_names).length?arr(r.data.dept_names).map(canonicalDept):(hit?.dept_names||[])
   };
 }
 async function units(){
@@ -367,14 +374,21 @@ async function managerFor(who:Who){
   return d.find((u:any)=>u.role==="manager"&&u.org_name===who.org_name&&u.dept_names.some((x:string)=>deps.includes(x)))||null;
 }
 async function txAccess(who:Who,id:string){
-  const ctx=await txContext();
-  const tx=ctx.txs.find((x:any)=>x.id===id);
-  if(!tx)return null;
-  const asBy=byKey(ctx.assignments,"transaction_id"),tgBy=byKey(ctx.targets,"assignment_id"),rtBy=byKey(ctx.routes,"transaction_id");
-  const scope=scopeOf(who,ctx.units);const unitMap=new Map(ctx.units.map((u:any)=>[u.id,u]));
-  const assigns=asBy.get(id)||[];const routes=rtBy.get(id)||[];
-  const flags=flagsFor(who,tx,assigns,tgBy,routes,scope,unitMap);
-  return {ctx,tx,assigns,routes,targetsByAssignment:tgBy,flags,scope,unitMap};
+  const [txr,ar,rr,ur]=await Promise.all([
+    db.from("transactions").select("*").eq("id",id).maybeSingle(),
+    db.from("transaction_assignments").select("id,transaction_id,unit_id,assignment_type,directive,attachment_url,status,created_at,completed_at,visibility_scope,transaction_assignment_targets(id,user_id,login_name,display_name,active,assigned_at,completed_at)").eq("transaction_id",id),
+    db.from("transaction_routes").select("*").eq("transaction_id",id).order("created_at"),
+    db.from("organizational_units").select("id,name,unit_type,parent_id,active").eq("active",true)
+  ]);
+  if(txr.error||!txr.data)return null;
+  if(ar.error||rr.error||ur.error)throw ar.error||rr.error||ur.error;
+  const tx=txr.data,assigns=ar.data||[],routes=rr.data||[],allUnits=ur.data||[];
+  const targetRows:any[]=[];
+  for(const a of assigns)for(const t of arr(a.transaction_assignment_targets))targetRows.push({...t,assignment_id:a.id});
+  const targetsByAssignment=byKey(targetRows,"assignment_id");
+  const scope=scopeOf(who,allUnits);const unitMap=new Map(allUnits.map((u:any)=>[u.id,u]));
+  const flags=flagsFor(who,tx,assigns,targetsByAssignment,routes,scope,unitMap);
+  return {tx,assigns,routes,targetsByAssignment,flags,scope,unitMap,units:allUnits};
 }
 async function closeTx(who:Who,tx:any,reason:string){
   const now=new Date().toISOString();
@@ -411,7 +425,7 @@ async function createRequest(who:Who,tx:any,type:string,reason:string,extra:any=
 }
 
 Deno.serve(async(req:Request)=>{
-  if(req.method==="GET")return out(req,{ok:true,service:"transactions-api",version:11});
+  if(req.method==="GET")return out(req,{ok:true,service:"transactions-api",version:12});
   if(req.method==="OPTIONS")return new Response("ok",{headers:cors(req)});
   if(req.method!=="POST")return out(req,{error:"method_not_allowed"},405);
   let b:any;try{b=await req.json()}catch{return out(req,{error:"bad_request"},400)}
@@ -423,7 +437,24 @@ Deno.serve(async(req:Request)=>{
   try{
     if(action==="directory"){
       const [users0,units0]=await Promise.all([directory(),units()]);
-      return out(req,{ok:true,me:who,users:users0,units:units0});
+      let visibleUsers=users0,visibleUnits=units0;
+      if(!isExec(who.role)){
+        const sc=scopeOf(who,units0);
+        visibleUnits=units0.filter((u:any)=>sc.ids.has(u.id));
+        if(who.role==="assistant"){
+          visibleUsers=users0.filter((u:any)=>u.org_name===who.org_name||u.role==="assistant"||u.login_name===who.login_name);
+        }else if(who.role==="manager"){
+          const mine=new Set(unique([who.dept_name,...who.dept_names].filter(Boolean)));
+          visibleUsers=users0.filter((u:any)=>u.login_name===who.login_name||
+            (u.role==="assistant"&&u.org_name===who.org_name)||
+            (u.org_name===who.org_name&&arr(u.dept_names).some((d:any)=>mine.has(String(d)))));
+        }else{
+          const mine=new Set(unique([who.dept_name,...who.dept_names].filter(Boolean)));
+          visibleUsers=users0.filter((u:any)=>u.login_name===who.login_name||
+            (u.role==="manager"&&u.org_name===who.org_name&&arr(u.dept_names).some((d:any)=>mine.has(String(d)))));
+        }
+      }
+      return out(req,{ok:true,me:who,users:visibleUsers,units:visibleUnits});
     }
 
     if(action==="list"){
@@ -694,8 +725,8 @@ Deno.serve(async(req:Request)=>{
       const a=await txAccess(who,id);if(!a)return out(req,{error:"not_found"},404);
       const target=await account(toLogin);if(!target||target.role!=="assistant")return out(req,{error:"invalid_target"},400);
       await completeActive(id);
-      await addRoute(id,"directive",who,target,{directive});
-      await db.from("transactions").update({current_level:"assistant",close_level:"ceo",workflow_started:true,updated_at:new Date().toISOString(),last_activity_at:new Date().toISOString()}).eq("id",id);
+      await addRoute(id,"directive",who,target,{directive,meta:isExec(who.role)?{directive_owner:"الرئيس التنفيذي",entered_by:who.display_name}:{}});
+      await db.from("transactions").update({current_level:"assistant",close_level:"ceo",workflow_started:true,ceo_attention:false,updated_at:new Date().toISOString(),last_activity_at:new Date().toISOString()}).eq("id",id);
       await history(id,"exec_to_assistant",who,directive,{to:target.display_name});
       await notify(target.login_name,target.display_name,id,"route",a.tx.title,directive);
       return out(req,{ok:true});
@@ -710,8 +741,8 @@ Deno.serve(async(req:Request)=>{
       const a=await txAccess(who,id);if(!a)return out(req,{error:"not_found"},404);
       await completeActive(id);
       await addAssignment(id,unitId,"direct",directive,targets,visibility,who);
-      await addRoute(id,"direct_assign",who,{unit_id:unitId,name:""},{directive,visibility_scope:visibility,meta:{targets}});
-      await db.from("transactions").update({responsible_unit_id:unitId,current_level:"employee",close_level:"ceo",workflow_started:true,updated_at:new Date().toISOString(),last_activity_at:new Date().toISOString()}).eq("id",id);
+      await addRoute(id,"direct_assign",who,{unit_id:unitId,name:""},{directive,visibility_scope:visibility,meta:{targets,directive_owner:"الرئيس التنفيذي",entered_by:who.display_name}});
+      await db.from("transactions").update({responsible_unit_id:unitId,current_level:"employee",close_level:"ceo",workflow_started:true,ceo_attention:false,updated_at:new Date().toISOString(),last_activity_at:new Date().toISOString()}).eq("id",id);
       await history(id,"direct_assign",who,directive,{targets,visibility_scope:visibility});
       return out(req,{ok:true});
     }

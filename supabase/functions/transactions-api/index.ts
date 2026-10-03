@@ -24,7 +24,7 @@ type Who={
 
 function cors(req:Request){
   const origin=req.headers.get("origin")||"";
-  const ok=origin==="https://faisal01gh.github.io"||/^https:\/\/[a-z0-9.-]+\.pages\.dev$/i.test(origin);
+  const ok=origin==="https://faisal01gh.github.io";
   const h:Record<string,string>={
     "Access-Control-Allow-Methods":"GET,POST,OPTIONS",
     "Access-Control-Allow-Headers":"content-type,apikey",
@@ -42,6 +42,14 @@ function out(req:Request,data:unknown,status=200){
 }
 function arr(v:any){return Array.isArray(v)?v:[]}
 function clean(v:any){return String(v??"").trim()}
+function safeHttpUrl(v:any){
+  const value=clean(v);
+  if(!value)return null;
+  try{
+    const u=new URL(value);
+    return ["http:","https:"].includes(u.protocol)?u.href:null;
+  }catch{return null}
+}
 function canonicalDept(v:any){
   const n=clean(v);
   if(n==="إدارة العلاقات العامة")return "إدارة العلاقات العامة والإعلام";
@@ -532,11 +540,13 @@ Deno.serve(async(req:Request)=>{
 
     if(action==="create"){
       const title=clean(b.title);if(!title)return out(req,{error:"missing_title"},400);
+      const attachment=safeHttpUrl(b.attachment_url);
+      if(clean(b.attachment_url)&&!attachment)return out(req,{error:"invalid_attachment_url"},400);
       if(who.role==="employee")return out(req,{error:"forbidden"},403);
       const {data:num,error:numErr}=await db.rpc("next_transaction_number");if(numErr)throw numErr;
       const lvl=level(who.role);
       const {data:tx,error}=await db.from("transactions").insert({
-        number:num,origin:"new",title,subject:clean(b.subject)||null,attachment_url:clean(b.attachment_url)||null,
+        number:num,origin:"new",title,subject:clean(b.subject)||null,attachment_url:attachment,
         priority:["عاجل جدًا","عاجل","عادي"].includes(clean(b.priority))?clean(b.priority):"عادي",
         status:"open",responsible_login_name:who.login_name,responsible_name:who.display_name,
         current_level:lvl,close_level:lvl==="employee"?"manager":lvl,created_by_name:who.display_name

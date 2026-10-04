@@ -429,7 +429,7 @@ async function createRequest(who:Who,tx:any,type:string,reason:string,extra:any=
 }
 
 Deno.serve(async(req:Request)=>{
-  if(req.method==="GET")return out(req,{ok:true,service:"transactions-api",version:29});
+  if(req.method==="GET")return out(req,{ok:true,service:"transactions-api",version:30});
   if(req.method==="OPTIONS")return new Response("ok",{headers:cors(req)});
   if(req.method!=="POST")return out(req,{error:"method_not_allowed"},405);
   let b:any;try{b=await req.json()}catch{return out(req,{error:"bad_request"},400)}
@@ -599,7 +599,7 @@ Deno.serve(async(req:Request)=>{
       const title=clean(b.title),subject=clean(b.subject);
       if(!id||!unitId||!login||!title)return out(req,{error:"missing"},400);
       const tx=await txRow(id);if(!tx)return out(req,{error:"not_found"},404);
-      if(tx.origin!=="legacy"||tx.migration_status!=="needs_review")return out(req,{error:"not_review_case"},409);
+      if(tx.origin!=="legacy"||tx.status!=="open"||tx.migration_status!=="needs_review")return out(req,{error:"not_review_case"},409);
       const target=await account(login);if(!target)return out(req,{error:"invalid_target"},400);
       const allUnits=await units();
       const unit=allUnits.find((u:any)=>u.id===unitId);if(!unit)return out(req,{error:"invalid_unit"},400);

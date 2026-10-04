@@ -240,7 +240,8 @@ Cloudflare Pages هو رابط التشغيل الحالي:
 - يدعم النظام حفظ Override لحساب تشغيلي قبل ربطه بـSupabase Auth ثم استخدامه عند التفعيل.
 - `transactions-api` المنشورة: Version 25 في آخر تحقق.
 - تم اختبار تغيير صلاحية حساسة مع Audit داخل Rollback بنجاح.
-- RPC الداخلية الإدارية غير متاحة مباشرة لـ`authenticated`؛ المدخل الإداري يمر عبر Wrappers مرتبطة بـ`auth.uid()`.
+- Security Advisor بعد التشديد لا يعرض تحذير `SECURITY DEFINER` على RPC الصلاحيات؛ التنبيه الأمني المتبقي المعروف هو Leaked Password Protection.
+- الدوال الداخلية ذات actor الصريح غير متاحة لـ`authenticated`؛ الـWrappers العامة `SECURITY INVOKER` وتستخدم دوال داخلية آمنة مرتبطة بـ`auth.uid()`.
 
 فهد وليد الرشيد:
 - `assistant_secretary`

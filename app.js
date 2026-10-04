@@ -140,21 +140,67 @@ function defaultTab(role){
 }
 function baseBody(action,extra={}){return {app:"new",token:session.token,action,...extra}}
 
+function uiIcon(name){
+  const paths={
+    transactions:'<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/>',
+    profile:'<circle cx="12" cy="8" r="3.5"/><path d="M5 21v-2a7 7 0 0 1 14 0v2"/>',
+    permissions:'<path d="M12 3 4 6v5c0 5 8 10 8 10s8-5 8-10V6Z"/><path d="m8.5 12 2.5 2.5 4.5-5"/>',
+    search:'<circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/>',
+    filter:'<path d="M4 7h16M7 12h10M10 17h4"/>',
+    chevron:'<path d="m6 9 6 6 6-6"/>',
+    close:'<path d="m6 6 12 12M18 6 6 18"/>',
+    edit:'<path d="m15 4 5 5M4 20l4-1 12-12-3-3L5 16Z"/>',
+    plus:'<path d="M12 5v14M5 12h14"/>',
+    building:'<path d="M4 21V10l8-7 8 7v11M2 21h20M9 21v-7h6v7M8 10h.01M16 10h.01"/>',
+    empty:'<rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 9h8M8 13h5"/>'
+  };
+  return '<svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true">'+(paths[name]||paths.transactions)+'</svg>';
+}
+function showNotice(message,success=false){
+  document.querySelector('.ui-notice')?.remove();
+  const el=document.createElement('div');
+  el.className='ui-notice'+(success?' success':'');el.setAttribute('role',success?'status':'alert');
+  el.innerHTML='<span>'+esc(message)+'</span><button type="button" aria-label="إغلاق التنبيه">'+uiIcon('close')+'</button>';
+  el.querySelector('button').onclick=()=>el.remove();document.body.appendChild(el);
+}
+function showRequestError(container,message='تعذر إكمال الطلب. تحقق من الاتصال ثم حاول مرة أخرى.'){
+  if(container?.isConnected){
+    let el=container.querySelector('.modal-feedback');
+    if(!el){el=document.createElement('p');el.className='modal-feedback';el.setAttribute('role','alert');container.querySelector('.modal-body').prepend(el)}
+    el.textContent=message;
+  }else showNotice(message);
+}
+let uiFieldSerial=0;
+function associateFormLabels(container){
+  container.querySelectorAll('label:not([for])').forEach(label=>{
+    if(label.querySelector('input,select,textarea'))return;
+    const next=label.nextElementSibling;
+    const field=next?.matches('input,select,textarea')?next:next?.querySelector('input,select,textarea');
+    if(!field)return;
+    if(!field.id)field.id='ui-field-'+(++uiFieldSerial);
+    label.htmlFor=field.id;
+  });
+}
+function emptyState(title,help=''){
+  return '<div class="empty">'+uiIcon('empty')+'<strong>'+esc(title)+'</strong>'+(help?'<p>'+esc(help)+'</p>':'')+'</div>';
+}
 function loginView(){
   root.innerHTML=`
-  <section class="login-shell">
+  <section class="login-shell" role="main">
     <form class="login-card" id="loginForm">
-      <h1 class="login-title">جمعية عمارة المساجد</h1>
+      <div class="login-brand"><span class="brand-mark">${uiIcon("building")}</span><h1 class="login-title">جمعية عمارة المساجد</h1></div>
+      <p class="login-intro">سجّل الدخول إلى نظام الجمعية.</p>
       <label for="username">اسم المستخدم</label>
       <input class="field" id="username" autocomplete="username" autocapitalize="off" spellcheck="false">
       <label for="password">كلمة السر</label>
-      <input class="field" id="password" type="password" autocomplete="current-password">
+      <div class="password-input-wrap"><input class="field password-input" id="password" type="password" autocomplete="current-password" aria-describedby="loginMsg"><button class="password-toggle" id="toggleLoginPassword" type="button" aria-label="إظهار كلمة المرور" aria-pressed="false">${passwordEyeIcon()}</button></div>
       <button class="login-btn" id="loginBtn" type="submit">دخول</button>
       <p class="login-msg" id="loginMsg" aria-live="polite"></p>
       <p class="login-foot">أهلاً وسهلاً بكم</p>
     </form>
-  `;
+  </section>`;
   document.getElementById("loginForm").addEventListener("submit",login);
+  wirePasswordToggle(document.getElementById("toggleLoginPassword"),document.getElementById("password"));
   document.getElementById("username").focus();
 }
 async function signInNew(email,password){
@@ -174,8 +220,8 @@ function passwordPolicy(value){
   };
 }
 function passwordRulesMarkup(value=""){
-  const ok=Object.values(passwordPolicy(value)).every(Boolean);
-  return '<span class="password-hint-icon">'+(ok?"✓":"•")+'</span><span>8+ أحرف · A-Z · a-z · رمز</span>';
+  const policy=passwordPolicy(value);
+  return [["length","8+ أحرف"],["upper","حرف كبير"],["lower","حرف صغير"],["symbol","رمز"]].map(([key,label])=>'<span class="password-rule '+(policy[key]?"ok":"")+'">'+(policy[key]?'<span class="password-hint-icon" aria-hidden="true">✓</span><span class="sr-only">متحقق: </span>':"")+esc(label)+'</span>').join("");
 }
 function passwordStrong(value){return Object.values(passwordPolicy(value)).every(Boolean)}
 function passwordEyeIcon(){
@@ -183,16 +229,18 @@ function passwordEyeIcon(){
 }
 function wirePasswordToggle(button,input){
   if(!button||!input)return;
+  button.setAttribute("aria-pressed","false");
   button.onclick=()=>{
     const show=input.type==="password";
     input.type=show?"text":"password";
     button.classList.toggle("active",show);
+    button.setAttribute("aria-pressed",String(show));
     button.setAttribute("aria-label",show?"إخفاء كلمة المرور":"إظهار كلمة المرور");
   };
 }
 function passwordChangeView(ctx){
   root.innerHTML=`
-  <section class="password-shell">
+  <section class="password-shell" role="main">
     <form class="password-card" id="passwordForm">
       <div class="password-lock" aria-hidden="true">
         <svg viewBox="0 0 24 24"><path d="M7.5 10V7.8a4.5 4.5 0 0 1 9 0V10"/><rect x="5.5" y="10" width="13" height="10" rx="2.5"/><path d="M12 14v2.4"/></svg>
@@ -205,7 +253,7 @@ function passwordChangeView(ctx){
       <div class="password-field-group">
         <label for="newPassword">كلمة المرور الجديدة</label>
         <div class="password-input-wrap">
-          <input class="field password-input" id="newPassword" type="password" autocomplete="new-password" placeholder="أدخل كلمة المرور الجديدة">
+          <input class="field password-input" id="newPassword" type="password" autocomplete="new-password" aria-describedby="passwordRules passwordMsg" placeholder="أدخل كلمة المرور الجديدة">
           <button class="password-toggle" id="toggleNewPassword" type="button" aria-label="إظهار كلمة المرور">${passwordEyeIcon()}</button>
         </div>
         <div class="password-inline-hint" id="passwordRules">${passwordRulesMarkup("")}</div>
@@ -214,10 +262,10 @@ function passwordChangeView(ctx){
       <div class="password-field-group">
         <label for="confirmPassword">تأكيد كلمة المرور</label>
         <div class="password-input-wrap">
-          <input class="field password-input" id="confirmPassword" type="password" autocomplete="new-password" placeholder="أعد إدخال كلمة المرور">
+          <input class="field password-input" id="confirmPassword" type="password" autocomplete="new-password" aria-describedby="passwordMatch passwordMsg" placeholder="أعد إدخال كلمة المرور">
           <button class="password-toggle" id="toggleConfirmPassword" type="button" aria-label="إظهار كلمة المرور">${passwordEyeIcon()}</button>
         </div>
-        <div class="password-inline-hint" id="passwordMatch"><span class="password-hint-icon">•</span><span>يجب أن تتطابق كلمتا المرور</span></div>
+        <div class="password-inline-hint" id="passwordMatch" aria-live="polite"><span class="password-hint-icon">•</span><span>يجب أن تتطابق كلمتا المرور</span></div>
       </div>
 
       <button class="password-submit" id="passwordBtn" type="submit">حفظ والدخول</button>
@@ -239,7 +287,7 @@ function passwordChangeView(ctx){
       return;
     }
     const ok=p1.value===p2.value;
-    match.innerHTML='<span class="password-hint-icon">'+(ok?"✓":"×")+'</span><span>'+(ok?"متطابقة":"غير متطابقة")+'</span>';
+    match.innerHTML='<span class="password-hint-icon">'+(ok?"✓":"×")+'</span><span>'+(ok?"يجب أن تتطابق كلمتا المرور · متطابقة":"يجب أن تتطابق كلمتا المرور · غير متطابقة")+'</span>';
     match.className="password-inline-hint "+(ok?"ok":"bad");
   };
   p1.oninput=updateRules;p2.oninput=updateRules;
@@ -303,7 +351,7 @@ async function login(e){
 }
 async function boot(){
   if(!session){loginView();return}
-  root.innerHTML='<div class="loading">جارٍ التحميل…</div>';
+  root.innerHTML='<section class="loading" role="status" aria-live="polite"><h1>جارٍ تحميل المعاملات</h1><p>نجهّز مساحة العمل.</p><div class="skeleton-lines" aria-hidden="true"><div class="skeleton-line"></div><div class="skeleton-line"></div><div class="skeleton-line"></div></div></section>';
   try{
     const gateProfile=await rpc("my_profile");
     if(gateProfile?.must_change_password===true){
@@ -341,7 +389,8 @@ async function boot(){
     renderApp();
   }catch(err){
     if(err.status===401){clearSession();loginView();return}
-    root.innerHTML='<div class="loading">تعذّر تحميل المعاملات</div>';
+    root.innerHTML='<section class="loading"><h1>تعذّر تحميل المعاملات</h1><p role="alert">تحقق من الاتصال ثم أعد المحاولة. لم تتغير بياناتك.</p><button class="btn btn-blue" id="retryBoot">إعادة المحاولة</button></section>';
+    document.getElementById("retryBoot").onclick=boot;
   }
 }
 async function loadList(){
@@ -353,32 +402,34 @@ async function loadList(){
 }
 function sectionSidebar(active){
   return `
-    <aside class="glass-sidebar">
-      <div class="sidebar-brand">نظام الجمعية</div>
-      <button class="sidebar-item ${active==="transactions"?"active":""}" data-section="transactions"><span>▦</span>المعاملات</button>
-      <button class="sidebar-item ${active==="profile"?"active":""}" data-section="profile"><span>◉</span>بياناتي</button>
-      ${canManagePermissions()?'<button class="sidebar-item '+(active==="permissions"?"active":"")+'" data-section="permissions"><span>⚙</span>الصلاحيات</button>':""}
-    </aside>`;
+    <nav class="glass-sidebar" aria-label="أقسام النظام">
+      <div class="sidebar-brand">نظام الجمعية<small>جمعية عمارة المساجد</small><span class="brand-line" aria-hidden="true"></span></div>
+      <button class="sidebar-item ${active==="transactions"?"active":""}" ${active==="transactions"?'aria-current="page"':""} data-section="transactions">${uiIcon("transactions")}المعاملات</button>
+      <button class="sidebar-item ${active==="profile"?"active":""}" ${active==="profile"?'aria-current="page"':""} data-section="profile">${uiIcon("profile")}بياناتي</button>
+      ${canManagePermissions()?'<button class="sidebar-item '+(active==="permissions"?"active":"")+'" '+(active==="permissions"?'aria-current="page"':"")+' data-section="permissions">'+uiIcon("permissions")+'الصلاحيات</button>':""}
+    </nav>`;
 }
 async function wireSectionSidebar(){
   document.querySelectorAll("[data-section]").forEach(b=>b.onclick=async()=>{
     const section=b.dataset.section;
+    try{
     if(section==="transactions"){
       currentSection="transactions";
       renderApp();
       return;
     }
     if(section==="profile"){
-      currentSection="profile";
       await loadProfile();
+      currentSection="profile";
       renderProfileApp();
       return;
     }
     if(section==="permissions"&&canManagePermissions()){
-      currentSection="permissions";
       await loadPermissions();
+      currentSection="permissions";
       renderPermissionsApp();
     }
+    }catch{showNotice("تعذر تحميل القسم. تحقق من الاتصال ثم حاول مرة أخرى.")}
   });
 }
 async function loadProfile(){
@@ -389,7 +440,7 @@ function openOwnPasswordChange(){
     <div class="password-field-group">
       <label>كلمة المرور الجديدة</label>
       <div class="password-input-wrap">
-        <input class="field password-input" id="profileNewPassword" type="password" autocomplete="new-password" placeholder="أدخل كلمة المرور الجديدة">
+        <input class="field password-input" id="profileNewPassword" type="password" autocomplete="new-password" aria-describedby="profilePasswordRules" placeholder="أدخل كلمة المرور الجديدة">
         <button class="password-toggle" id="toggleProfileNewPassword" type="button" aria-label="إظهار كلمة المرور">${passwordEyeIcon()}</button>
       </div>
       <div class="password-inline-hint" id="profilePasswordRules">${passwordRulesMarkup("")}</div>
@@ -397,10 +448,10 @@ function openOwnPasswordChange(){
     <div class="password-field-group">
       <label>تأكيد كلمة المرور</label>
       <div class="password-input-wrap">
-        <input class="field password-input" id="profileConfirmPassword" type="password" autocomplete="new-password" placeholder="أعد إدخال كلمة المرور">
+        <input class="field password-input" id="profileConfirmPassword" type="password" autocomplete="new-password" aria-describedby="profilePasswordMatch" placeholder="أعد إدخال كلمة المرور">
         <button class="password-toggle" id="toggleProfileConfirmPassword" type="button" aria-label="إظهار كلمة المرور">${passwordEyeIcon()}</button>
       </div>
-      <div class="password-inline-hint" id="profilePasswordMatch"><span class="password-hint-icon">•</span><span>يجب أن تتطابق كلمتا المرور</span></div>
+      <div class="password-inline-hint" id="profilePasswordMatch" aria-live="polite"><span class="password-hint-icon">•</span><span>يجب أن تتطابق كلمتا المرور</span></div>
     </div>`,
     '<button class="btn btn-green" id="saveProfilePassword">حفظ</button><button class="btn btn-soft" data-exit>خروج</button>');
   w.querySelector("[data-exit]").onclick=()=>w.remove();
@@ -419,20 +470,20 @@ function openOwnPasswordChange(){
       return;
     }
     const ok=p1.value===p2.value;
-    match.innerHTML='<span class="password-hint-icon">'+(ok?"✓":"×")+'</span><span>'+(ok?"متطابقة":"غير متطابقة")+'</span>';
+    match.innerHTML='<span class="password-hint-icon">'+(ok?"✓":"×")+'</span><span>'+(ok?"يجب أن تتطابق كلمتا المرور · متطابقة":"يجب أن تتطابق كلمتا المرور · غير متطابقة")+'</span>';
     match.className="password-inline-hint "+(ok?"ok":"bad");
   };
   p1.oninput=draw;p2.oninput=draw;
   w.querySelector("#saveProfilePassword").onclick=async()=>{
     const p=p1.value;
-    if(!passwordStrong(p)||p!==p2.value)return;
+    if(!passwordStrong(p)||p!==p2.value){showRequestError(w,"أكمل شروط كلمة المرور وتأكد من تطابق كلمتي المرور.");return}
     const btn=w.querySelector("#saveProfilePassword");btn.disabled=true;
     const {r}=await fetchJson(CONFIG.supabaseUrl+"/auth/v1/user",{
       method:"PUT",
       headers:{"Content-Type":"application/json","apikey":CONFIG.publishableKey,Authorization:"Bearer "+session.token},
       body:JSON.stringify({password:p})
     });
-    if(!r.ok){btn.disabled=false;return}
+    if(!r.ok){btn.disabled=false;showRequestError(w);return}
     w.remove();
   };
 }
@@ -454,9 +505,9 @@ function renderProfileApp(){
       <section class="card profile-card">
         <div class="card-head"><span class="card-title">بيانات الحساب</span></div>
         <div class="profile-body">
-          <label>الاسم</label>
-          <input class="field" value="${esc(profileData.name||"")}" disabled>
-          <label>البريد الإلكتروني</label>
+          <label for="profileName">الاسم</label>
+          <input class="field" id="profileName" value="${esc(profileData.name||"")}" disabled>
+          <label for="profileEmail">البريد الإلكتروني</label>
           <input class="field" id="profileEmail" type="email" value="${esc(profileData.email||"")}" ${profileData.can_edit_email?"":"disabled"}>
           <div class="profile-actions">
             ${profileData.can_edit_email?'<button class="btn btn-green" id="saveProfileEmail">حفظ البريد</button>':""}
@@ -472,10 +523,11 @@ function renderProfileApp(){
   document.getElementById("changeProfilePassword").onclick=openOwnPasswordChange;
   const save=document.getElementById("saveProfileEmail");
   if(save)save.onclick=async()=>{
-    const email=document.getElementById("profileEmail").value.trim();
-    profileData=await rpc("my_profile_set_email",{p_email:email});
-    await loadProfile();
-    renderProfileApp();
+    const email=document.getElementById("profileEmail").value.trim();save.disabled=true;
+    try{
+      profileData=await rpc("my_profile_set_email",{p_email:email});
+      await loadProfile();renderProfileApp();showNotice("تم حفظ البريد الإلكتروني.",true);
+    }catch{showNotice("تعذر حفظ البريد الإلكتروني. تحقق منه ثم حاول مرة أخرى.");save.disabled=false}
   };
 }
 async function loadPermissions(){
@@ -510,10 +562,10 @@ function renderPermissionsApp(){
         </nav>
         <div class="permissions-body">
           <div class="permissions-userbar">
-            <select class="field" id="permissionsUser">
+            <label class="permissions-user-select" for="permissionsUser">المستخدم<select class="field" id="permissionsUser">
               ${users.map(u=>'<option value="'+esc(u.canonical_key)+'" '+(selected&&u.canonical_key===selected.canonical_key?"selected":"")+'>'+esc(u.display_name)+'</option>').join("")}
-            </select>
-            ${selected?'<span class="account-state '+(selected.user_id?"linked":"pending")+'">'+(selected.user_id?"الحساب مفعل":"بانتظار إنشاء Auth")+'</span>':""}
+            </select></label>
+            ${selected?'<span class="account-state '+(selected.user_id?"linked":"pending")+'">'+(selected.user_id?"الحساب مفعل":"بانتظار تفعيل الحساب")+'</span>':""}
             ${selected&&sessionPermissions.includes("profiles.admin_edit_name")?'<button class="btn btn-soft" id="editAccountNameBtn">تعديل الاسم</button>':""}
           </div>
           <div id="permissionsGrid">
@@ -537,18 +589,19 @@ function renderPermissionsApp(){
   document.querySelectorAll("[data-permission-toggle]").forEach(input=>input.onchange=async e=>{
     const target=e.target;
     if(!selected?.canonical_key){target.checked=!target.checked;return}
-    target.disabled=true;
+    target.disabled=true;let saved=false;
     try{
       await rpc("permissions_admin_set_by_account",{
         p_target_key:selected.canonical_key,
         p_permission_code:target.dataset.permissionToggle,
         p_enabled:target.checked
       });
-      await loadPermissions();
+      saved=true;await loadPermissions();
       renderPermissionsApp();
     }catch{
-      target.checked=!target.checked;
+      if(!saved)target.checked=!target.checked;
       target.disabled=false;
+      showNotice(saved?"حُفظ التعديل، لكن تعذر تحديث القائمة. أعد فتح قسم الصلاحيات للتحقق.":"تعذر تأكيد حفظ الصلاحية. أعد فتح القسم للتحقق من القيمة الحالية.");
     }
   });
 }
@@ -572,13 +625,32 @@ function openAdminAccountName(user){
   };
 }
 function renderPermissionGrid(user){
-  return (user.permissions||[]).map(p=>{
+  const groups=[
+    ["العرض والعمل",["transactions.view_all","transactions.act_all","transactions.create","transactions.ceo_view"]],
+    ["الإحالات والإسناد",[...ROUTE_PERMISSION_CODES,"transactions.add_supporting","transactions.decide_assistant_transfer"]],
+    ["إدارة المعاملة",["transactions.change_priority","transactions.change_responsible","transactions.set_due_date","transactions.close","transactions.reopen","transactions.delete_hard"]],
+    ["بيانات الحساب",["profiles.edit_email","profiles.admin_edit_name","profiles.admin_reset_password"]],
+    ["صلاحيات أخرى",[]]
+  ];
+  const buckets=groups.map(()=>[]);
+  for(const permission of user.permissions||[]){
+    const index=groups.findIndex(([,codes])=>codes.includes(permission.code));
+    buckets[index<0?groups.length-1:index].push(permission);
+  }
+  return groups.map(([title],i)=>buckets[i].length?'<section class="permission-group"><h2>'+esc(title)+'</h2><div class="permission-group-grid">'+buckets[i].map(p=>{
     const disabled=!p.editable;
     return `<label class="permission-item ${disabled?"fixed":""}">
       <span class="permission-name">${esc(p.name_ar)}</span>
-      <input type="checkbox" data-permission-toggle="${esc(p.code)}" ${p.effective_enabled?"checked":""} ${disabled?"disabled":""}>
+      <span class="permission-switch"><input type="checkbox" role="switch" data-permission-toggle="${esc(p.code)}" ${p.effective_enabled?"checked":""} ${disabled?"disabled":""}><span class="switch-track" aria-hidden="true"></span></span>
     </label>`;
-  }).join("");
+  }).join("")+'</div></section>':"").join("");
+}
+function activeFilterCount(){
+  return [priorityFilter,statusFilter,departmentFilter,employeeFilter,originFilter,lateOnly,dateFrom,dateTo].filter(Boolean).length;
+}
+function updateFilterCount(){
+  const count=document.getElementById("activeFilterCount");
+  if(count){count.textContent=String(activeFilterCount());count.hidden=activeFilterCount()===0}
 }
 function renderApp(){
   if(currentSection==="permissions"){renderPermissionsApp();return}
@@ -600,8 +672,8 @@ function renderApp(){
         </div>
       </header>
 
-      <nav class="nav-tabs">
-        ${tabs.map(([k,n])=>`<button class="nav-tab ${currentTab===k?"active":""}" data-tab="${k}">${n}</button>`).join("")}
+      <nav class="nav-tabs" aria-label="عرض المعاملات">
+        ${tabs.map(([k,n])=>`<button class="nav-tab ${currentTab===k?"active":""}" data-tab="${k}" aria-pressed="${currentTab===k}">${n}</button>`).join("")}
       </nav>
 
       <div class="trx-stats">
@@ -610,39 +682,47 @@ function renderApp(){
         <span>طلبات معلقة <b id="statPending">${Number(listData.counters?.pending_approval||0)}</b></span>
         <span>مغلق اليوم <b id="statClosedToday">${Number(listData.counters?.closed_today||0)}</b></span>
       </div>
-      <div class="toolbar">
-        <input class="field search" id="search" placeholder="بحث" value="${esc(searchText)}">
-        <select class="field" id="statusFilter">
-          <option value="">الحالة</option>
-          <option value="open" ${statusFilter==="open"?"selected":""}>مفتوحة</option>
-          <option value="closed" ${statusFilter==="closed"?"selected":""}>مغلقة</option>
-        </select>
-        <select class="field" id="priorityFilter">
-          <option value="">الأولوية</option>
-          <option value="عاجل جدًا" ${priorityFilter==="عاجل جدًا"?"selected":""}>عاجل جدًا</option>
-          <option value="عاجل" ${priorityFilter==="عاجل"?"selected":""}>عاجل</option>
-          <option value="عادي" ${priorityFilter==="عادي"?"selected":""}>عادي</option>
-        </select>
-        <select class="field" id="departmentFilter">
-          <option value="">الإدارة</option>
-          ${(directoryData.units||[]).filter(u=>["department","independent","branch"].includes(u.unit_type)).map(u=>'<option value="'+esc(u.name)+'" '+(departmentFilter===u.name?"selected":"")+'>'+esc(u.name)+'</option>').join("")}
-        </select>
-        <select class="field" id="employeeFilter">
-          <option value="">الموظف</option>
-          ${(directoryData.users||[]).map(u=>'<option value="'+esc(u.login_name)+'" '+(employeeFilter===u.login_name?"selected":"")+'>'+esc(u.display_name)+'</option>').join("")}
-        </select>
-        <select class="field" id="originFilter">
-          <option value="">قديم/جديد</option>
-          <option value="legacy" ${originFilter==="legacy"?"selected":""}>قديم</option>
-          <option value="new" ${originFilter==="new"?"selected":""}>جديد</option>
-        </select>
-        <label class="check-filter"><input type="checkbox" id="lateOnly" ${lateOnly?"checked":""}> متأخرة</label>
-        <input class="field date-filter" id="dateFrom" type="date" value="${esc(dateFrom)}">
-        <input class="field date-filter" id="dateTo" type="date" value="${esc(dateTo)}">
-        ${hasTxPerm("transactions.create")?'<button class="btn btn-green" id="createBtn">إنشاء معاملة</button>':""}
-        <button class="btn btn-soft" id="excelListBtn">Excel القائمة</button>
-        <button class="btn btn-soft" id="pdfListBtn">PDF القائمة</button>
+      <div class="list-toolbar">
+        <div class="search-wrap">${uiIcon("search")}<input class="field search" id="search" type="search" aria-label="البحث في المعاملات" placeholder="ابحث بالرقم أو العنوان أو المسؤول" value="${esc(searchText)}"></div>
+        <div class="list-actions">
+          ${hasTxPerm("transactions.create")?'<button class="btn btn-green" id="createBtn">'+uiIcon("plus")+'إنشاء معاملة</button>':""}
+          <button class="btn btn-soft" id="excelListBtn">Excel القائمة</button>
+          <button class="btn btn-soft" id="pdfListBtn">PDF القائمة</button>
+        </div>
       </div>
+      <details class="filter-disclosure" id="filtersPanel" ${window.matchMedia("(min-width:701px)").matches||activeFilterCount()?"open":""}>
+        <summary>${uiIcon("filter")}البحث المتقدم والفلاتر <span class="filter-count" id="activeFilterCount" ${activeFilterCount()?"":"hidden"}>${activeFilterCount()}</span><span class="filter-chevron">${uiIcon("chevron")}</span></summary>
+        <div class="toolbar">
+          <label class="filter-field" for="statusFilter">الحالة<select class="field" id="statusFilter">
+            <option value="">كل الحالات</option>
+            <option value="open" ${statusFilter==="open"?"selected":""}>مفتوحة</option>
+            <option value="closed" ${statusFilter==="closed"?"selected":""}>مغلقة</option>
+          </select></label>
+          <label class="filter-field" for="priorityFilter">الأولوية<select class="field" id="priorityFilter">
+            <option value="">كل الأولويات</option>
+            <option value="عاجل جدًا" ${priorityFilter==="عاجل جدًا"?"selected":""}>عاجل جدًا</option>
+            <option value="عاجل" ${priorityFilter==="عاجل"?"selected":""}>عاجل</option>
+            <option value="عادي" ${priorityFilter==="عادي"?"selected":""}>عادي</option>
+          </select></label>
+          <label class="filter-field" for="departmentFilter">الإدارة<select class="field" id="departmentFilter">
+            <option value="">كل الإدارات</option>
+            ${(directoryData.units||[]).filter(u=>["department","independent","branch"].includes(u.unit_type)).map(u=>'<option value="'+esc(u.name)+'" '+(departmentFilter===u.name?"selected":"")+'>'+esc(u.name)+'</option>').join("")}
+          </select></label>
+          <label class="filter-field" for="employeeFilter">الموظف<select class="field" id="employeeFilter">
+            <option value="">كل الموظفين</option>
+            ${(directoryData.users||[]).map(u=>'<option value="'+esc(u.login_name)+'" '+(employeeFilter===u.login_name?"selected":"")+'>'+esc(u.display_name)+'</option>').join("")}
+          </select></label>
+          <label class="filter-field" for="originFilter">مصدر المعاملة<select class="field" id="originFilter">
+            <option value="">قديم وجديد</option>
+            <option value="legacy" ${originFilter==="legacy"?"selected":""}>قديم</option>
+            <option value="new" ${originFilter==="new"?"selected":""}>جديد</option>
+          </select></label>
+          <label class="filter-field" for="dateFrom">من تاريخ<input class="field date-filter" id="dateFrom" type="date" value="${esc(dateFrom)}"></label>
+          <label class="filter-field" for="dateTo">إلى تاريخ<input class="field date-filter" id="dateTo" type="date" value="${esc(dateTo)}"></label>
+          <div class="filter-options"><label class="check-filter"><input type="checkbox" id="lateOnly" ${lateOnly?"checked":""}>المتأخرة فقط</label>
+          <button class="btn btn-soft filter-reset" id="resetFilters" type="button">مسح الفلاتر</button></div>
+        </div>
+      </details>
 
       <section class="card">
         <div class="card-head">
@@ -655,7 +735,7 @@ function renderApp(){
     </main>
   </div>`;
   document.getElementById("logoutBtn").onclick=logout;
-  document.getElementById("notifBtn").onclick=openNotifications;
+  document.getElementById("notifBtn").onclick=()=>openNotifications().catch(()=>showNotice("تعذر تحميل التنبيهات. حاول مرة أخرى."));
   wireSectionSidebar();
   document.querySelectorAll("[data-tab]").forEach(b=>b.onclick=async()=>{currentTab=b.dataset.tab;page=1;await refresh()});
   document.getElementById("search").oninput=e=>{
@@ -669,6 +749,19 @@ function renderApp(){
   document.getElementById("lateOnly").onchange=async e=>{lateOnly=e.target.checked;page=1;await refresh()};
   document.getElementById("dateFrom").onchange=async e=>{dateFrom=e.target.value;page=1;await refresh()};
   document.getElementById("dateTo").onchange=async e=>{dateTo=e.target.value;page=1;await refresh()};
+  document.getElementById("resetFilters").onclick=async e=>{
+    const invoker=e.currentTarget,panel=document.getElementById("filtersPanel");
+    priorityFilter="";statusFilter="";departmentFilter="";employeeFilter="";originFilter="";lateOnly=false;dateFrom="";dateTo="";page=1;
+    for(const id of ["statusFilter","priorityFilter","departmentFilter","employeeFilter","originFilter","dateFrom","dateTo"]){
+      const control=document.getElementById(id);if(control)control.value="";
+    }
+    document.getElementById("lateOnly").checked=false;updateFilterCount();
+    await refresh();
+    if(currentSection==="transactions"&&panel?.isConnected){
+      const target=invoker.isConnected&&invoker.checkVisibility()?invoker:panel.querySelector("summary");
+      target?.focus({preventScroll:true});
+    }
+  };
   if(document.getElementById("createBtn"))document.getElementById("createBtn").onclick=openCreate;
   document.getElementById("excelListBtn").onclick=exportListExcel;
   document.getElementById("pdfListBtn").onclick=printList;
@@ -677,7 +770,8 @@ function renderApp(){
 }
 function renderListOnly(){
   const tabs=tabsFor(session.role);
-  document.querySelectorAll("[data-tab]").forEach(b=>b.classList.toggle("active",b.dataset.tab===currentTab));
+  document.querySelectorAll("[data-tab]").forEach(b=>{b.classList.toggle("active",b.dataset.tab===currentTab);b.setAttribute("aria-pressed",String(b.dataset.tab===currentTab))});
+  updateFilterCount();
   const cardTitle=document.getElementById("cardTitle");
   if(cardTitle)cardTitle.textContent=tabs.find(x=>x[0]===currentTab)?.[1]||"المعاملات";
   const rowTotal=document.getElementById("rowTotal");
@@ -700,7 +794,16 @@ function renderListOnly(){
   renderTable();
   renderPager();
 }
-async function refresh(){await loadList();renderListOnly()}
+async function refresh(){
+  const host=document.getElementById("tableHost");host?.setAttribute("aria-busy","true");
+  try{await loadList();if(currentSection==="transactions"&&host?.isConnected)renderListOnly()}
+  catch{
+    showNotice("تعذر تحديث النتائج. النتائج السابقة محفوظة؛ أعد المحاولة.");
+    if(!document.getElementById("retryList")&&host){
+      const retry=document.createElement("button");retry.className="btn btn-soft";retry.id="retryList";retry.textContent="إعادة المحاولة";retry.onclick=refresh;host.prepend(retry);
+    }
+  }finally{host?.setAttribute("aria-busy","false")}
+}
 function priorityClass(p){return p==="عاجل جدًا"?"pri-vh":p==="عاجل"?"pri-h":"pri-n"}
 function statusBadge(r){
   if(r.status==="closed")return ["مغلقة","st-closed"];
@@ -711,29 +814,31 @@ function statusBadge(r){
 }
 function renderTable(){
   const host=document.getElementById("tableHost"),rows=listData.rows||[];
-  if(!rows.length){host.innerHTML='<div class="empty">لا توجد معاملات</div>';return}
+  if(!rows.length){host.innerHTML=emptyState("لا توجد معاملات",searchText||activeFilterCount()?"جرّب تعديل البحث أو مسح الفلاتر.":"ستظهر هنا المعاملات المتاحة ضمن صلاحياتك.");return}
   host.innerHTML=`
-  <div class="table-wrap"><table>
+  <p class="table-hint">يمكن تمرير الجدول أفقيًا للاطلاع على جميع الحقول.</p>
+  <div class="table-wrap" role="region" aria-label="جدول المعاملات، جميع الحقول" tabindex="0"><table>
+    <caption class="sr-only">المعاملات المتاحة ضمن العرض الحالي</caption>
     <thead><tr>
-      <th>رقم المعاملة</th><th>عنوان المعاملة</th><th>الإدارة المسؤولة</th><th>الإدارات المساندة</th>
-      <th>مسؤول المعاملة</th><th>المحال إليه حاليًا</th><th>الأولوية</th><th>الحالة</th>
-      <th>عدد أيام المعاملة</th><th>آخر تحديث</th><th>الإجراءات</th>
+      <th scope="col">رقم المعاملة</th><th scope="col">عنوان المعاملة</th><th scope="col">الإدارة المسؤولة</th><th scope="col">الإدارات المساندة</th>
+      <th scope="col">مسؤول المعاملة</th><th scope="col">المحال إليه حاليًا</th><th scope="col">الأولوية</th><th scope="col">الحالة</th>
+      <th scope="col">عدد أيام المعاملة</th><th scope="col">آخر تحديث</th><th scope="col">الإجراءات</th>
     </tr></thead>
     <tbody>
       ${rows.map(r=>{
         const [st,sc]=statusBadge(r);
         return `<tr>
-          <td>${esc(r.number)}</td>
-          <td class="tx-title">${esc(r.title)}</td>
-          <td>${esc(r.responsible_unit_name||"—")}</td>
-          <td>${Number(r.supporting_count||0)}</td>
-          <td>${esc(r.responsible_name||"—")}</td>
-          <td>${esc((r.current_assignees||[]).join("، ")|| (r.current_level==="ceo"?"الرئيس التنفيذي":"—"))}</td>
-          <td><span class="badge ${priorityClass(r.priority)}">${esc(r.priority)}</span></td>
-          <td><span class="badge ${sc}">${st}</span></td>
-          <td>${esc(r.days||"—")}</td>
-          <td>${esc(fmtDate(r.last_activity_at))}</td>
-          <td><div class="actions">
+          <td class="tx-number" data-label="رقم المعاملة"><span class="number-value">${esc(r.number)}</span></td>
+          <td class="tx-title" data-label="عنوان المعاملة">${esc(r.title)}</td>
+          <td data-label="الإدارة المسؤولة">${esc(r.responsible_unit_name||"—")}</td>
+          <td data-label="الإدارات المساندة">${Number(r.supporting_count||0)}</td>
+          <td data-label="مسؤول المعاملة">${esc(r.responsible_name||"—")}</td>
+          <td data-label="المحال إليه حاليًا">${esc((r.current_assignees||[]).join("، ")|| (r.current_level==="ceo"?"الرئيس التنفيذي":"—"))}</td>
+          <td data-label="الأولوية"><span class="badge ${priorityClass(r.priority)}">${esc(r.priority)}</span></td>
+          <td data-label="الحالة"><span class="badge ${sc}">${st}</span></td>
+          <td class="tx-days" data-label="عدد أيام المعاملة">${esc(r.days??"—")}</td>
+          <td class="tx-date" data-label="آخر تحديث">${esc(fmtDate(r.last_activity_at))}</td>
+          <td data-label="الإجراءات"><div class="actions">
             <button class="row-btn btn-blue" data-act="open" data-id="${r.id}">فتح</button>
           </div></td>
         </tr>`
@@ -741,12 +846,12 @@ function renderTable(){
     </tbody>
   </table></div>`;
 }
-function handleTableActionClick(e){
+function handleTableActionClick(e,invoker=document.activeElement){
   const btn=e.target.closest?.("[data-act]");
   if(!btn||!root.contains(btn))return;
   e.preventDefault();
   const a=btn.dataset.act,id=btn.dataset.id;
-  if(a==="open")return openDetails(id);
+  if(a==="open")return openDetails(id,invoker);
   if(a==="action")return openAction(id);
   if(a==="route")return openReferral(id);
   if(a==="close")return openReason(btn.dataset.direct==="1"?"close":"request_close",id,btn.dataset.direct==="1"?"إغلاق":"طلب إغلاق");
@@ -768,12 +873,87 @@ function renderPager(){
   document.getElementById("prevPage").onclick=async()=>{if(page>1){page--;await refresh()}};
   document.getElementById("nextPage").onclick=async()=>{if(page<pages){page++;await refresh()}};
 }
-function modal(title,body,footer=""){
+const modalStack=[];
+let modalSerial=0;
+let modalBackground=[];
+function modalFocusable(w){
+  return [...w.querySelectorAll('button:not(:disabled),a[href],input:not(:disabled),select:not(:disabled),textarea:not(:disabled),[tabindex]:not([tabindex="-1"])')].filter(el=>el.getClientRects().length&&!el.closest('[hidden],[inert]'));
+}
+function focusModal(w){
+  const field=w.querySelector('.modal-body input:not(:disabled),.modal-body select:not(:disabled),.modal-body textarea:not(:disabled)');
+  const target=field?.getClientRects().length?field:w.querySelector('.modal');
+  target.focus({preventScroll:true});
+}
+function syncModalStack(){
+  modalStack.forEach((w,i)=>{
+    const inactive=i!==modalStack.length-1;
+    w.inert=inactive;
+    if(inactive)w.setAttribute('aria-hidden','true');else w.removeAttribute('aria-hidden');
+  });
+}
+document.addEventListener('keydown',e=>{
+  const w=modalStack.at(-1);if(!w)return;
+  if(e.key==='Escape'){e.preventDefault();e.stopPropagation();w.remove();return}
+  if(e.key!=='Tab')return;
+  const fields=modalFocusable(w),first=fields[0],last=fields.at(-1);
+  if(!first){e.preventDefault();focusModal(w);return}
+  const active=document.activeElement;
+  if(!w.contains(active)||active===w.querySelector('.modal')){e.preventDefault();(e.shiftKey?last:first).focus();return}
+  if(e.shiftKey&&active===first){e.preventDefault();last.focus()}
+  else if(!e.shiftKey&&active===last){e.preventDefault();first.focus()}
+});
+document.addEventListener('focusin',e=>{
+  const w=modalStack.at(-1);
+  if(w&&!w.contains(e.target))focusModal(w);
+});
+function modal(title,body,footer="",invoker=document.activeElement){
+  const id='modal-title-'+(++modalSerial);
   const w=document.createElement("div");w.className="overlay";
-  w.innerHTML=`<section class="modal"><div class="modal-head"><h2>${esc(title)}</h2><button class="modal-close" data-close>×</button></div><div class="modal-body">${body}</div>${footer?'<div class="modal-foot">'+footer+'</div>':""}</section>`;
-  document.body.appendChild(w);
+  w.innerHTML=`<section class="modal" role="dialog" aria-modal="true" aria-labelledby="${id}" tabindex="-1"><div class="modal-head"><h2 id="${id}">${esc(title)}</h2><button class="modal-close" type="button" aria-label="إغلاق النافذة" data-close>${uiIcon("close")}</button></div><div class="modal-body">${body}</div>${footer?'<div class="modal-foot">'+footer+'</div>':""}</section>`;
+  if(!modalStack.length){
+    modalBackground=[...document.body.children].map(el=>[el,el.inert]);
+    modalBackground.forEach(([el])=>{el.inert=true});document.body.classList.add('modal-open');
+  }
+  document.body.appendChild(w);modalStack.push(w);syncModalStack();
+  const nativeRemove=w.remove.bind(w);
+  const wrapped=new WeakMap();
+  const wireButtons=()=>{
+    associateFormLabels(w);
+    w.querySelectorAll('button').forEach(button=>{
+      const handler=button.onclick;
+      if(!handler||wrapped.get(button)===handler)return;
+      const safeHandler=function(e){
+        const wasDisabled=button.disabled;
+        let result;
+        try{result=handler.call(this,e)}catch{showRequestError(w);return}
+        if(result&&typeof result.then==='function'){
+          button.disabled=true;
+          return result.catch(()=>showRequestError(w)).finally(()=>{if(button.isConnected)button.disabled=wasDisabled});
+        }
+        return result;
+      };
+      wrapped.set(button,safeHandler);button.onclick=safeHandler;
+    });
+  };
+  const observer=new MutationObserver(wireButtons);
+  observer.observe(w,{childList:true,subtree:true});
+  w.remove=()=>{
+    if(!w.isConnected)return;
+    observer.disconnect();const top=modalStack.at(-1)===w;
+    const i=modalStack.indexOf(w);if(i>=0)modalStack.splice(i,1);
+    nativeRemove();syncModalStack();
+    if(!modalStack.length){
+      modalBackground.forEach(([el,old])=>{if(el.isConnected)el.inert=old});modalBackground=[];document.body.classList.remove('modal-open');
+    }
+    if(top){
+      if(invoker?.isConnected&&!invoker.closest('[inert]')&&!invoker.disabled&&invoker.getClientRects().length)invoker.focus({preventScroll:true});
+      else if(modalStack.length)focusModal(modalStack.at(-1));
+      else document.getElementById('search')?.focus({preventScroll:true});
+    }
+  };
   w.querySelector("[data-close]").onclick=()=>w.remove();
-  w.addEventListener("click",e=>{if(e.target===w)w.remove()});
+  w.addEventListener("click",e=>{if(e.target===w&&modalStack.at(-1)===w)w.remove()});
+  queueMicrotask(()=>{if(w.isConnected){wireButtons();focusModal(w)}});
   return w;
 }
 function userOptions(filter,selected=[]){
@@ -833,7 +1013,9 @@ async function openCreate(){
     mode.onchange=draw;draw();
   }
   w.querySelector("#saveCreate").onclick=async()=>{
-    const form=w.querySelector("#createForm"),fd=new FormData(form);
+    const form=w.querySelector("#createForm");
+    if(!form.reportValidity())return;
+    const fd=new FormData(form);
     const title=String(fd.get("title")||"").trim();if(!title)return;
     const btn=w.querySelector("#saveCreate");btn.disabled=true;
     try{
@@ -858,7 +1040,7 @@ async function openCreate(){
         }));
       }
       w.remove();await refresh();
-    }catch(e){btn.disabled=false}
+    }catch(e){btn.disabled=false;showRequestError(w)}
   };
 }
 async function openReferral(id){
@@ -887,7 +1069,8 @@ function backFooter(parentFn){return '<button class="btn btn-soft" data-back>ر�
 function wireBack(w,id){w.querySelector("[data-back]").onclick=()=>{w.remove();openReferral(id)}}
 function childEmployeeRaise(id){
   const w=modal("رفع للمدير",'<label>سبب الرفع</label><textarea class="field" id="raiseReason"></textarea><label>القرار المقترح</label><textarea class="field" id="proposed"></textarea>',
-    '<button class="btn btn-green" id="save">حفظ</button>');
+    '<button class="btn btn-green" id="save">حفظ</button>'+backFooter());
+  wireBack(w,id);
   w.querySelector("#save").onclick=async()=>{await post(CONFIG.txFn,baseBody("route_employee_manager",{transaction_id:id,raise_reason:w.querySelector("#raiseReason").value,proposed_decision:w.querySelector("#proposed").value}));w.remove();await refresh()};
 }
 function childManagerAssign(id){
@@ -1042,7 +1225,39 @@ async function decideTransfer(routeId,approve){
     w.remove();await refresh();
   };
 }
-async function openDetails(id){
+function detailField(label,value,editable=false,id=""){
+  const tag=editable?"button":"div";
+  return '<'+tag+' class="detail '+(editable?"clickable":"")+'"'+(editable?' type="button" id="'+esc(id)+'"':"")+'><span class="detail-k">'+esc(label)+'</span><span class="detail-v">'+value+'</span>'+(editable?uiIcon("edit"):"")+'</'+tag+'>';
+}
+let workspaceSerial=0;
+function workspaceSections(sections){
+  const prefix='tx-'+(++workspaceSerial)+'-';
+  const tabs=sections.map(([key,title,body,count],i)=>'<button class="workspace-tab" type="button" role="tab" id="'+prefix+'tab-'+key+'" aria-controls="'+prefix+'panel-'+key+'" aria-selected="'+(i===0)+'" tabindex="'+(i===0?"0":"-1")+'" data-workspace-tab="'+key+'">'+esc(title)+(count===undefined?"":'<span class="tab-count">'+count+'</span>')+'</button>').join("");
+  const panels=sections.map(([key,title,body],i)=>'<section class="workspace-panel" role="tabpanel" id="'+prefix+'panel-'+key+'" aria-labelledby="'+prefix+'tab-'+key+'" tabindex="0" '+(i===0?"":"hidden")+'>'+body+'</section>').join("");
+  return '<div class="workspace-tabs" role="tablist" aria-label="تفاصيل المعاملة">'+tabs+'</div>'+panels;
+}
+function wireWorkspaceTabs(w){
+  const tabs=[...w.querySelectorAll('[data-workspace-tab]')];
+  const select=tab=>{
+    tabs.forEach(t=>{
+      const active=t===tab;t.setAttribute('aria-selected',String(active));t.tabIndex=active?0:-1;
+      w.querySelector('#'+t.getAttribute('aria-controls')).hidden=!active;
+    });
+  };
+  tabs.forEach((tab,i)=>{
+    tab.onclick=()=>select(tab);
+    tab.onkeydown=e=>{
+      let next;
+      if(e.key==='ArrowLeft')next=(i+1)%tabs.length;
+      else if(e.key==='ArrowRight')next=(i-1+tabs.length)%tabs.length;
+      else if(e.key==='Home')next=0;
+      else if(e.key==='End')next=tabs.length-1;
+      else return;
+      e.preventDefault();select(tabs[next]);tabs[next].focus();
+    };
+  });
+}
+async function openDetails(id,invoker=document.activeElement){
   const d=await post(CONFIG.txFn,baseBody("details",{transaction_id:id})),t=d.transaction;
   const assignments=(d.assignments||[]).map(a=>{
     const names=(a.transaction_assignment_targets||[]).map(x=>x.display_name).join("، ");
@@ -1084,14 +1299,15 @@ async function openDetails(id){
 
   const toolbar=`
     <div class="detail-toolbar">
+      <span class="workspace-number">المعاملة <bdi dir="ltr">${esc(t.number)}</bdi></span>
       <button class="tool-icon" id="waBtn" title="نسخ واتساب" aria-label="نسخ واتساب">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 18.2 4 20l.8-3.2A8 8 0 1 1 6.5 18.2Z"/><path d="M8.6 8.2c.3 2.8 2.4 5 5.2 5.3"/><path d="M8.8 8.1 10 7.5l1.1 1.8-.8 1.1"/><path d="m13.6 12.8 1.1-.8 1.8 1-.5 1.3"/></svg>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 18.2 4 20l.8-3.2A8 8 0 1 1 6.5 18.2Z"/><path d="M8.6 8.2c.3 2.8 2.4 5 5.2 5.3"/><path d="M8.8 8.1 10 7.5l1.1 1.8-.8 1.1"/><path d="m13.6 12.8 1.1-.8 1.8 1-.5 1.3"/></svg><span>واتساب</span>
       </button>
       <button class="tool-icon" id="excelBtn" title="Excel" aria-label="Excel">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="3.5" width="16" height="17" rx="2"/><path d="M4 8h16M9 8v12M14.5 8v12M4 13h16"/></svg>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="3.5" width="16" height="17" rx="2"/><path d="M4 8h16M9 8v12M14.5 8v12M4 13h16"/></svg><span>Excel</span>
       </button>
       <button class="tool-icon" id="pdfBtn" title="PDF" aria-label="PDF">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3.5h7l4 4V20H7Z"/><path d="M14 3.5V8h4"/><path d="M9.5 14h5M9.5 17h4"/></svg>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3.5h7l4 4V20H7Z"/><path d="M14 3.5V8h4"/><path d="M9.5 14h5M9.5 17h4"/></svg><span>PDF</span>
       </button>
     </div>`;
 
@@ -1103,37 +1319,50 @@ async function openDetails(id){
     ?'<div class="review-banner">هذه معاملة قديمة ينقصها سياق المسؤولية. اختر الإدارة والمسؤول لتكمل على المسار الجديد دون اختلاق بيانات.</div>':"";
 
   const footer=`
-    ${pendingTransfer&&hasTxPerm("transactions.decide_assistant_transfer")?'<button class="btn btn-green" id="acceptTransferBtn">قبول التحويل</button><button class="btn btn-red" id="rejectTransferBtn">رفض التحويل</button>':""}
-    ${t.status==="open"&&d.can_act?'<button class="btn btn-soft" id="actionBtn">إجراء عمل</button>':""}
-    ${t.status==="open"&&d.can_act&&hasAnyRoutePerm()?'<button class="btn btn-soft" id="referralBtn">إحالة</button>':""}
-    ${t.status==="open"&&d.can_raise_ceo?'<button class="btn btn-gold" id="raiseCeoBtn">رفع للرئيس</button>':""}
-    ${t.status==="open"&&t.due_at?'<button class="btn btn-soft" id="extensionBtn">طلب تمديد</button>':""}
-    ${t.status==="open"&&hasTxPerm("transactions.ceo_view")?'<button class="btn btn-soft" id="ceoViewBtn">إطلاع الرئيس</button>':""}
-    ${t.status==="open"?'<button class="btn btn-red" id="cancelBtn">إلغاء المعاملة</button>':""}
-    ${t.status==="open"?'<button class="btn btn-red" id="closeBtn">'+(directClose?"إغلاق":"طلب إغلاق")+'</button>':""}
-    ${t.status==="closed"?'<button class="btn btn-soft" id="reopenBtn">'+(directReopen?"استرجاع المعاملة":"طلب استرجاع")+'</button>':""}
-    ${t.status==="open"&&t.migration_status==="needs_review"&&hasTxPerm("transactions.act_all")&&hasTxPerm("transactions.change_responsible")?'<button class="btn btn-gold" id="resolveLegacyBtn">تهيئة المعاملة القديمة</button>':""}
-    ${t.status==="open"&&hasTxPerm("transactions.delete_hard")&&!t.workflow_started?'<button class="btn btn-red" id="deleteBtn">حذف نهائي</button>':""}
+    <div class="detail-primary-actions">
+      ${pendingTransfer&&hasTxPerm("transactions.decide_assistant_transfer")?'<button class="btn btn-green" id="acceptTransferBtn">قبول التحويل</button><button class="btn btn-red" id="rejectTransferBtn">رفض التحويل</button>':""}
+      ${t.status==="open"&&d.can_act?'<button class="btn btn-blue" id="actionBtn">إجراء عمل</button>':""}
+      ${t.status==="open"&&d.can_act&&hasAnyRoutePerm()?'<button class="btn btn-soft" id="referralBtn">إحالة</button>':""}
+    </div>
+    <div class="detail-secondary-actions">
+      ${t.status==="open"&&d.can_raise_ceo?'<button class="btn btn-gold" id="raiseCeoBtn">رفع للرئيس</button>':""}
+      ${t.status==="open"&&t.due_at?'<button class="btn btn-soft" id="extensionBtn">طلب تمديد</button>':""}
+      ${t.status==="open"&&hasTxPerm("transactions.ceo_view")?'<button class="btn btn-soft" id="ceoViewBtn">إطلاع الرئيس</button>':""}
+      ${t.status==="closed"?'<button class="btn btn-soft" id="reopenBtn">'+(directReopen?"استرجاع المعاملة":"طلب استرجاع")+'</button>':""}
+      ${t.status==="open"&&t.migration_status==="needs_review"&&hasTxPerm("transactions.act_all")&&hasTxPerm("transactions.change_responsible")?'<button class="btn btn-gold" id="resolveLegacyBtn">تهيئة المعاملة القديمة</button>':""}
+      ${t.status==="open"?'<button class="btn btn-soft" id="closeBtn">'+(directClose?"إغلاق":"طلب إغلاق")+'</button>':""}
+    </div>
+    <div class="detail-danger-actions">
+      ${t.status==="open"?'<button class="btn btn-red" id="cancelBtn">إلغاء المعاملة</button>':""}
+      ${t.status==="open"&&hasTxPerm("transactions.delete_hard")&&!t.workflow_started?'<button class="btn btn-red" id="deleteBtn">حذف نهائي</button>':""}
+    </div>
   `;
 
+  const overview='<h3 class="section-title">الإسناد والإدارات</h3>'+assignments+(periods?'<h3 class="section-title">المدة ودورات العمل</h3>'+periods:"");
+  const sections=workspaceSections([
+    ["overview","نظرة عامة",overview],
+    ["actions","إجراءات العمل",actions,(d.actions||[]).length],
+    ["routes","الإحالات",routes,(d.routes||[]).length],
+    ["requests","الطلبات",requests,(d.requests||[]).length],
+    ["history","السجل",hist,(d.history||[]).length]
+  ]);
   const w=modal(t.title,toolbar+reviewBanner+`
-    <div class="details-grid">
-      <div class="detail"><div class="detail-k">رقم المعاملة</div><div class="detail-v">${esc(t.number)}</div></div>
-      <div class="detail ${priorityClickable?"clickable":""}" id="${priorityClickable?"priorityField":""}"><div class="detail-k">الأولوية</div><div class="detail-v">${esc(t.priority)}</div></div>
-      <div class="detail ${responsibleClickable?"clickable":""}" id="${responsibleClickable?"responsibleField":""}"><div class="detail-k">مسؤول المعاملة</div><div class="detail-v">${esc(t.responsible_name||"—")}</div></div>
-      <div class="detail"><div class="detail-k">تاريخ الإنشاء</div><div class="detail-v">${esc(fmtDate(t.created_at))}</div></div>
-      <div class="detail ${dueClickable?"clickable":""}" id="${dueClickable?"dueField":""}"><div class="detail-k">تاريخ الاستحقاق</div><div class="detail-v">${esc(fmtDate(t.due_at))}</div></div>
-      <div class="detail"><div class="detail-k">الحالة</div><div class="detail-v">${esc(t.status==="closed"?"مغلقة":t.status==="cancelled"?"ملغاة":"مفتوحة")}</div></div>
-    </div>
-    <div class="section-title">موضوع المعاملة</div><div class="action-item"><div class="action-text">${esc(t.subject||"—")}</div></div>
-    ${safeUrl(t.attachment_url)?'<div class="section-title">رابط المرفقات</div><a href="'+esc(safeUrl(t.attachment_url))+'" target="_blank" rel="noopener noreferrer">'+esc(t.attachment_url)+'</a>':""}
-    ${periods?'<div class="section-title">المدة</div>'+periods:""}
-    <div class="section-title">الإسناد والإدارات</div>${assignments}
-    <div class="section-title">إجراءات العمل</div>${actions}
-    <div class="section-title">الإحالات والتوجيهات</div>${routes}
-    <div class="section-title">الطلبات</div>${requests}
-    <div class="section-title">السجل</div>${hist}
-  `,footer);
+    <div class="workspace-context">
+      <div class="workspace-subject"><h3 class="section-title">موضوع المعاملة</h3><div class="action-text">${esc(t.subject||"—")}</div>
+        ${safeUrl(t.attachment_url)?'<div class="workspace-attachment"><span>رابط المرفقات</span><br><a href="'+esc(safeUrl(t.attachment_url))+'" target="_blank" rel="noopener noreferrer">'+esc(t.attachment_url)+'</a></div>':""}
+      </div>
+      <div class="details-grid">
+        ${detailField("رقم المعاملة",'<bdi dir="ltr">'+esc(t.number)+'</bdi>')}
+        ${detailField("الحالة",'<span class="badge '+(t.status==="open"?"st-open":"st-closed")+'">'+esc(t.status==="closed"?"مغلقة":t.status==="cancelled"?"ملغاة":"مفتوحة")+'</span>')}
+        ${detailField("مسؤول المعاملة",esc(t.responsible_name||"—"),responsibleClickable,"responsibleField")}
+        ${detailField("الأولوية",'<span class="badge '+priorityClass(t.priority)+'">'+esc(t.priority)+'</span>',priorityClickable,"priorityField")}
+        ${detailField("تاريخ الإنشاء",esc(fmtDate(t.created_at)))}
+        ${detailField("تاريخ الاستحقاق",esc(fmtDate(t.due_at)),dueClickable,"dueField")}
+      </div>
+    </div>${sections}
+  `,footer,invoker);
+  w.querySelector('.modal').classList.add('transaction-workspace');
+  wireWorkspaceTabs(w);
 
   w.querySelectorAll("[data-action-revise]").forEach(b=>b.onclick=()=>reviseAction(b.dataset.actionRevise,w,id));
   w.querySelectorAll("[data-action-note]").forEach(b=>b.onclick=()=>addActionNote(b.dataset.actionNote,w,id));
@@ -1281,7 +1510,7 @@ function openResponsible(id,parent){
 async function openNotifications(){
   const n=await post(CONFIG.txFn,baseBody("notifications"));
   const rows=n.rows||[];
-  const w=modal("التنبيهات",rows.length?rows.map(x=>'<button class="notification-item '+(x.read_at?"read":"")+'" data-notif="'+x.id+'"><span>'+esc(x.title)+'</span><small>'+esc(fmtDate(x.created_at))+'</small><b>'+esc(x.body||"")+'</b></button>').join(""):'<div class="empty">لا توجد تنبيهات</div>');
+  const w=modal("التنبيهات",rows.length?rows.map(x=>'<button class="notification-item '+(x.read_at?"read":"")+'" data-notif="'+x.id+'"><span>'+esc(x.title)+'</span><small>'+esc(fmtDate(x.created_at))+'</small><b>'+esc(x.body||"")+'</b></button>').join(""):emptyState("لا توجد تنبيهات","ستظهر التنبيهات الجديدة هنا."));
   w.querySelectorAll("[data-notif]").forEach(b=>b.onclick=async()=>{await post(CONFIG.txFn,baseBody("notification_read",{notification_id:b.dataset.notif}));b.classList.add("read")});
 }
 function copyWhatsApp(d){
@@ -1346,7 +1575,14 @@ async function logout(){
   currentSection="transactions";currentTab="";loginView();
 }
 
-root.addEventListener("click",handleTableActionClick);
+root.addEventListener("click",e=>{
+  const button=e.target.closest?.('[data-act]'),invoker=button||document.activeElement;
+  if(button?.disabled)return;
+  if(button)button.disabled=true;
+  try{
+    Promise.resolve(handleTableActionClick(e,invoker)).catch(()=>showNotice("تعذر فتح المعاملة. تحقق من الاتصال ثم حاول مرة أخرى.")).finally(()=>{if(button?.isConnected)button.disabled=false});
+  }catch{if(button)button.disabled=false;showNotice("تعذر فتح المعاملة. حاول مرة أخرى.")}
+});
 
 loadSession();
 boot();

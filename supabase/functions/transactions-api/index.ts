@@ -4,9 +4,6 @@ import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 const URL=Deno.env.get("SUPABASE_URL")!;
 const KEY=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const db=createClient(URL,KEY,{auth:{persistSession:false,autoRefreshToken:false}});
-const LEGACY="https://urgkbbconlxeagfgyjee.supabase.co/functions/v1";
-const LEGACY_PROJECT="https://urgkbbconlxeagfgyjee.supabase.co";
-const LEGACY_PUBLIC="sb_publishable_76BLD35YhIoDSI8d-qdp7A_EWhsjEVT";
 const CACHE_MS=60000;
 let directoryCache:{at:number,data:any[]}={at:0,data:[]};
 let unitsCache:{at:number,data:any[]}={at:0,data:[]};
@@ -60,46 +57,11 @@ function canonicalDept(v:any){
   return n;
 }
 function unique<T>(xs:T[]){return [...new Set(xs)]}
-function authRole(legacyRole:string,jobTitle:string){
-  if(jobTitle==="الرئيس التنفيذي")return "ceo";
-  if(jobTitle==="مدير مكتب الرئيس التنفيذي")return "ceo_office_manager";
-  if(jobTitle==="سكرتير الرئيس التنفيذي")return "ceo_secretary";
-  if(jobTitle==="المدير المالي")return "manager";
-  if(legacyRole==="assistant")return "assistant";
-  if(jobTitle.includes("مدير إدارة")||jobTitle.startsWith("مدير الإدارة"))return "manager";
-  return "employee";
-}
-function authOrg(row:any,role:string){
-  if(["ceo","ceo_office_manager","ceo_secretary"].includes(role))return "مكتب الرئيس التنفيذي";
-  if(row.job_title==="المدير المالي"||arr(row.dept_names).includes("الإدارة المالية"))return "المدير المالي";
-  if(arr(row.sectors).includes("technical"))return "مساعد الرئيس التنفيذي للمشاريع والشؤون الفنية";
-  if(arr(row.sectors).includes("admin_financial"))return "مساعد الرئيس التنفيذي للشؤون الإدارية والمالية";
-  const technical=new Set(["إدارة المشاريع","إدارة المشتريات","إدارة الأوقاف والاستثمار","إدارة الخدمات","إدارة المتابعة"]);
-  if(arr(row.dept_names).some((x:any)=>technical.has(String(x))))return "مساعد الرئيس التنفيذي للمشاريع والشؤون الفنية";
-  return "مساعد الرئيس التنفيذي للشؤون الإدارية والمالية";
-}
-function roleMap(source:string,legacyRole:string,jobTitle:string,orgName:string){
-  if(source==="ceo_users"){
-    if(jobTitle.includes("مدير مكتب"))return "ceo_office_manager";
-    if(legacyRole==="secretary")return "ceo_secretary";
-    return "ceo";
-  }
-  if(orgName==="المدير المالي")return "manager";
-  if(legacyRole==="manager")return "manager";
-  if(legacyRole==="employee")return "employee";
-  return "assistant";
-}
 function isExec(role:string){return ["ceo","ceo_office_manager","ceo_secretary"].includes(role)}
 function level(role:string){return isExec(role)?"ceo":role==="assistant"?"assistant":role==="manager"?"manager":"employee"}
 function levelRank(v:string|null|undefined){return v==="ceo"?3:v==="assistant"?2:v==="manager"?1:0}
 function higherLevel(a:string|null|undefined,b:string|null|undefined){
   return levelRank(a)>=levelRank(b)?a:b;
-}
-async function legacyCall(app:string,body:any){
-  const fn=app==="ceo"?"ceoapp":"ceoportal";
-  const r=await fetch(LEGACY+"/"+fn,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
-  const data=await r.json().catch(()=>null);
-  return {ok:r.ok,data};
 }
 async function effectivePermissions(who:Who){
   const roles=new Set<string>([who.role]);
@@ -158,80 +120,35 @@ async function directory(){
   return rows;
 }
 async function identity(app:string,token:string):Promise<Who|null>{
-  if(!token)return null;
+  if(app!=="new"||!token)return null;
   const cacheKey=app+":"+token;
   const cached=identityCache.get(cacheKey);
   if(cached&&Date.now()-cached.at<5000)return cached.who;
-  let who:Who|null=null;
 
-  if(app==="new"){
-    const auth=await db.auth.getUser(token);
-    if(auth.error||!auth.data.user)return null;
-    const {data:ctx,error}=await db.rpc("user_context_internal",{p_user_id:auth.data.user.id});
-    if(error||!ctx||ctx.active!==true||ctx.must_change_password===true)return null;
-    const role=clean(ctx.role)||"employee";
-    const deptNames=arr(ctx.dept_names).map(canonicalDept).filter(Boolean);
-    let org=clean(ctx.org_name);
-    if(["ceo","ceo_office_manager","ceo_secretary"].includes(role))org="مكتب الرئيس التنفيذي";
-    else if(role==="assistant")org=clean(ctx.assistant_unit)||org;
-    who={
-      app,
-      login_name:clean(ctx.login_name),
-      display_name:clean(ctx.full_name),
-      role,
-      org_name:org,
-      dept_name:deptNames[0]||"",
-      dept_names:deptNames,
-      user_id:auth.data.user.id,
-      permissions:[]
-    };
-  }else{
-    const dir=await directory();
-    if(app==="auth"){
-      const u=await fetch(LEGACY_PROJECT+"/auth/v1/user",{
-        headers:{apikey:LEGACY_PUBLIC,Authorization:"Bearer "+token}
-      });
-      if(!u.ok)return null;
-      const user=await u.json().catch(()=>null);
-      const email=clean(user?.email).toLowerCase();
-      if(!email)return null;
-      const {data:a}=await db.from("account_migration_aliases").select("canonical_key")
-        .eq("alias",email).eq("active",true).maybeSingle();
-      const hit=a?dir.find((x:any)=>x.canonical_key===a.canonical_key):null;
-      if(hit)who={app,login_name:hit.login_name,display_name:hit.display_name,role:hit.role,
-        org_name:hit.org_name,dept_name:hit.dept_name,dept_names:hit.dept_names,
-        user_id:hit.user_id||null,permissions:[]};
-    }else if(app==="ceo"){
-      const r=await legacyCall("ceo",{action:"whoami",token});
-      if(!r.ok||!r.data?.ok)return null;
-      const hit=dir.find((u:any)=>u.login_name===r.data.username);
-      const role=hit?.role||(r.data.role==="ceo"?"ceo_office_manager":"ceo_secretary");
-      who={app,login_name:r.data.username,display_name:hit?.display_name||r.data.username,role,
-        org_name:"مكتب الرئيس التنفيذي",dept_name:"مكتب الرئيس التنفيذي",dept_names:["مكتب الرئيس التنفيذي"],
-        user_id:hit?.user_id||null,permissions:[]};
-    }else if(app==="portal"){
-      const r=await legacyCall("portal",{action:"pdata",token});
-      if(!r.ok||!r.data?.ok)return null;
-      const display=clean(r.data.display_name),org=clean(r.data.org_name);
-      const {data:legacyUser}=await db.from("legacy_login_credentials").select("username")
-        .eq("display_name",display).eq("org_name",org).eq("active",true).limit(1).maybeSingle();
-      let hit:any=null;
-      if(legacyUser?.username){
-        const {data:a}=await db.from("account_migration_aliases").select("canonical_key")
-          .eq("source","portal_users").eq("source_login",legacyUser.username).eq("active",true).limit(1).maybeSingle();
-        if(a)hit=dir.find((x:any)=>x.canonical_key===a.canonical_key);
-      }
-      const role=hit?.role||(r.data.role==="manager"?"manager":r.data.role==="employee"?"employee":"assistant");
-      who={app,login_name:hit?.login_name||legacyUser?.username||display,display_name:hit?.display_name||display,
-        role,org_name:hit?.org_name||org,dept_name:hit?.dept_name||canonicalDept(r.data.dept_name),
-        dept_names:hit?.dept_names||(arr(r.data.dept_names).length?arr(r.data.dept_names).map(canonicalDept):[]),
-        user_id:hit?.user_id||null,permissions:[]};
-    }
-  }
-  if(who){
-    who.permissions=await effectivePermissions(who);
-    identityCache.set(cacheKey,{at:Date.now(),who});
-  }
+  const auth=await db.auth.getUser(token);
+  if(auth.error||!auth.data.user)return null;
+  const {data:ctx,error}=await db.rpc("user_context_internal",{p_user_id:auth.data.user.id});
+  if(error||!ctx||ctx.active!==true||ctx.must_change_password===true)return null;
+
+  const role=clean(ctx.role)||"employee";
+  const deptNames=arr(ctx.dept_names).map(canonicalDept).filter(Boolean);
+  let org=clean(ctx.org_name);
+  if(["ceo","ceo_office_manager","ceo_secretary"].includes(role))org="مكتب الرئيس التنفيذي";
+  else if(role==="assistant")org=clean(ctx.assistant_unit)||org;
+
+  const who:Who={
+    app:"new",
+    login_name:clean(ctx.login_name),
+    display_name:clean(ctx.full_name),
+    role,
+    org_name:org,
+    dept_name:deptNames[0]||"",
+    dept_names:deptNames,
+    user_id:auth.data.user.id,
+    permissions:[]
+  };
+  who.permissions=await effectivePermissions(who);
+  identityCache.set(cacheKey,{at:Date.now(),who});
   return who;
 }
 async function units(){
@@ -512,7 +429,7 @@ async function createRequest(who:Who,tx:any,type:string,reason:string,extra:any=
 }
 
 Deno.serve(async(req:Request)=>{
-  if(req.method==="GET")return out(req,{ok:true,service:"transactions-api",version:27});
+  if(req.method==="GET")return out(req,{ok:true,service:"transactions-api",version:28});
   if(req.method==="OPTIONS")return new Response("ok",{headers:cors(req)});
   if(req.method!=="POST")return out(req,{error:"method_not_allowed"},405);
   let b:any;try{b=await req.json()}catch{return out(req,{error:"bad_request"},400)}

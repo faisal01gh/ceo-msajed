@@ -366,9 +366,117 @@ async function loadList(){
     date_from:dateFrom,date_to:dateTo,page,page_size:50
   }));
 }
+function sectionSidebar(active){
+  return `
+    <aside class="glass-sidebar">
+      <div class="sidebar-brand">نظام الجمعية</div>
+      <button class="sidebar-item ${active==="transactions"?"active":""}" data-section="transactions"><span>▦</span>المعاملات</button>
+      <button class="sidebar-item ${active==="profile"?"active":""}" data-section="profile"><span>◉</span>بياناتي</button>
+      ${canManagePermissions()?'<button class="sidebar-item '+(active==="permissions"?"active":"")+'" data-section="permissions"><span>⚙</span>الصلاحيات</button>':""}
+    </aside>`;
+}
+async function wireSectionSidebar(){
+  document.querySelectorAll("[data-section]").forEach(b=>b.onclick=async()=>{
+    const section=b.dataset.section;
+    if(section==="transactions"){
+      currentSection="transactions";
+      renderApp();
+      return;
+    }
+    if(section==="profile"){
+      currentSection="profile";
+      await loadProfile();
+      renderProfileApp();
+      return;
+    }
+    if(section==="permissions"&&canManagePermissions()){
+      currentSection="permissions";
+      await loadPermissions();
+      renderPermissionsApp();
+    }
+  });
+}
+async function loadProfile(){
+  profileData=await rpc("my_profile");
+}
+function openOwnPasswordChange(){
+  const w=modal("تغيير كلمة المرور",`
+    <label>كلمة المرور الجديدة</label>
+    <input class="field" id="profileNewPassword" type="password" autocomplete="new-password">
+    <div class="password-rules" id="profilePasswordRules">${passwordRulesMarkup("")}</div>
+    <label>تأكيد كلمة المرور</label>
+    <input class="field" id="profileConfirmPassword" type="password" autocomplete="new-password">
+    <div class="password-match" id="profilePasswordMatch"></div>`,
+    '<button class="btn btn-green" id="saveProfilePassword">حفظ</button><button class="btn btn-soft" data-exit>خروج</button>');
+  w.querySelector("[data-exit]").onclick=()=>w.remove();
+  const p1=w.querySelector("#profileNewPassword"),p2=w.querySelector("#profileConfirmPassword");
+  const draw=()=>{
+    w.querySelector("#profilePasswordRules").innerHTML=passwordRulesMarkup(p1.value);
+    const m=w.querySelector("#profilePasswordMatch");
+    if(!p2.value){m.textContent="";m.className="password-match";return}
+    const ok=p1.value===p2.value;
+    m.textContent=ok?"✓ كلمتا المرور متطابقتان":"✕ كلمتا المرور غير متطابقتين";
+    m.className="password-match "+(ok?"ok":"bad");
+  };
+  p1.oninput=draw;p2.oninput=draw;
+  w.querySelector("#saveProfilePassword").onclick=async()=>{
+    const p=p1.value;
+    if(!passwordStrong(p)||p!==p2.value)return;
+    const btn=w.querySelector("#saveProfilePassword");btn.disabled=true;
+    const {r}=await fetchJson(CONFIG.supabaseUrl+"/auth/v1/user",{
+      method:"PUT",
+      headers:{"Content-Type":"application/json","apikey":CONFIG.publishableKey,Authorization:"Bearer "+session.token},
+      body:JSON.stringify({password:p})
+    });
+    if(!r.ok){btn.disabled=false;return}
+    w.remove();
+  };
+}
+function renderProfileApp(){
+  if(!profileData){currentSection="transactions";renderApp();return}
+  root.innerHTML=`
+  <div class="workspace">
+    ${sectionSidebar("profile")}
+    <main class="workspace-main">
+      <header class="top-header">
+        <div class="header-row">
+          <h1>بياناتي</h1>
+          <div class="user-box">
+            <span class="user-name">${esc(session.display_name)}</span>
+            <button class="btn btn-white" id="logoutBtn">تسجيل الخروج</button>
+          </div>
+        </div>
+      </header>
+      <section class="card profile-card">
+        <div class="card-head"><span class="card-title">بيانات الحساب</span></div>
+        <div class="profile-body">
+          <label>الاسم</label>
+          <input class="field" value="${esc(profileData.name||"")}" disabled>
+          <label>البريد الإلكتروني</label>
+          <input class="field" id="profileEmail" type="email" value="${esc(profileData.email||"")}" ${profileData.can_edit_email?"":"disabled"}>
+          <div class="profile-actions">
+            ${profileData.can_edit_email?'<button class="btn btn-green" id="saveProfileEmail">حفظ البريد</button>':""}
+            <button class="btn btn-soft" id="changeProfilePassword">تغيير كلمة المرور</button>
+          </div>
+          ${profileData.can_edit_email?"":'<div class="profile-note">تعديل البريد مغلق حاليًا ويمكن لمدير المكتب منحه من الصلاحيات.</div>'}
+        </div>
+      </section>
+    </main>
+  </div>`;
+  document.getElementById("logoutBtn").onclick=logout;
+  wireSectionSidebar();
+  document.getElementById("changeProfilePassword").onclick=openOwnPasswordChange;
+  const save=document.getElementById("saveProfileEmail");
+  if(save)save.onclick=async()=>{
+    const email=document.getElementById("profileEmail").value.trim();
+    profileData=await rpc("my_profile_set_email",{p_email:email});
+    await loadProfile();
+    renderProfileApp();
+  };
+}
 async function loadPermissions(){
   if(!canManagePermissions())throw new Error("forbidden");
-  permissionsData=await rpc("permissions_admin_snapshot",{p_section:"transactions"});
+  permissionsData=await rpc("permissions_admin_snapshot",{p_section:permissionsSection});
   const users=permissionsData.users||[];
   if(!permissionsSelectedUser||!users.some(u=>u.canonical_key===permissionsSelectedUser)){
     permissionsSelectedUser=users[0]?.canonical_key||"";
@@ -379,48 +487,42 @@ function renderPermissionsApp(){
   const users=permissionsData?.users||[];
   const selected=users.find(u=>u.canonical_key===permissionsSelectedUser)||users[0]||null;
   root.innerHTML=`
-  <div class="shell">
-    <header class="top-header">
-      <div class="header-row">
-        <h1>الصلاحيات</h1>
-        <div class="user-box">
-          <span class="user-name">${esc(session.display_name)}</span>
-          <button class="btn btn-white" id="logoutBtn">تسجيل الخروج</button>
+  <div class="workspace">
+    ${sectionSidebar("permissions")}
+    <main class="workspace-main">
+      <header class="top-header">
+        <div class="header-row">
+          <h1>الصلاحيات</h1>
+          <div class="user-box">
+            <span class="user-name">${esc(session.display_name)}</span>
+            <button class="btn btn-white" id="logoutBtn">تسجيل الخروج</button>
+          </div>
         </div>
-      </div>
-    </header>
-
-    <nav class="section-nav">
-      <button class="section-tab" data-section="transactions">المعاملات</button>
-      <button class="section-tab active" data-section="permissions">الصلاحيات</button>
-    </nav>
-
-    <section class="card permissions-card">
-      <div class="card-head">
-        <span class="card-title">الصلاحيات</span>
-      </div>
-      <nav class="permissions-tabs">
-        <button class="permissions-tab active">المعاملات</button>
-      </nav>
-      <div class="permissions-body">
-        <div class="permissions-userbar">
-          <select class="field" id="permissionsUser">
-            ${users.map(u=>'<option value="'+esc(u.canonical_key)+'" '+(selected&&u.canonical_key===selected.canonical_key?"selected":"")+'>'+esc(u.display_name)+'</option>').join("")}
-          </select>
-          ${selected?'<span class="permission-role">'+esc(selected.role_name||selected.role_code||"")+'</span>':""}
+      </header>
+      <section class="card permissions-card">
+        <div class="card-head"><span class="card-title">الصلاحيات</span></div>
+        <nav class="permissions-tabs">
+          ${(permissionsData?.tabs||[]).map(t=>'<button class="permissions-tab '+(t.code===permissionsSection?"active":"")+'" data-permission-section="'+esc(t.code)+'">'+esc(t.name_ar)+'</button>').join("")}
+        </nav>
+        <div class="permissions-body">
+          <div class="permissions-userbar">
+            <select class="field" id="permissionsUser">
+              ${users.map(u=>'<option value="'+esc(u.canonical_key)+'" '+(selected&&u.canonical_key===selected.canonical_key?"selected":"")+'>'+esc(u.display_name)+'</option>').join("")}
+            </select>
+          </div>
+          <div id="permissionsGrid">
+            ${selected?renderPermissionGrid(selected):'<div class="empty">لا توجد حسابات</div>'}
+          </div>
         </div>
-        <div id="permissionsGrid">
-          ${selected?renderPermissionGrid(selected):'<div class="empty">لا توجد حسابات</div>'}
-        </div>
-      </div>
-    </section>
+      </section>
+    </main>
   </div>`;
   document.getElementById("logoutBtn").onclick=logout;
-  document.querySelectorAll("[data-section]").forEach(b=>b.onclick=async()=>{
-    if(b.dataset.section==="transactions"){
-      currentSection="transactions";
-      renderApp();
-    }
+  wireSectionSidebar();
+  document.querySelectorAll("[data-permission-section]").forEach(b=>b.onclick=async()=>{
+    permissionsSection=b.dataset.permissionSection;
+    await loadPermissions();
+    renderPermissionsApp();
   });
   const userSelect=document.getElementById("permissionsUser");
   if(userSelect)userSelect.onchange=e=>{permissionsSelectedUser=e.target.value;renderPermissionsApp()};
@@ -453,92 +555,81 @@ function renderPermissionGrid(user){
 }
 function renderApp(){
   if(currentSection==="permissions"){renderPermissionsApp();return}
+  if(currentSection==="profile"){renderProfileApp();return}
   const tabs=tabsFor(session.role);
   const unread=Number(listData?.counters?.notifications||0);
   root.innerHTML=`
-  <div class="shell">
-    <header class="top-header">
-      <div class="header-row">
-        <h1>المعاملات</h1>
-        <div class="user-box">
-          <span class="user-name">${esc(session.display_name)}</span>
-          <button class="btn btn-white" id="notifBtn">التنبيهات${unread?" ("+unread+")":""}</button>
-          <button class="btn btn-white" id="logoutBtn">تسجيل الخروج</button>
+  <div class="workspace">
+    ${sectionSidebar("transactions")}
+    <main class="workspace-main">
+      <header class="top-header">
+        <div class="header-row">
+          <h1>المعاملات</h1>
+          <div class="user-box">
+            <span class="user-name">${esc(session.display_name)}</span>
+            <button class="btn btn-white" id="notifBtn">التنبيهات${unread?" ("+unread+")":""}</button>
+            <button class="btn btn-white" id="logoutBtn">تسجيل الخروج</button>
+          </div>
         </div>
+      </header>
+
+      <nav class="nav-tabs">
+        ${tabs.map(([k,n])=>`<button class="nav-tab ${currentTab===k?"active":""}" data-tab="${k}">${n}</button>`).join("")}
+      </nav>
+
+      <div class="trx-stats">
+        <span>وارد جديد <b id="statIncoming">${Number(listData.counters?.incoming||0)}</b></span>
+        <span>متأخر <b id="statLate">${Number(listData.counters?.late||0)}</b></span>
+        <span>طلبات معلقة <b id="statPending">${Number(listData.counters?.pending_approval||0)}</b></span>
+        <span>مغلق اليوم <b id="statClosedToday">${Number(listData.counters?.closed_today||0)}</b></span>
       </div>
-    </header>
-
-    <nav class="section-nav">
-      <button class="section-tab active" data-section="transactions">المعاملات</button>
-      ${canManagePermissions()?'<button class="section-tab" data-section="permissions">الصلاحيات</button>':""}
-    </nav>
-
-    <nav class="nav-tabs">
-      ${tabs.map(([k,n])=>`<button class="nav-tab ${currentTab===k?"active":""}" data-tab="${k}">${n}</button>`).join("")}
-    </nav>
-
-    <div class="trx-stats">
-      <span>وارد جديد <b id="statIncoming">${Number(listData.counters?.incoming||0)}</b></span>
-      <span>متأخر <b id="statLate">${Number(listData.counters?.late||0)}</b></span>
-      <span>بانتظار اعتماد <b id="statPending">${Number(listData.counters?.pending_approval||0)}</b></span>
-      <span>مغلق اليوم <b id="statClosedToday">${Number(listData.counters?.closed_today||0)}</b></span>
-    </div>
-    <div class="toolbar">
-      <input class="field search" id="search" placeholder="بحث" value="${esc(searchText)}">
-      <select class="field" id="statusFilter">
-        <option value="">الحالة</option>
-        <option value="open" ${statusFilter==="open"?"selected":""}>مفتوحة</option>
-        <option value="closed" ${statusFilter==="closed"?"selected":""}>مغلقة</option>
-      </select>
-      <select class="field" id="priorityFilter">
-        <option value="">الأولوية</option>
-        <option value="عاجل جدًا" ${priorityFilter==="عاجل جدًا"?"selected":""}>عاجل جدًا</option>
-        <option value="عاجل" ${priorityFilter==="عاجل"?"selected":""}>عاجل</option>
-        <option value="عادي" ${priorityFilter==="عادي"?"selected":""}>عادي</option>
-      </select>
-      <select class="field" id="departmentFilter">
-        <option value="">الإدارة</option>
-        ${(directoryData.units||[]).filter(u=>["department","independent","branch"].includes(u.unit_type)).map(u=>'<option value="'+esc(u.name)+'" '+(departmentFilter===u.name?"selected":"")+'>'+esc(u.name)+'</option>').join("")}
-      </select>
-      <select class="field" id="employeeFilter">
-        <option value="">الموظف</option>
-        ${(directoryData.users||[]).map(u=>'<option value="'+esc(u.login_name)+'" '+(employeeFilter===u.login_name?"selected":"")+'>'+esc(u.display_name)+'</option>').join("")}
-      </select>
-      <select class="field" id="originFilter">
-        <option value="">قديم/جديد</option>
-        <option value="legacy" ${originFilter==="legacy"?"selected":""}>قديم</option>
-        <option value="new" ${originFilter==="new"?"selected":""}>جديد</option>
-      </select>
-      <label class="check-filter"><input type="checkbox" id="lateOnly" ${lateOnly?"checked":""}> متأخرة</label>
-      <input class="field date-filter" id="dateFrom" type="date" value="${esc(dateFrom)}">
-      <input class="field date-filter" id="dateTo" type="date" value="${esc(dateTo)}">
-      ${hasTxPerm("transactions.create")?'<button class="btn btn-green" id="createBtn">إنشاء معاملة</button>':""}
-      <button class="btn btn-soft" id="excelListBtn">Excel القائمة</button>
-      <button class="btn btn-soft" id="pdfListBtn">PDF القائمة</button>
-    </div>
-
-    <section class="card">
-      <div class="card-head">
-        <span class="card-title" id="cardTitle">${esc(tabs.find(x=>x[0]===currentTab)?.[1]||"المعاملات")}</span>
-        <span class="count" id="rowTotal">${Number(listData.total||0)}</span>
+      <div class="toolbar">
+        <input class="field search" id="search" placeholder="بحث" value="${esc(searchText)}">
+        <select class="field" id="statusFilter">
+          <option value="">الحالة</option>
+          <option value="open" ${statusFilter==="open"?"selected":""}>مفتوحة</option>
+          <option value="closed" ${statusFilter==="closed"?"selected":""}>مغلقة</option>
+        </select>
+        <select class="field" id="priorityFilter">
+          <option value="">الأولوية</option>
+          <option value="عاجل جدًا" ${priorityFilter==="عاجل جدًا"?"selected":""}>عاجل جدًا</option>
+          <option value="عاجل" ${priorityFilter==="عاجل"?"selected":""}>عاجل</option>
+          <option value="عادي" ${priorityFilter==="عادي"?"selected":""}>عادي</option>
+        </select>
+        <select class="field" id="departmentFilter">
+          <option value="">الإدارة</option>
+          ${(directoryData.units||[]).filter(u=>["department","independent","branch"].includes(u.unit_type)).map(u=>'<option value="'+esc(u.name)+'" '+(departmentFilter===u.name?"selected":"")+'>'+esc(u.name)+'</option>').join("")}
+        </select>
+        <select class="field" id="employeeFilter">
+          <option value="">الموظف</option>
+          ${(directoryData.users||[]).map(u=>'<option value="'+esc(u.login_name)+'" '+(employeeFilter===u.login_name?"selected":"")+'>'+esc(u.display_name)+'</option>').join("")}
+        </select>
+        <select class="field" id="originFilter">
+          <option value="">قديم/جديد</option>
+          <option value="legacy" ${originFilter==="legacy"?"selected":""}>قديم</option>
+          <option value="new" ${originFilter==="new"?"selected":""}>جديد</option>
+        </select>
+        <label class="check-filter"><input type="checkbox" id="lateOnly" ${lateOnly?"checked":""}> متأخرة</label>
+        <input class="field date-filter" id="dateFrom" type="date" value="${esc(dateFrom)}">
+        <input class="field date-filter" id="dateTo" type="date" value="${esc(dateTo)}">
+        ${hasTxPerm("transactions.create")?'<button class="btn btn-green" id="createBtn">إنشاء معاملة</button>':""}
+        <button class="btn btn-soft" id="excelListBtn">Excel القائمة</button>
+        <button class="btn btn-soft" id="pdfListBtn">PDF القائمة</button>
       </div>
-      <div id="tableHost"></div>
-      <div id="pagerHost"></div>
-    </section>
+
+      <section class="card">
+        <div class="card-head">
+          <span class="card-title" id="cardTitle">${esc(tabs.find(x=>x[0]===currentTab)?.[1]||"المعاملات")}</span>
+          <span class="count" id="rowTotal">${Number(listData.total||0)}</span>
+        </div>
+        <div id="tableHost"></div>
+        <div id="pagerHost"></div>
+      </section>
+    </main>
   </div>`;
   document.getElementById("logoutBtn").onclick=logout;
   document.getElementById("notifBtn").onclick=openNotifications;
-  document.querySelectorAll("[data-section]").forEach(b=>b.onclick=async()=>{
-    const section=b.dataset.section;
-    if(section==="permissions"&&canManagePermissions()){
-      currentSection="permissions";
-      await loadPermissions();
-      renderPermissionsApp();
-      return;
-    }
-    currentSection="transactions";
-    renderApp();
-  });
+  wireSectionSidebar();
   document.querySelectorAll("[data-tab]").forEach(b=>b.onclick=async()=>{currentTab=b.dataset.tab;page=1;await refresh()});
   document.getElementById("search").oninput=e=>{
     searchText=e.target.value;page=1;clearTimeout(searchTimer);searchTimer=setTimeout(()=>refresh(),300);

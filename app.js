@@ -661,13 +661,19 @@ function sectorUnits(){
 async function openCreate(){
   let rolePart="";
   if(session.role==="manager"){
+    const modes=['<option value="none">حفظ بدون إحالة</option>'];
+    if(hasTxPerm("transactions.assign_department"))modes.push('<option value="assign">إسناد لموظف أو أكثر</option>');
+    if(hasTxPerm("transactions.raise_assistant"))modes.push('<option value="raise">رفع للمساعد</option>');
     rolePart=`
-      <div class="wide"><label>المسار</label><select class="field" id="createMode"><option value="assign">إسناد لموظف أو أكثر</option><option value="raise">رفع للمساعد</option></select></div>
+      <div class="wide"><label>المسار بعد الحفظ</label><select class="field" id="createMode">${modes.join("")}</select></div>
       <div class="wide" id="createRouteFields"></div>`;
-  }else if(isExec()){
+  }else if(isExec()&&hasTxPerm("transactions.raise_assistant")){
     rolePart=`
-      <div class="wide"><label>المساعد</label><select class="field" name="assistant">${userOptions(u=>u.role==="assistant")}</select></div>
-      <div class="wide"><label>التوجيه</label><textarea class="field" name="directive" required></textarea></div>`;
+      <div class="wide"><label>الإحالة بعد الحفظ</label><select class="field" name="assistant">
+        <option value="">حفظ بدون إحالة</option>
+        ${userOptions(u=>u.role==="assistant")}
+      </select></div>
+      <div class="wide"><label>التوجيه</label><textarea class="field" name="directive"></textarea></div>`;
   }
   const w=modal("إنشاء معاملة",`
     <form id="createForm"><div class="form-grid">
@@ -686,25 +692,37 @@ async function openCreate(){
         <label>الإدارة</label><select class="field" name="unit_id">${managerUnits().map(u=>'<option value="'+u.id+'">'+esc(u.name)+'</option>').join("")}</select>
         <label>الموظفون</label><select class="field multi" name="targets" multiple>${userOptions(u=>u.role==="employee"&&u.dept_names.some(d=>myDeptNames().includes(d)))}</select>
         <label>التوجيه</label><textarea class="field" name="directive"></textarea>`
-      :`<label>سبب الرفع</label><textarea class="field" name="raise_reason"></textarea><label>القرار المقترح</label><textarea class="field" name="proposed_decision"></textarea>`;
-    };mode.onchange=draw;draw();
+      :mode.value==="raise"?`
+        <label>سبب الرفع</label><textarea class="field" name="raise_reason"></textarea>
+        <label>القرار المقترح</label><textarea class="field" name="proposed_decision"></textarea>`
+      :"";
+    };
+    mode.onchange=draw;draw();
   }
   w.querySelector("#saveCreate").onclick=async()=>{
-    const f=w.querySelector("#createForm"),fd=new FormData(f);
+    const form=w.querySelector("#createForm"),fd=new FormData(form);
     const title=String(fd.get("title")||"").trim();if(!title)return;
     const btn=w.querySelector("#saveCreate");btn.disabled=true;
     try{
-      const created=await post(CONFIG.txFn,baseBody("create",{title,subject:fd.get("subject"),priority:fd.get("priority"),attachment_url:fd.get("attachment_url")}));
+      const created=await post(CONFIG.txFn,baseBody("create",{
+        title,subject:fd.get("subject"),priority:fd.get("priority"),attachment_url:fd.get("attachment_url")
+      }));
       if(session.role==="manager"){
-        const mode=w.querySelector("#createMode").value;
+        const mode=w.querySelector("#createMode")?.value||"none";
         if(mode==="assign"){
           const targets=[...w.querySelector('[name="targets"]').selectedOptions].map(o=>o.value);
-          await post(CONFIG.txFn,baseBody("route_manager_employees",{transaction_id:created.row.id,unit_id:fd.get("unit_id"),targets,directive:fd.get("directive")}));
-        }else{
-          await post(CONFIG.txFn,baseBody("route_manager_assistant",{transaction_id:created.row.id,raise_reason:fd.get("raise_reason"),proposed_decision:fd.get("proposed_decision")}));
+          await post(CONFIG.txFn,baseBody("route_manager_employees",{
+            transaction_id:created.row.id,unit_id:fd.get("unit_id"),targets,directive:fd.get("directive")
+          }));
+        }else if(mode==="raise"){
+          await post(CONFIG.txFn,baseBody("route_manager_assistant",{
+            transaction_id:created.row.id,raise_reason:fd.get("raise_reason"),proposed_decision:fd.get("proposed_decision")
+          }));
         }
-      }else if(isExec()){
-        await post(CONFIG.txFn,baseBody("route_exec_assistant",{transaction_id:created.row.id,to_login:fd.get("assistant"),directive:fd.get("directive")}));
+      }else if(isExec()&&fd.get("assistant")){
+        await post(CONFIG.txFn,baseBody("route_exec_assistant",{
+          transaction_id:created.row.id,to_login:fd.get("assistant"),directive:fd.get("directive")
+        }));
       }
       w.remove();await refresh();
     }catch(e){btn.disabled=false}

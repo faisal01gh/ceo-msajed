@@ -23,6 +23,8 @@ let currentTab="";
 let sessionPermissions=[];
 let permissionsData=null;
 let permissionsSelectedUser="";
+let permissionsSection="transactions";
+let profileData=null;
 let searchText="";
 let priorityFilter="";
 let statusFilter="";
@@ -200,26 +202,52 @@ async function exchangeRecovery(tokenHash){
   if(!r.ok||!data.access_token)throw new Error("recovery_failed");
   return data;
 }
+function passwordPolicy(value){
+  return {
+    length:value.length>=8,
+    upper:/[A-Z]/.test(value),
+    lower:/[a-z]/.test(value),
+    symbol:/[^A-Za-z0-9]/.test(value)
+  };
+}
+function passwordRulesMarkup(value=""){
+  const c=passwordPolicy(value);
+  const row=(ok,text)=>'<div class="password-rule '+(ok?"ok":"")+'"><span>'+(ok?"✓":"○")+'</span>'+text+'</div>';
+  return row(c.length,"8 خانات على الأقل")+row(c.upper,"حرف إنجليزي كبير A-Z")+row(c.lower,"حرف إنجليزي صغير a-z")+row(c.symbol,"رمز مثل ! @ # $");
+}
+function passwordStrong(value){return Object.values(passwordPolicy(value)).every(Boolean)}
 function passwordChangeView(ctx){
   root.innerHTML=`
   <section class="login-shell">
     <form class="login-card" id="passwordForm">
-      <h1 class="login-title">تغيير كلمة المرور</h1>
+      <h1 class="login-title">تحديث كلمة المرور</h1>
+      <p class="password-help">يلزم تحديث كلمة المرور قبل الدخول إلى النظام.</p>
       <label for="newPassword">كلمة المرور الجديدة</label>
       <input class="field" id="newPassword" type="password" autocomplete="new-password">
+      <div class="password-rules" id="passwordRules">${passwordRulesMarkup("")}</div>
       <label for="confirmPassword">تأكيد كلمة المرور</label>
       <input class="field" id="confirmPassword" type="password" autocomplete="new-password">
-      <button class="login-btn" id="passwordBtn" type="submit">حفظ</button>
+      <div class="password-match" id="passwordMatch"></div>
+      <button class="login-btn" id="passwordBtn" type="submit">حفظ والدخول</button>
       <p class="login-msg" id="passwordMsg" aria-live="polite"></p>
     </form>
   </section>`;
+  const p1=document.getElementById("newPassword"),p2=document.getElementById("confirmPassword");
+  const updateRules=()=>{
+    document.getElementById("passwordRules").innerHTML=passwordRulesMarkup(p1.value);
+    const match=document.getElementById("passwordMatch");
+    if(!p2.value){match.textContent="";match.className="password-match";return}
+    const ok=p1.value===p2.value;
+    match.textContent=ok?"✓ كلمتا المرور متطابقتان":"✕ كلمتا المرور غير متطابقتين";
+    match.className="password-match "+(ok?"ok":"bad");
+  };
+  p1.oninput=updateRules;p2.oninput=updateRules;
   document.getElementById("passwordForm").onsubmit=async e=>{
     e.preventDefault();
-    const p=document.getElementById("newPassword").value;
-    const p2=document.getElementById("confirmPassword").value;
+    const p=p1.value,pConfirm=p2.value;
     const msg=document.getElementById("passwordMsg"),btn=document.getElementById("passwordBtn");
-    if(p.length<8){msg.textContent="كلمة المرور يجب أن تكون 8 أحرف على الأقل";return}
-    if(p!==p2){msg.textContent="كلمتا المرور غير متطابقتين";return}
+    if(!passwordStrong(p)){msg.textContent="أكمل جميع شروط كلمة المرور";return}
+    if(p!==pConfirm){msg.textContent="كلمتا المرور غير متطابقتين";return}
     btn.disabled=true;msg.textContent="";
     try{
       const {r:upd}=await fetchJson(CONFIG.supabaseUrl+"/auth/v1/user",{
@@ -229,19 +257,18 @@ function passwordChangeView(ctx){
       });
       if(!upd.ok)throw new Error("password_update_failed");
       const confirmed=await post(CONFIG.confirmPasswordFn,{access_token:ctx.auth.access_token},false);
-      try{await post(CONFIG.logoutFn,{app:ctx.legacy.app,token:ctx.legacy.token},false)}catch{}
       session={
         app:"new",token:ctx.auth.access_token,refresh_token:ctx.auth.refresh_token||null,
         username:confirmed.preferred_login,login_name:confirmed.preferred_login,
         display_name:confirmed.display_name,role:confirmed.role,legacy_role:""
       };
-      saveSession();currentTab="";await boot();
+      saveSession();currentTab="";currentSection="transactions";await boot();
     }catch{
       msg.textContent="تعذر حفظ كلمة المرور";
       btn.disabled=false;
     }
   };
-  document.getElementById("newPassword").focus();
+  p1.focus();
 }
 async function login(e){
   e.preventDefault();
@@ -252,25 +279,23 @@ async function login(e){
   btn.disabled=true;btn.textContent="…";msg.textContent="";
   try{
     const resolved=await post(CONFIG.resolveFn,{login:username},false);
-    if(!resolved.eligible)throw new Error("invalid_credentials");
-
-    if(resolved.migrated&&resolved.must_change_password!==true){
-      const auth=await signInNew(resolved.internal_email,password);
-      if(!auth)throw new Error("invalid_credentials");
-      session={
-        app:"new",token:auth.access_token,refresh_token:auth.refresh_token||null,
-        username:resolved.preferred_login||username,login_name:resolved.preferred_login||username,
-        display_name:resolved.display_name||username,role:resolved.role,legacy_role:""
-      };
-      saveSession();currentTab="";await boot();return;
+    if(!resolved.eligible||!resolved.migrated)throw new Error("account_not_ready");
+    const auth=await signInNew(resolved.internal_email,password);
+    if(!auth)throw new Error("invalid_credentials");
+    if(resolved.must_change_password===true){
+      passwordChangeView({resolved,auth});
+      return;
     }
-
-    const legacy=await signInLegacy(username,password);
-    const activation=await post(CONFIG.activateFn,{login:username,app:legacy.app,token:legacy.token},false);
-    const auth=await exchangeRecovery(activation.token_hash);
-    passwordChangeView({legacy,activation,auth});
+    session={
+      app:"new",token:auth.access_token,refresh_token:auth.refresh_token||null,
+      username:resolved.preferred_login||username,login_name:resolved.preferred_login||username,
+      display_name:resolved.display_name||username,role:resolved.role,legacy_role:""
+    };
+    saveSession();currentTab="";currentSection="transactions";await boot();return;
   }catch(err){
-    msg.textContent=err.status===429?"محاولات كثيرة — انتظر "+(err.data?.minutes||15)+" دقيقة":"اسم المستخدم أو كلمة السر غير صحيحة";
+    msg.textContent=err?.message==="account_not_ready"
+      ?"الحساب مسجل وسيتم تفعيل دخوله في النظام الجديد عند اكتمال إنشاء Auth"
+      :"اسم المستخدم أو كلمة السر غير صحيحة";
     document.getElementById("password").value="";
     btn.disabled=false;btn.textContent="دخول";
   }

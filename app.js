@@ -18,7 +18,11 @@ const SESSION_KEY="msajed_session";
 let session=null;
 let directoryData={users:[],units:[],me:null};
 let listData={rows:[],total:0,page:1,page_size:50,counters:{}};
+let currentSection="transactions";
 let currentTab="";
+let sessionPermissions=[];
+let permissionsData=null;
+let permissionsSelectedUser="";
 let searchText="";
 let priorityFilter="";
 let statusFilter="";
@@ -117,6 +121,8 @@ function mapRole(s){
   return "assistant";
 }
 function isExec(){return ["ceo","ceo_office_manager","ceo_secretary"].includes(session?.role)}
+function hasTxPerm(code){return sessionPermissions.includes(code)}
+function canManagePermissions(){return session?.app==="new"&&session?.role==="ceo_office_manager"}
 function tabsFor(role){
   if(role==="ceo")return [["incoming","وارد إليّ"],["ceo_view","معاملات للاطلاع"],["shared","معاملات مشتركة"],["all","جميع معاملات الجمعية"],["closed","المعاملات المغلقة"]];
   if(role==="ceo_office_manager"||role==="ceo_secretary")return [["incoming","وارد إليّ"],["ceo","معاملات الرئيس التنفيذي"],["shared","معاملات مشتركة"],["all","جميع معاملات الجمعية"],["closed","المعاملات المغلقة"]];
@@ -259,18 +265,27 @@ async function boot(){
       p_department:departmentFilter,p_employee:employeeFilter,p_origin:originFilter,p_late_only:lateOnly,
       p_date_from:dateFrom||null,p_date_to:dateTo||null,p_page:page,p_page_size:50
     };
-    const [dir,list]=session.app==="new"
-      ? await Promise.all([rpc("transaction_directory_my"),rpc("list_my_transactions",listArgs)])
-      : await Promise.all([
-          post(CONFIG.txFn,baseBody("directory")),
-          post(CONFIG.txFn,baseBody("list",{
-            tab:currentTab,search:searchText,priority:priorityFilter,status:statusFilter,
-            department:departmentFilter,employee:employeeFilter,origin:originFilter,late_only:lateOnly,
-            date_from:dateFrom,date_to:dateTo,page,page_size:50
-          }))
-        ]);
+    let dir,list,perms=[];
+    if(session.app==="new"){
+      [dir,list,perms]=await Promise.all([
+        rpc("transaction_directory_my"),
+        rpc("list_my_transactions",listArgs),
+        rpc("my_permissions")
+      ]);
+    }else{
+      [dir,list]=await Promise.all([
+        post(CONFIG.txFn,baseBody("directory")),
+        post(CONFIG.txFn,baseBody("list",{
+          tab:currentTab,search:searchText,priority:priorityFilter,status:statusFilter,
+          department:departmentFilter,employee:employeeFilter,origin:originFilter,late_only:lateOnly,
+          date_from:dateFrom,date_to:dateTo,page,page_size:50
+        }))
+      ]);
+      perms=dir.permissions||dir.me?.permissions||[];
+    }
     directoryData=dir;
     listData=list;
+    sessionPermissions=Array.isArray(perms)?perms:[];
     if(directoryData.me){
       session.role=directoryData.me.role||session.role;
       session.display_name=directoryData.me.display_name||session.display_name;
@@ -306,7 +321,93 @@ async function loadList(){
     date_from:dateFrom,date_to:dateTo,page,page_size:50
   }));
 }
+async function loadPermissions(){
+  if(!canManagePermissions())throw new Error("forbidden");
+  permissionsData=await rpc("permissions_admin_snapshot",{p_section:"transactions"});
+  const users=permissionsData.users||[];
+  if(!permissionsSelectedUser||!users.some(u=>u.canonical_key===permissionsSelectedUser)){
+    permissionsSelectedUser=users[0]?.canonical_key||"";
+  }
+}
+function renderPermissionsApp(){
+  if(!canManagePermissions()){currentSection="transactions";renderApp();return}
+  const users=permissionsData?.users||[];
+  const selected=users.find(u=>u.canonical_key===permissionsSelectedUser)||users[0]||null;
+  root.innerHTML=`
+  <div class="shell">
+    <header class="top-header">
+      <div class="header-row">
+        <h1>الصلاحيات</h1>
+        <div class="user-box">
+          <span class="user-name">${esc(session.display_name)}</span>
+          <button class="btn btn-white" id="logoutBtn">تسجيل الخروج</button>
+        </div>
+      </div>
+    </header>
+
+    <nav class="section-nav">
+      <button class="section-tab" data-section="transactions">المعاملات</button>
+      <button class="section-tab active" data-section="permissions">الصلاحيات</button>
+    </nav>
+
+    <section class="card permissions-card">
+      <div class="card-head">
+        <span class="card-title">الصلاحيات</span>
+      </div>
+      <nav class="permissions-tabs">
+        <button class="permissions-tab active">المعاملات</button>
+      </nav>
+      <div class="permissions-body">
+        <div class="permissions-userbar">
+          <select class="field" id="permissionsUser">
+            ${users.map(u=>'<option value="'+esc(u.canonical_key)+'" '+(selected&&u.canonical_key===selected.canonical_key?"selected":"")+'>'+esc(u.display_name)+'</option>').join("")}
+          </select>
+          ${selected?'<span class="permission-role">'+esc(selected.role_name||selected.role_code||"")+'</span>':""}
+        </div>
+        <div id="permissionsGrid">
+          ${selected?renderPermissionGrid(selected):'<div class="empty">لا توجد حسابات</div>'}
+        </div>
+      </div>
+    </section>
+  </div>`;
+  document.getElementById("logoutBtn").onclick=logout;
+  document.querySelectorAll("[data-section]").forEach(b=>b.onclick=async()=>{
+    if(b.dataset.section==="transactions"){
+      currentSection="transactions";
+      renderApp();
+    }
+  });
+  const userSelect=document.getElementById("permissionsUser");
+  if(userSelect)userSelect.onchange=e=>{permissionsSelectedUser=e.target.value;renderPermissionsApp()};
+  document.querySelectorAll("[data-permission-toggle]").forEach(input=>input.onchange=async e=>{
+    const target=e.target;
+    if(!selected?.user_id){target.checked=!target.checked;return}
+    target.disabled=true;
+    try{
+      await rpc("permissions_admin_set",{
+        p_target_user:selected.user_id,
+        p_permission_code:target.dataset.permissionToggle,
+        p_enabled:target.checked
+      });
+      await loadPermissions();
+      renderPermissionsApp();
+    }catch{
+      target.checked=!target.checked;
+      target.disabled=false;
+    }
+  });
+}
+function renderPermissionGrid(user){
+  return (user.permissions||[]).map(p=>{
+    const disabled=!p.editable||!user.user_id;
+    return `<label class="permission-item ${disabled?"fixed":""}">
+      <span class="permission-name">${esc(p.name_ar)}</span>
+      <input type="checkbox" data-permission-toggle="${esc(p.code)}" ${p.effective_enabled?"checked":""} ${disabled?"disabled":""}>
+    </label>`;
+  }).join("");
+}
 function renderApp(){
+  if(currentSection==="permissions"){renderPermissionsApp();return}
   const tabs=tabsFor(session.role);
   const unread=Number(listData?.counters?.notifications||0);
   root.innerHTML=`
@@ -321,6 +422,11 @@ function renderApp(){
         </div>
       </div>
     </header>
+
+    <nav class="section-nav">
+      <button class="section-tab active" data-section="transactions">المعاملات</button>
+      ${canManagePermissions()?'<button class="section-tab" data-section="permissions">الصلاحيات</button>':""}
+    </nav>
 
     <nav class="nav-tabs">
       ${tabs.map(([k,n])=>`<button class="nav-tab ${currentTab===k?"active":""}" data-tab="${k}">${n}</button>`).join("")}
@@ -361,7 +467,7 @@ function renderApp(){
       <label class="check-filter"><input type="checkbox" id="lateOnly" ${lateOnly?"checked":""}> متأخرة</label>
       <input class="field date-filter" id="dateFrom" type="date" value="${esc(dateFrom)}">
       <input class="field date-filter" id="dateTo" type="date" value="${esc(dateTo)}">
-      ${session.role!=="employee"?'<button class="btn btn-green" id="createBtn">إنشاء معاملة</button>':""}
+      ${hasTxPerm("transactions.create")?'<button class="btn btn-green" id="createBtn">إنشاء معاملة</button>':""}
       <button class="btn btn-soft" id="excelListBtn">Excel القائمة</button>
       <button class="btn btn-soft" id="pdfListBtn">PDF القائمة</button>
     </div>
@@ -377,6 +483,17 @@ function renderApp(){
   </div>`;
   document.getElementById("logoutBtn").onclick=logout;
   document.getElementById("notifBtn").onclick=openNotifications;
+  document.querySelectorAll("[data-section]").forEach(b=>b.onclick=async()=>{
+    const section=b.dataset.section;
+    if(section==="permissions"&&canManagePermissions()){
+      currentSection="permissions";
+      await loadPermissions();
+      renderPermissionsApp();
+      return;
+    }
+    currentSection="transactions";
+    renderApp();
+  });
   document.querySelectorAll("[data-tab]").forEach(b=>b.onclick=async()=>{currentTab=b.dataset.tab;page=1;await refresh()});
   document.getElementById("search").oninput=e=>{
     searchText=e.target.value;page=1;clearTimeout(searchTimer);searchTimer=setTimeout(()=>refresh(),300);
@@ -443,8 +560,10 @@ function renderTable(){
       ${rows.map(r=>{
         const [st,sc]=statusBadge(r);
         const open=r.status==="open";
-        const closeLabel=r.can_close?"إغلاق":"طلب إغلاق";
-        const reopenLabel=r.can_close?"استرجاع المعاملة":"طلب استرجاع";
+        const directClose=!!r.can_close&&hasTxPerm("transactions.close");
+        const directReopen=!!r.can_close&&hasTxPerm("transactions.reopen");
+        const closeLabel=directClose?"إغلاق":"طلب إغلاق";
+        const reopenLabel=directReopen?"استرجاع المعاملة":"طلب استرجاع";
         return `<tr>
           <td>${esc(r.number)}</td>
           <td class="tx-title">${esc(r.title)}</td>
@@ -459,9 +578,9 @@ function renderTable(){
           <td><div class="actions">
             ${r.pending_transfer?'<button class="row-btn btn-green" data-act="accept-transfer" data-route="'+r.pending_transfer.id+'">قبول</button><button class="row-btn btn-red" data-act="reject-transfer" data-route="'+r.pending_transfer.id+'">رفض</button>':""}
             ${open&&r.can_act?'<button class="row-btn btn-soft" data-act="action" data-id="'+r.id+'">إجراء</button>':""}
-            ${open&&r.can_act?'<button class="row-btn btn-soft" data-act="route" data-id="'+r.id+'">إحالة</button>':""}
-            ${open?'<button class="row-btn btn-red" data-act="close" data-id="'+r.id+'" data-direct="'+(r.can_close?"1":"0")+'">'+closeLabel+'</button>':""}
-            ${r.status==="closed"?'<button class="row-btn btn-soft" data-act="reopen" data-id="'+r.id+'" data-direct="'+(r.can_close?"1":"0")+'">'+reopenLabel+'</button>':""}
+            ${open&&r.can_act&&(session.role==="employee"||hasTxPerm("transactions.assign"))?'<button class="row-btn btn-soft" data-act="route" data-id="'+r.id+'">إحالة</button>':""}
+            ${open?'<button class="row-btn btn-red" data-act="close" data-id="'+r.id+'" data-direct="'+(directClose?"1":"0")+'">'+closeLabel+'</button>':""}
+            ${r.status==="closed"?'<button class="row-btn btn-soft" data-act="reopen" data-id="'+r.id+'" data-direct="'+(directReopen?"1":"0")+'">'+reopenLabel+'</button>':""}
             <button class="row-btn btn-blue" data-act="open" data-id="${r.id}">فتح</button>
           </div></td>
         </tr>`
@@ -798,11 +917,11 @@ async function openDetails(id){
     <div class="section-title">الطلبات</div>${requests}
     <div class="section-title">السجل</div>${hist}
   `,`
-    ${t.status==="open"?'<button class="btn btn-soft" id="priorityBtn">الأولوية</button>':""}
-    ${t.status==="open"&&session.role!=="employee"?'<button class="btn btn-soft" id="dueBtn">تاريخ الاستحقاق</button>':""}
+    ${t.status==="open"&&hasTxPerm("transactions.change_priority")?'<button class="btn btn-soft" id="priorityBtn">الأولوية</button>':""}
+    ${t.status==="open"&&hasTxPerm("transactions.set_due_date")?'<button class="btn btn-soft" id="dueBtn">تاريخ الاستحقاق</button>':""}
     ${t.status==="open"?'<button class="btn btn-soft" id="responsibleBtn">مسؤول المعاملة</button>':""}
     ${t.status==="open"&&t.due_at?'<button class="btn btn-soft" id="extensionBtn">طلب تمديد</button>':""}
-    ${t.status==="open"&&["manager","assistant","ceo","ceo_office_manager","ceo_secretary"].includes(session.role)?'<button class="btn btn-soft" id="ceoViewBtn">إطلاع الرئيس</button>':""}
+    ${t.status==="open"&&hasTxPerm("transactions.ceo_view")?'<button class="btn btn-soft" id="ceoViewBtn">إطلاع الرئيس</button>':""}
     ${t.status==="open"?'<button class="btn btn-red" id="cancelBtn">إلغاء المعاملة</button>':""}
     ${t.status==="open"&&session.role==="ceo_office_manager"&&!t.workflow_started?'<button class="btn btn-red" id="deleteBtn">حذف نهائي</button>':""}
     <button class="btn btn-soft" id="waBtn">نسخ واتساب</button>
@@ -949,7 +1068,7 @@ function printTransaction(d){
 async function logout(){
   const old=session;
   try{if(old?.token)await post(CONFIG.logoutFn,{app:old.app,token:old.token},false)}catch{}
-  clearSession();directoryData={users:[],units:[],me:null};listData={rows:[]};currentTab="";loginView();
+  clearSession();directoryData={users:[],units:[],me:null};listData={rows:[]};sessionPermissions=[];permissionsData=null;currentSection="transactions";currentTab="";loginView();
 }
 
 root.addEventListener("click",handleTableActionClick);

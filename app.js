@@ -411,14 +411,26 @@ function renderPermissionsApp(){
     }
   });
 }
+function renderPermissionItem(p){
+  const disabled=!p.editable;
+  return `<label class="permission-item ${disabled?"fixed":""}">
+    <span class="permission-name">${esc(p.name_ar)}</span>
+    <input type="checkbox" data-permission-toggle="${esc(p.code)}" ${p.effective_enabled?"checked":""} ${disabled?"disabled":""}>
+  </label>`;
+}
 function renderPermissionGrid(user){
-  return (user.permissions||[]).map(p=>{
-    const disabled=!p.editable;
-    return `<label class="permission-item ${disabled?"fixed":""}">
-      <span class="permission-name">${esc(p.name_ar)}</span>
-      <input type="checkbox" data-permission-toggle="${esc(p.code)}" ${p.effective_enabled?"checked":""} ${disabled?"disabled":""}>
-    </label>`;
-  }).join("");
+  const all=user.permissions||[];
+  const isRouting=p=>/transactions\.(route_to_|assign_|transfer_assistant|decide_assistant_transfer)/.test(p.code);
+  const general=all.filter(p=>!isRouting(p)),routing=all.filter(isRouting);
+  return [
+    ["الصلاحيات العامة",general],
+    ["الإحالة والإسناد",routing]
+  ].filter(([,items])=>items.length).map(([title,items])=>`
+    <section class="permission-group">
+      <h3>${esc(title)}</h3>
+      <div class="permission-group-grid">${items.map(renderPermissionItem).join("")}</div>
+    </section>
+  `).join("");
 }
 function renderApp(){
   if(currentSection==="permissions"){renderPermissionsApp();return}

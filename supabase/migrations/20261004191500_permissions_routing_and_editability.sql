@@ -181,7 +181,9 @@ returns jsonb language plpgsql stable security definer set search_path=''
 as $$
 declare v_prefix text; v_result jsonb;
 begin
-  if p_actor is null or not app_private.can_manage_permissions(p_actor) then
+  if p_actor is null
+     or p_actor is distinct from (select auth.uid())
+     or not app_private.can_manage_permissions(p_actor) then
     raise exception 'forbidden' using errcode='42501';
   end if;
   if p_section <> 'transactions' then raise exception 'unsupported permission section'; end if;
@@ -251,7 +253,9 @@ returns jsonb language plpgsql security definer set search_path=''
 as $$
 declare v_base boolean; v_effect text; v_target_user uuid;
 begin
-  if p_actor is null or not app_private.can_manage_permissions(p_actor) then
+  if p_actor is null
+     or p_actor is distinct from (select auth.uid())
+     or not app_private.can_manage_permissions(p_actor) then
     raise exception 'forbidden' using errcode='42501';
   end if;
 
@@ -333,7 +337,10 @@ grant execute on function public.permissions_admin_set(text,text,boolean) to aut
 revoke all on function app_private.effective_permission_enabled(uuid,text) from public,anon,authenticated;
 revoke all on function app_private.has_permission(uuid,text) from public,anon,authenticated;
 revoke all on function app_private.permission_enabled_by_login(text,text) from public,anon,authenticated;
-revoke all on function app_private.permissions_admin_set(uuid,text,text,boolean) from public,anon;
+revoke all on function app_private.permissions_admin_snapshot(uuid,text) from public,anon,authenticated;
+revoke all on function app_private.permissions_admin_set(uuid,uuid,text,boolean) from public,anon,authenticated;
+revoke all on function app_private.permissions_admin_set(uuid,text,text,boolean) from public,anon,authenticated;
+grant execute on function app_private.permissions_admin_snapshot(uuid,text) to authenticated;
 grant execute on function app_private.permissions_admin_set(uuid,text,text,boolean) to authenticated;
 revoke all on function app_private.effective_permissions_json(uuid) from public,anon;
 grant execute on function app_private.effective_permissions_json(uuid) to authenticated;

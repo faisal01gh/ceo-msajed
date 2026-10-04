@@ -364,6 +364,19 @@ function canClose(who:Who,tx:any,flags:any){
   if(a==="manager")return who.role==="manager"&&flags.scope;
   return false;
 }
+function canRaiseCeo(who:Who,access:any){
+  if(hasPerm(who,"transactions.raise_ceo"))return true;
+  const directTarget=arr(access.assigns).some((a:any)=>{
+    if(a.assignment_type!=="direct"||a.status!=="active")return false;
+    return arr(access.targetsByAssignment?.get(a.id)).some((t:any)=>
+      t.active&&(t.login_name===who.login_name||t.display_name===who.display_name)
+    );
+  });
+  const fromExec=arr(access.routes).some((r:any)=>
+    r.route_type==="direct_assign"&&r.meta?.directive_owner==="الرئيس التنفيذي"
+  );
+  return directTarget&&fromExec;
+}
 async function notify(login:string|undefined|null,name:string|undefined|null,txId:string,event:string,title:string,body:string|null=null){
   if(!login)return;
   await db.from("notifications").insert({
@@ -499,7 +512,7 @@ async function createRequest(who:Who,tx:any,type:string,reason:string,extra:any=
 }
 
 Deno.serve(async(req:Request)=>{
-  if(req.method==="GET")return out(req,{ok:true,service:"transactions-api",version:26});
+  if(req.method==="GET")return out(req,{ok:true,service:"transactions-api",version:27});
   if(req.method==="OPTIONS")return new Response("ok",{headers:cors(req)});
   if(req.method!=="POST")return out(req,{error:"method_not_allowed"},405);
   let b:any;try{b=await req.json()}catch{return out(req,{error:"bad_request"},400)}
@@ -588,7 +601,7 @@ Deno.serve(async(req:Request)=>{
         db.from("transaction_assignments").select("*,transaction_assignment_targets(*)").eq("transaction_id",id).order("created_at")
       ]);
       return out(req,{ok:true,transaction:access.tx,flags:access.flags,can_act:canAct(who,access.tx,access.flags),
-        can_close:canClose(who,access.tx,access.flags),actions:actions||[],action_versions:versions||[],action_notes:actionNotes||[],routes:routes||[],
+        can_close:canClose(who,access.tx,access.flags),can_raise_ceo:canRaiseCeo(who,access),actions:actions||[],action_versions:versions||[],action_notes:actionNotes||[],routes:routes||[],
         requests:requests||[],history:historyRows||[],periods:periods||[],links:links||[],assignments:assignments||[]});
     }
 
@@ -825,10 +838,9 @@ Deno.serve(async(req:Request)=>{
     }
 
     if(action==="route_assistant_ceo"){
-      if(!hasPerm(who,"transactions.raise_ceo"))return out(req,{error:"forbidden"},403);
       const id=clean(b.transaction_id),reason=clean(b.raise_reason),proposed=clean(b.proposed_decision);
       if(!id||!reason||!proposed)return out(req,{error:"missing"},400);
-      const a=await txAccess(who,id);if(!a||!a.flags.visible)return out(req,{error:"forbidden"},403);
+      const a=await txAccess(who,id);if(!a||!a.flags.visible||!canRaiseCeo(who,a))return out(req,{error:"forbidden"},403);
       await completeActive(id);
       await addRoute(id,"raise",who,{name:"الرئيس التنفيذي"},{raise_reason:reason,proposed_decision:proposed});
       await db.from("transactions").update({current_level:"ceo",close_level:"ceo",workflow_started:true,ceo_attention:false,updated_at:new Date().toISOString(),last_activity_at:new Date().toISOString()}).eq("id",id);

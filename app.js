@@ -1008,7 +1008,7 @@ async function openDetails(id){
   const dueClickable=t.status==="open"&&hasTxPerm("transactions.set_due_date");
   const responsibleClickable=t.status==="open"&&hasTxPerm("transactions.change_responsible");
 
-  const reviewBanner=t.migration_status==="needs_review"
+  const reviewBanner=t.status==="open"&&t.migration_status==="needs_review"
     ?'<div class="review-banner">هذه معاملة قديمة ينقصها سياق المسؤولية. اختر الإدارة والمسؤول لتكمل على المسار الجديد دون اختلاق بيانات.</div>':"";
 
   const footer=`
@@ -1021,7 +1021,7 @@ async function openDetails(id){
     ${t.status==="open"?'<button class="btn btn-red" id="cancelBtn">إلغاء المعاملة</button>':""}
     ${t.status==="open"?'<button class="btn btn-red" id="closeBtn">'+(directClose?"إغلاق":"طلب إغلاق")+'</button>':""}
     ${t.status==="closed"?'<button class="btn btn-soft" id="reopenBtn">'+(directReopen?"استرجاع المعاملة":"طلب استرجاع")+'</button>':""}
-    ${t.migration_status==="needs_review"&&hasTxPerm("transactions.act_all")&&hasTxPerm("transactions.change_responsible")?'<button class="btn btn-gold" id="resolveLegacyBtn">تهيئة المعاملة القديمة</button>':""}
+    ${t.status==="open"&&t.migration_status==="needs_review"&&hasTxPerm("transactions.act_all")&&hasTxPerm("transactions.change_responsible")?'<button class="btn btn-gold" id="resolveLegacyBtn">تهيئة المعاملة القديمة</button>':""}
     ${t.status==="open"&&hasTxPerm("transactions.delete_hard")&&!t.workflow_started?'<button class="btn btn-red" id="deleteBtn">حذف نهائي</button>':""}
   `;
 

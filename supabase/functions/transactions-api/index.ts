@@ -429,7 +429,7 @@ async function createRequest(who:Who,tx:any,type:string,reason:string,extra:any=
 }
 
 Deno.serve(async(req:Request)=>{
-  if(req.method==="GET")return out(req,{ok:true,service:"transactions-api",version:28});
+  if(req.method==="GET")return out(req,{ok:true,service:"transactions-api",version:29});
   if(req.method==="OPTIONS")return new Response("ok",{headers:cors(req)});
   if(req.method!=="POST")return out(req,{error:"method_not_allowed"},405);
   let b:any;try{b=await req.json()}catch{return out(req,{error:"bad_request"},400)}
@@ -439,6 +439,29 @@ Deno.serve(async(req:Request)=>{
   const action=clean(b.action);
 
   try{
+    if(action==="admin_profile_name"){
+      if(who.role!=="ceo_office_manager"||!hasPerm(who,"profiles.admin_edit_name"))return out(req,{error:"forbidden"},403);
+      const key=clean(b.canonical_key),name=clean(b.name);
+      if(!key||name.length<2)return out(req,{error:"invalid_request"},400);
+      const {data:acct}=await db.from("account_migration_users")
+        .select("canonical_key,migrated_user_id,display_name").eq("canonical_key",key).eq("eligible",true).maybeSingle();
+      if(!acct)return out(req,{error:"not_found"},404);
+      const old=clean(acct.display_name);
+      const {error}=await db.from("account_migration_users").update({display_name:name}).eq("canonical_key",key);
+      if(error)throw error;
+      if(acct.migrated_user_id){
+        const {error:pe}=await db.from("profiles").update({full_name:name,updated_at:new Date().toISOString()})
+          .eq("id",acct.migrated_user_id);
+        if(pe)throw pe;
+      }
+      await db.from("audit_log").insert({
+        actor_id:who.user_id,event_type:"profile_name_changed",entity_type:"account",entity_id:key,
+        detail:"تعديل اسم المستخدم",meta:{old_name:old,new_name:name,actor_login:who.login_name}
+      });
+      directoryCache={at:0,data:[]};
+      return out(req,{ok:true,name});
+    }
+
     if(action==="directory"){
       const [users0,units0]=await Promise.all([directory(),units()]);
       let visibleUsers=users0,visibleUnits=units0;

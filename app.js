@@ -386,22 +386,41 @@ async function loadProfile(){
 }
 function openOwnPasswordChange(){
   const w=modal("تغيير كلمة المرور",`
-    <label>كلمة المرور الجديدة</label>
-    <input class="field" id="profileNewPassword" type="password" autocomplete="new-password">
-    <div class="password-rules" id="profilePasswordRules">${passwordRulesMarkup("")}</div>
-    <label>تأكيد كلمة المرور</label>
-    <input class="field" id="profileConfirmPassword" type="password" autocomplete="new-password">
-    <div class="password-match" id="profilePasswordMatch"></div>`,
+    <div class="password-field-group">
+      <label>كلمة المرور الجديدة</label>
+      <div class="password-input-wrap">
+        <input class="field password-input" id="profileNewPassword" type="password" autocomplete="new-password" placeholder="أدخل كلمة المرور الجديدة">
+        <button class="password-toggle" id="toggleProfileNewPassword" type="button" aria-label="إظهار كلمة المرور">${passwordEyeIcon()}</button>
+      </div>
+      <div class="password-inline-hint" id="profilePasswordRules">${passwordRulesMarkup("")}</div>
+    </div>
+    <div class="password-field-group">
+      <label>تأكيد كلمة المرور</label>
+      <div class="password-input-wrap">
+        <input class="field password-input" id="profileConfirmPassword" type="password" autocomplete="new-password" placeholder="أعد إدخال كلمة المرور">
+        <button class="password-toggle" id="toggleProfileConfirmPassword" type="button" aria-label="إظهار كلمة المرور">${passwordEyeIcon()}</button>
+      </div>
+      <div class="password-inline-hint" id="profilePasswordMatch"><span class="password-hint-icon">•</span><span>يجب أن تتطابق كلمتا المرور</span></div>
+    </div>`,
     '<button class="btn btn-green" id="saveProfilePassword">حفظ</button><button class="btn btn-soft" data-exit>خروج</button>');
   w.querySelector("[data-exit]").onclick=()=>w.remove();
   const p1=w.querySelector("#profileNewPassword"),p2=w.querySelector("#profileConfirmPassword");
+  wirePasswordToggle(w.querySelector("#toggleProfileNewPassword"),p1);
+  wirePasswordToggle(w.querySelector("#toggleProfileConfirmPassword"),p2);
   const draw=()=>{
-    w.querySelector("#profilePasswordRules").innerHTML=passwordRulesMarkup(p1.value);
-    const m=w.querySelector("#profilePasswordMatch");
-    if(!p2.value){m.textContent="";m.className="password-match";return}
+    const rules=w.querySelector("#profilePasswordRules");
+    const valid=passwordStrong(p1.value);
+    rules.innerHTML=passwordRulesMarkup(p1.value);
+    rules.className="password-inline-hint "+(valid?"ok":"");
+    const match=w.querySelector("#profilePasswordMatch");
+    if(!p2.value){
+      match.innerHTML='<span class="password-hint-icon">•</span><span>يجب أن تتطابق كلمتا المرور</span>';
+      match.className="password-inline-hint";
+      return;
+    }
     const ok=p1.value===p2.value;
-    m.textContent=ok?"✓ كلمتا المرور متطابقتان":"✕ كلمتا المرور غير متطابقتين";
-    m.className="password-match "+(ok?"ok":"bad");
+    match.innerHTML='<span class="password-hint-icon">'+(ok?"✓":"×")+'</span><span>'+(ok?"متطابقة":"غير متطابقة")+'</span>';
+    match.className="password-inline-hint "+(ok?"ok":"bad");
   };
   p1.oninput=draw;p2.oninput=draw;
   w.querySelector("#saveProfilePassword").onclick=async()=>{
@@ -1065,9 +1084,15 @@ async function openDetails(id){
 
   const toolbar=`
     <div class="detail-toolbar">
-      <button class="tool-icon" id="waBtn" title="نسخ واتساب">WA</button>
-      <button class="tool-icon" id="excelBtn" title="Excel">XLS</button>
-      <button class="tool-icon" id="pdfBtn" title="PDF">PDF</button>
+      <button class="tool-icon" id="waBtn" title="نسخ واتساب" aria-label="نسخ واتساب">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 18.2 4 20l.8-3.2A8 8 0 1 1 6.5 18.2Z"/><path d="M8.6 8.2c.3 2.8 2.4 5 5.2 5.3"/><path d="M8.8 8.1 10 7.5l1.1 1.8-.8 1.1"/><path d="m13.6 12.8 1.1-.8 1.8 1-.5 1.3"/></svg>
+      </button>
+      <button class="tool-icon" id="excelBtn" title="Excel" aria-label="Excel">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="3.5" width="16" height="17" rx="2"/><path d="M4 8h16M9 8v12M14.5 8v12M4 13h16"/></svg>
+      </button>
+      <button class="tool-icon" id="pdfBtn" title="PDF" aria-label="PDF">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3.5h7l4 4V20H7Z"/><path d="M14 3.5V8h4"/><path d="M9.5 14h5M9.5 17h4"/></svg>
+      </button>
     </div>`;
 
   const priorityClickable=t.status==="open"&&hasTxPerm("transactions.change_priority");

@@ -174,42 +174,80 @@ function passwordPolicy(value){
   };
 }
 function passwordRulesMarkup(value=""){
-  const c=passwordPolicy(value);
-  const row=(ok,text)=>'<div class="password-rule '+(ok?"ok":"")+'"><span>'+(ok?"✓":"○")+'</span>'+text+'</div>';
-  return row(c.length,"8 خانات على الأقل")+row(c.upper,"حرف إنجليزي كبير A-Z")+row(c.lower,"حرف إنجليزي صغير a-z")+row(c.symbol,"رمز مثل ! @ # $");
+  const ok=Object.values(passwordPolicy(value)).every(Boolean);
+  return '<span class="password-hint-icon">'+(ok?"✓":"•")+'</span><span>8+ أحرف · A-Z · a-z · رمز</span>';
 }
 function passwordStrong(value){return Object.values(passwordPolicy(value)).every(Boolean)}
+function passwordEyeIcon(){
+  return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.4-6 9.5-6 9.5 6 9.5 6-3.4 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.7"/></svg>';
+}
+function wirePasswordToggle(button,input){
+  if(!button||!input)return;
+  button.onclick=()=>{
+    const show=input.type==="password";
+    input.type=show?"text":"password";
+    button.classList.toggle("active",show);
+    button.setAttribute("aria-label",show?"إخفاء كلمة المرور":"إظهار كلمة المرور");
+  };
+}
 function passwordChangeView(ctx){
   root.innerHTML=`
-  <section class="login-shell">
-    <form class="login-card" id="passwordForm">
-      <h1 class="login-title">تحديث كلمة المرور</h1>
-      <p class="password-help">يلزم تحديث كلمة المرور قبل الدخول إلى النظام.</p>
-      <label for="newPassword">كلمة المرور الجديدة</label>
-      <input class="field" id="newPassword" type="password" autocomplete="new-password">
-      <div class="password-rules" id="passwordRules">${passwordRulesMarkup("")}</div>
-      <label for="confirmPassword">تأكيد كلمة المرور</label>
-      <input class="field" id="confirmPassword" type="password" autocomplete="new-password">
-      <div class="password-match" id="passwordMatch"></div>
-      <button class="login-btn" id="passwordBtn" type="submit">حفظ والدخول</button>
+  <section class="password-shell">
+    <form class="password-card" id="passwordForm">
+      <div class="password-lock" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path d="M7.5 10V7.8a4.5 4.5 0 0 1 9 0V10"/><rect x="5.5" y="10" width="13" height="10" rx="2.5"/><path d="M12 14v2.4"/></svg>
+      </div>
+      <div class="password-heading">
+        <h1>تحديث كلمة المرور</h1>
+        <p>حدّث كلمة المرور للمتابعة.</p>
+      </div>
+
+      <div class="password-field-group">
+        <label for="newPassword">كلمة المرور الجديدة</label>
+        <div class="password-input-wrap">
+          <input class="field password-input" id="newPassword" type="password" autocomplete="new-password" placeholder="أدخل كلمة المرور الجديدة">
+          <button class="password-toggle" id="toggleNewPassword" type="button" aria-label="إظهار كلمة المرور">${passwordEyeIcon()}</button>
+        </div>
+        <div class="password-inline-hint" id="passwordRules">${passwordRulesMarkup("")}</div>
+      </div>
+
+      <div class="password-field-group">
+        <label for="confirmPassword">تأكيد كلمة المرور</label>
+        <div class="password-input-wrap">
+          <input class="field password-input" id="confirmPassword" type="password" autocomplete="new-password" placeholder="أعد إدخال كلمة المرور">
+          <button class="password-toggle" id="toggleConfirmPassword" type="button" aria-label="إظهار كلمة المرور">${passwordEyeIcon()}</button>
+        </div>
+        <div class="password-inline-hint" id="passwordMatch"><span class="password-hint-icon">•</span><span>يجب أن تتطابق كلمتا المرور</span></div>
+      </div>
+
+      <button class="password-submit" id="passwordBtn" type="submit">حفظ والدخول</button>
       <p class="login-msg" id="passwordMsg" aria-live="polite"></p>
     </form>
   </section>`;
   const p1=document.getElementById("newPassword"),p2=document.getElementById("confirmPassword");
+  wirePasswordToggle(document.getElementById("toggleNewPassword"),p1);
+  wirePasswordToggle(document.getElementById("toggleConfirmPassword"),p2);
   const updateRules=()=>{
-    document.getElementById("passwordRules").innerHTML=passwordRulesMarkup(p1.value);
+    const rules=document.getElementById("passwordRules");
+    const valid=passwordStrong(p1.value);
+    rules.innerHTML=passwordRulesMarkup(p1.value);
+    rules.className="password-inline-hint "+(valid?"ok":"");
     const match=document.getElementById("passwordMatch");
-    if(!p2.value){match.textContent="";match.className="password-match";return}
+    if(!p2.value){
+      match.innerHTML='<span class="password-hint-icon">•</span><span>يجب أن تتطابق كلمتا المرور</span>';
+      match.className="password-inline-hint";
+      return;
+    }
     const ok=p1.value===p2.value;
-    match.textContent=ok?"✓ كلمتا المرور متطابقتان":"✕ كلمتا المرور غير متطابقتين";
-    match.className="password-match "+(ok?"ok":"bad");
+    match.innerHTML='<span class="password-hint-icon">'+(ok?"✓":"×")+'</span><span>'+(ok?"متطابقة":"غير متطابقة")+'</span>';
+    match.className="password-inline-hint "+(ok?"ok":"bad");
   };
   p1.oninput=updateRules;p2.oninput=updateRules;
   document.getElementById("passwordForm").onsubmit=async e=>{
     e.preventDefault();
     const p=p1.value,pConfirm=p2.value;
     const msg=document.getElementById("passwordMsg"),btn=document.getElementById("passwordBtn");
-    if(!passwordStrong(p)){msg.textContent="أكمل جميع شروط كلمة المرور";return}
+    if(!passwordStrong(p)){msg.textContent="أكمل شروط كلمة المرور";return}
     if(p!==pConfirm){msg.textContent="كلمتا المرور غير متطابقتين";return}
     btn.disabled=true;msg.textContent="";
     try{

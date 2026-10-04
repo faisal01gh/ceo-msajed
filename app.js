@@ -122,14 +122,28 @@ function mapRole(s){
 }
 function isExec(){return ["ceo","ceo_office_manager","ceo_secretary"].includes(session?.role)}
 function hasTxPerm(code){return sessionPermissions.includes(code)}
+const TX_ROUTE_PERMS=[
+  "transactions.route_to_manager",
+  "transactions.assign_own_department",
+  "transactions.assign_own_sector",
+  "transactions.assign_other_sector",
+  "transactions.assign_supporting",
+  "transactions.route_to_assistant",
+  "transactions.transfer_assistant",
+  "transactions.route_to_ceo"
+];
+function hasAnyTxRoutePerm(){return TX_ROUTE_PERMS.some(hasTxPerm)}
 function canManagePermissions(){return session?.app==="new"&&session?.role==="ceo_office_manager"}
 function tabsFor(role){
-  if(role==="ceo")return [["incoming","وارد إليّ"],["ceo_view","معاملات للاطلاع"],["shared","معاملات مشتركة"],["all","جميع معاملات الجمعية"],["closed","المعاملات المغلقة"]];
-  if(role==="ceo_office_manager"||role==="ceo_secretary")return [["incoming","وارد إليّ"],["ceo","معاملات الرئيس التنفيذي"],["shared","معاملات مشتركة"],["all","جميع معاملات الجمعية"],["closed","المعاملات المغلقة"]];
-  if(role==="assistant"||role==="manager")return [["incoming","وارد إليّ"],["shared","معاملات مشتركة"],["scope","معاملات نطاقي"],["closed","المعاملات المغلقة"]];
-  return [["incoming","وارد إليّ"],["shared","معاملات مشتركة"],["closed","المعاملات المغلقة"]];
+  let tabs;
+  if(role==="ceo")tabs=[["incoming","وارد إليّ"],["ceo_view","معاملات للاطلاع"],["shared","معاملات مشتركة"],["closed","المعاملات المغلقة"]];
+  else if(role==="ceo_office_manager"||role==="ceo_secretary")tabs=[["incoming","وارد إليّ"],["ceo","معاملات الرئيس التنفيذي"],["shared","معاملات مشتركة"],["closed","المعاملات المغلقة"]];
+  else if(role==="assistant"||role==="manager")tabs=[["incoming","وارد إليّ"],["shared","معاملات مشتركة"],["scope","معاملات نطاقي"],["closed","المعاملات المغلقة"]];
+  else tabs=[["incoming","وارد إليّ"],["shared","معاملات مشتركة"],["closed","المعاملات المغلقة"]];
+  if(hasTxPerm("transactions.view_all"))tabs.splice(tabs.length-1,0,["all","جميع معاملات الجمعية"]);
+  return tabs;
 }
-function defaultTab(role){return role==="ceo"?"incoming":isExec()?"all":(role==="assistant"||role==="manager")?"scope":"incoming"}
+function defaultTab(role){return role==="ceo"?"incoming":hasTxPerm("transactions.view_all")?"all":(role==="assistant"||role==="manager")?"scope":"incoming"}
 function baseBody(action,extra={}){return {app:session.app,token:session.token,action,...extra}}
 
 function loginView(){
@@ -385,7 +399,7 @@ function renderPermissionsApp(){
     target.disabled=true;
     try{
       await rpc("permissions_admin_set",{
-        p_target_user:selected.user_id,
+        p_target_key:selected.canonical_key,
         p_permission_code:target.dataset.permissionToggle,
         p_enabled:target.checked
       });
@@ -399,7 +413,7 @@ function renderPermissionsApp(){
 }
 function renderPermissionGrid(user){
   return (user.permissions||[]).map(p=>{
-    const disabled=!p.editable||!user.user_id;
+    const disabled=!p.editable;
     return `<label class="permission-item ${disabled?"fixed":""}">
       <span class="permission-name">${esc(p.name_ar)}</span>
       <input type="checkbox" data-permission-toggle="${esc(p.code)}" ${p.effective_enabled?"checked":""} ${disabled?"disabled":""}>
@@ -576,9 +590,9 @@ function renderTable(){
           <td>${esc(r.days||"—")}</td>
           <td>${esc(fmtDate(r.last_activity_at))}</td>
           <td><div class="actions">
-            ${r.pending_transfer?'<button class="row-btn btn-green" data-act="accept-transfer" data-route="'+r.pending_transfer.id+'">قبول</button><button class="row-btn btn-red" data-act="reject-transfer" data-route="'+r.pending_transfer.id+'">رفض</button>':""}
+            ${r.pending_transfer&&hasTxPerm("transactions.decide_assistant_transfer")?'<button class="row-btn btn-green" data-act="accept-transfer" data-route="'+r.pending_transfer.id+'">قبول</button><button class="row-btn btn-red" data-act="reject-transfer" data-route="'+r.pending_transfer.id+'">رفض</button>':""}
             ${open&&r.can_act?'<button class="row-btn btn-soft" data-act="action" data-id="'+r.id+'">إجراء</button>':""}
-            ${open&&r.can_act&&(session.role==="employee"||hasTxPerm("transactions.assign"))?'<button class="row-btn btn-soft" data-act="route" data-id="'+r.id+'">إحالة</button>':""}
+            ${open&&r.can_act&&hasAnyTxRoutePerm()?'<button class="row-btn btn-soft" data-act="route" data-id="'+r.id+'">إحالة</button>':""}
             ${open?'<button class="row-btn btn-red" data-act="close" data-id="'+r.id+'" data-direct="'+(directClose?"1":"0")+'">'+closeLabel+'</button>':""}
             ${r.status==="closed"?'<button class="row-btn btn-soft" data-act="reopen" data-id="'+r.id+'" data-direct="'+(directReopen?"1":"0")+'">'+reopenLabel+'</button>':""}
             <button class="row-btn btn-blue" data-act="open" data-id="${r.id}">فتح</button>
@@ -638,6 +652,19 @@ function sectorUnits(){
   while(changed){changed=false;for(const u of all)if(u.parent_id&&ids.has(u.parent_id)&&!ids.has(u.id)){ids.add(u.id);changed=true}}
   return all.filter(u=>ids.has(u.id)&&u.unit_type==="department");
 }
+function assignableUnitType(u){return ["department","independent","branch"].includes(u.unit_type)}
+function assignmentUnits(scopeKind){
+  const all=(directoryData.units||[]).filter(assignableUnitType);
+  const mine=new Set(myDeptNames());
+  const sectorIds=new Set(sectorUnits().map(u=>u.id));
+  if(scopeKind==="own_department")return all.filter(u=>mine.has(u.name));
+  if(scopeKind==="own_sector")return all.filter(u=>sectorIds.has(u.id)&&!mine.has(u.name));
+  if(scopeKind==="other_sector")return all.filter(u=>!sectorIds.has(u.id)&&!mine.has(u.name));
+  return [];
+}
+function assignmentScopeLabel(scopeKind){
+  return scopeKind==="own_department"?"إسناد داخل الإدارة":scopeKind==="own_sector"?"إسناد داخل القطاع":"إسناد لقطاع آخر";
+}
 async function openCreate(){
   let rolePart="";
   if(session.role==="manager"){
@@ -646,7 +673,7 @@ async function openCreate(){
       <div class="wide" id="createRouteFields"></div>`;
   }else if(isExec()){
     rolePart=`
-      <div class="wide"><label>المساعد</label><select class="field" name="assistant">${userOptions(u=>u.role==="assistant")}</select></div>
+      <div class="wide"><label>المساعد</label><select class="field" name="assistant">${userOptions(u=>u.role==="assistant"&&(hasTxPerm("transactions.assign_other_sector")||!session.org_name||u.org_name===session.org_name||isExec()))}</select></div>
       <div class="wide"><label>التوجيه</label><textarea class="field" name="directive" required></textarea></div>`;
   }
   const w=modal("إنشاء معاملة",`
@@ -691,27 +718,25 @@ async function openCreate(){
   };
 }
 async function openReferral(id){
-  if(session.role==="employee")return childEmployeeRaise(id,null);
   const choices=[];
-  if(session.role==="manager"){
-    choices.push(["assign","إسناد لموظف أو أكثر"],["raise","رفع للمساعد"]);
-  }else if(session.role==="assistant"){
-    choices.push(["scope","إحالة داخل القطاع"],["transfer","تحويل لمساعد آخر"],["ceo","رفع للرئيس التنفيذي"]);
-  }else if(isExec()){
-    choices.push(["assistant","إحالة للمساعد"],["direct","إسناد مباشر لموظف"]);
-  }
+  if(hasTxPerm("transactions.route_to_manager"))choices.push(["manager","رفع للمدير"]);
+  if(hasTxPerm("transactions.assign_own_department"))choices.push(["own_department","إسناد داخل الإدارة"]);
+  if(hasTxPerm("transactions.assign_own_sector"))choices.push(["own_sector","إسناد داخل القطاع"]);
+  if(hasTxPerm("transactions.assign_other_sector"))choices.push(["other_sector","إسناد لقطاع آخر"]);
+  if(hasTxPerm("transactions.route_to_assistant"))choices.push(["assistant","إحالة/رفع للمساعد"]);
+  if(hasTxPerm("transactions.transfer_assistant"))choices.push(["transfer","تحويل لمساعد آخر"]);
+  if(hasTxPerm("transactions.route_to_ceo"))choices.push(["ceo","رفع للرئيس التنفيذي"]);
+  if(!choices.length)return;
   const w=modal("إحالة",`<div class="choice-grid">${choices.map(([k,n])=>'<button class="choice-btn" data-choice="'+k+'">'+n+'</button>').join("")}</div>`,
     '<button class="btn btn-soft" data-exit>خروج</button>');
   w.querySelector("[data-exit]").onclick=()=>w.remove();
   w.querySelectorAll("[data-choice]").forEach(b=>b.onclick=()=>{
     const c=b.dataset.choice;w.remove();
-    if(c==="assign")childManagerAssign(id);
-    if(c==="raise")childManagerRaise(id);
-    if(c==="scope")childAssistantScope(id);
+    if(c==="manager")childEmployeeRaise(id);
+    if(c==="own_department"||c==="own_sector"||c==="other_sector")childPermissionAssign(id,c);
+    if(c==="assistant")(isExec()?childExecAssistant(id):childManagerRaise(id));
     if(c==="transfer")childAssistantTransfer(id);
     if(c==="ceo")childAssistantCeo(id);
-    if(c==="assistant")childExecAssistant(id);
-    if(c==="direct")childExecDirect(id);
   });
 }
 function backFooter(parentFn){return '<button class="btn btn-soft" data-back>رجوع</button>'}
@@ -720,6 +745,40 @@ function childEmployeeRaise(id){
   const w=modal("رفع للمدير",'<label>سبب الرفع</label><textarea class="field" id="raiseReason"></textarea><label>القرار المقترح</label><textarea class="field" id="proposed"></textarea>',
     '<button class="btn btn-green" id="save">حفظ</button>');
   w.querySelector("#save").onclick=async()=>{await post(CONFIG.txFn,baseBody("route_employee_manager",{transaction_id:id,raise_reason:w.querySelector("#raiseReason").value,proposed_decision:w.querySelector("#proposed").value}));w.remove();await refresh()};
+}
+function childPermissionAssign(id,scopeKind){
+  const units=assignmentUnits(scopeKind);
+  if(!units.length){
+    const w=modal(assignmentScopeLabel(scopeKind),'<div class="empty">لا توجد جهات متاحة ضمن هذه الصلاحية</div>','<button class="btn btn-soft" data-exit>خروج</button>');
+    w.querySelector("[data-exit]").onclick=()=>w.remove();return;
+  }
+  const supportAllowed=hasTxPerm("transactions.assign_supporting");
+  const w=modal(assignmentScopeLabel(scopeKind),`
+    <label>الإدارة/الجهة</label><select class="field" id="unit">${units.map(u=>'<option value="'+u.id+'">'+esc(u.name)+'</option>').join("")}</select>
+    <label>الموظفون</label><select class="field multi" id="targets" multiple></select>
+    <label>التوجيه</label><textarea class="field" id="directive"></textarea>
+    <div id="supports"></div>
+    ${supportAllowed?'<button class="btn btn-soft" id="addSupport" type="button">إضافة إدارة مساندة</button>':""}`,
+    '<button class="btn btn-green" id="save">حفظ</button>'+backFooter());
+  wireBack(w,id);
+  const unit=w.querySelector("#unit"),targets=w.querySelector("#targets");
+  const fill=()=>{targets.innerHTML=employeesForUnit(unit.value).map(u=>'<option value="'+esc(u.login_name)+'">'+esc(u.display_name)+'</option>').join("")};
+  unit.onchange=fill;fill();
+  if(supportAllowed)w.querySelector("#addSupport").onclick=()=>{
+    const blockId="support-"+(crypto.randomUUID?.()||Date.now()+"-"+Math.random().toString(36).slice(2,8));
+    const host=w.querySelector("#supports");host.insertAdjacentHTML("beforeend",supportBlock(blockId,units));
+    const block=host.lastElementChild;fillTargetSelect(block);block.querySelector(".s-unit").onchange=()=>fillTargetSelect(block);block.querySelector(".s-remove").onclick=()=>block.remove();
+  };
+  w.querySelector("#save").onclick=async()=>{
+    const selectedTargets=[...targets.selectedOptions].map(o=>o.value);
+    const supporting=[...w.querySelectorAll("[data-support]")].map(block=>({
+      unit_id:block.querySelector(".s-unit").value,
+      targets:[...block.querySelector(".s-targets").selectedOptions].map(o=>o.value),
+      directive:block.querySelector(".s-directive").value
+    }));
+    await post(CONFIG.txFn,baseBody("route_permission_assignment",{transaction_id:id,scope_kind:scopeKind,unit_id:unit.value,targets:selectedTargets,directive:w.querySelector("#directive").value,supporting}));
+    w.remove();await refresh();
+  };
 }
 function childManagerAssign(id){
   const w=modal("إسناد لموظف أو أكثر",`
@@ -744,8 +803,8 @@ function employeesForUnit(unitId){
   const u=(directoryData.units||[]).find(x=>x.id===unitId);if(!u)return [];
   return (directoryData.users||[]).filter(x=>["employee","manager"].includes(x.role)&&x.dept_names.includes(u.name));
 }
-function supportBlock(blockId){
-  const units=sectorUnits();
+function supportBlock(blockId,providedUnits=null){
+  const units=providedUnits||sectorUnits();
   return `<div class="support-block" data-support="${blockId}">
     <label>الإدارة المساندة</label><select class="field s-unit">${units.map(u=>'<option value="'+u.id+'">'+esc(u.name)+'</option>').join("")}</select>
     <label>الموظفون</label><select class="field multi s-targets" multiple></select>
@@ -923,7 +982,7 @@ async function openDetails(id){
     ${t.status==="open"&&t.due_at?'<button class="btn btn-soft" id="extensionBtn">طلب تمديد</button>':""}
     ${t.status==="open"&&hasTxPerm("transactions.ceo_view")?'<button class="btn btn-soft" id="ceoViewBtn">إطلاع الرئيس</button>':""}
     ${t.status==="open"?'<button class="btn btn-red" id="cancelBtn">إلغاء المعاملة</button>':""}
-    ${t.status==="open"&&session.role==="ceo_office_manager"&&!t.workflow_started?'<button class="btn btn-red" id="deleteBtn">حذف نهائي</button>':""}
+    ${t.status==="open"&&hasTxPerm("transactions.delete_hard")&&!t.workflow_started?'<button class="btn btn-red" id="deleteBtn">حذف نهائي</button>':""}
     <button class="btn btn-soft" id="waBtn">نسخ واتساب</button>
     <button class="btn btn-soft" id="excelBtn">Excel المعاملة</button>
     <button class="btn btn-soft" id="pdfBtn">PDF المعاملة</button>

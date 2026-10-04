@@ -456,6 +456,8 @@ function renderPermissionsApp(){
             <select class="field" id="permissionsUser">
               ${users.map(u=>'<option value="'+esc(u.canonical_key)+'" '+(selected&&u.canonical_key===selected.canonical_key?"selected":"")+'>'+esc(u.display_name)+'</option>').join("")}
             </select>
+            ${selected?'<span class="account-state '+(selected.user_id?"linked":"pending")+'">'+(selected.user_id?"الحساب مفعل":"بانتظار إنشاء Auth")+'</span>':""}
+            ${selected&&sessionPermissions.includes("profiles.admin_edit_name")?'<button class="btn btn-soft" id="editAccountNameBtn">تعديل الاسم</button>':""}
           </div>
           <div id="permissionsGrid">
             ${selected?renderPermissionGrid(selected):'<div class="empty">لا توجد حسابات</div>'}
@@ -473,6 +475,8 @@ function renderPermissionsApp(){
   });
   const userSelect=document.getElementById("permissionsUser");
   if(userSelect)userSelect.onchange=e=>{permissionsSelectedUser=e.target.value;renderPermissionsApp()};
+  const editNameBtn=document.getElementById("editAccountNameBtn");
+  if(editNameBtn&&selected)editNameBtn.onclick=()=>openAdminAccountName(selected);
   document.querySelectorAll("[data-permission-toggle]").forEach(input=>input.onchange=async e=>{
     const target=e.target;
     if(!selected?.canonical_key){target.checked=!target.checked;return}
@@ -490,6 +494,25 @@ function renderPermissionsApp(){
       target.disabled=false;
     }
   });
+}
+function openAdminAccountName(user){
+  const w=modal("تعديل اسم المستخدم",`
+    <label>الاسم</label>
+    <input class="field" id="adminAccountName" value="${esc(user.display_name||"")}">
+    <div class="profile-note">يتغير الاسم في النظام الجديد فقط، ولا يغير اسم المستخدم للدخول.</div>`,
+    '<button class="btn btn-green" id="saveAdminAccountName">حفظ</button><button class="btn btn-soft" data-exit>خروج</button>');
+  w.querySelector("[data-exit]").onclick=()=>w.remove();
+  w.querySelector("#saveAdminAccountName").onclick=async()=>{
+    const name=w.querySelector("#adminAccountName").value.trim();
+    if(name.length<2)return;
+    const btn=w.querySelector("#saveAdminAccountName");btn.disabled=true;
+    try{
+      await rpc("admin_set_account_name",{p_target_key:user.canonical_key,p_name:name});
+      w.remove();
+      await loadPermissions();
+      if(currentSection==="permissions")renderPermissionsApp();
+    }catch{btn.disabled=false}
+  };
 }
 function renderPermissionGrid(user){
   return (user.permissions||[]).map(p=>{

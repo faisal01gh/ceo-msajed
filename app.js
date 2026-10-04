@@ -695,11 +695,6 @@ function renderTable(){
     <tbody>
       ${rows.map(r=>{
         const [st,sc]=statusBadge(r);
-        const open=r.status==="open";
-        const directClose=!!r.can_close&&hasTxPerm("transactions.close");
-        const directReopen=!!r.can_close&&hasTxPerm("transactions.reopen");
-        const closeLabel=directClose?"إغلاق":"طلب إغلاق";
-        const reopenLabel=directReopen?"استرجاع المعاملة":"طلب استرجاع";
         return `<tr>
           <td>${esc(r.number)}</td>
           <td class="tx-title">${esc(r.title)}</td>
@@ -712,11 +707,6 @@ function renderTable(){
           <td>${esc(r.days||"—")}</td>
           <td>${esc(fmtDate(r.last_activity_at))}</td>
           <td><div class="actions">
-            ${r.pending_transfer&&hasTxPerm("transactions.decide_assistant_transfer")?'<button class="row-btn btn-green" data-act="accept-transfer" data-route="'+r.pending_transfer.id+'">قبول</button><button class="row-btn btn-red" data-act="reject-transfer" data-route="'+r.pending_transfer.id+'">رفض</button>':""}
-            ${open&&r.can_act?'<button class="row-btn btn-soft" data-act="action" data-id="'+r.id+'">إجراء</button>':""}
-            ${open&&r.can_act&&hasAnyRoutePerm()?'<button class="row-btn btn-soft" data-act="route" data-id="'+r.id+'">إحالة</button>':""}
-            ${open?'<button class="row-btn btn-red" data-act="close" data-id="'+r.id+'" data-direct="'+(directClose?"1":"0")+'">'+closeLabel+'</button>':""}
-            ${r.status==="closed"?'<button class="row-btn btn-soft" data-act="reopen" data-id="'+r.id+'" data-direct="'+(directReopen?"1":"0")+'">'+reopenLabel+'</button>':""}
             <button class="row-btn btn-blue" data-act="open" data-id="${r.id}">فتح</button>
           </div></td>
         </tr>`
@@ -852,7 +842,6 @@ async function openReferral(id){
   if(hasTxPerm("transactions.assign_cross_sector"))choices.push(["assign-cross-sector","إسناد إلى قطاع آخر"]);
   if(hasTxPerm("transactions.raise_assistant"))choices.push(["raise-assistant","إحالة / رفع للمساعد"]);
   if(hasTxPerm("transactions.transfer_assistant"))choices.push(["transfer-assistant","تحويل لمساعد آخر"]);
-  if(hasTxPerm("transactions.raise_ceo"))choices.push(["raise-ceo","رفع للرئيس التنفيذي"]);
   if(!choices.length)return;
   const w=modal("إحالة",`<div class="choice-grid">${choices.map(([k,n])=>'<button class="choice-btn" data-choice="'+k+'">'+n+'</button>').join("")}</div>`,
     '<button class="btn btn-soft" data-exit>خروج</button>');
@@ -865,7 +854,6 @@ async function openReferral(id){
     if(c==="assign-cross-sector")childExecDirect(id);
     if(c==="raise-assistant")(isExec()?childExecAssistant(id):childManagerRaise(id));
     if(c==="transfer-assistant")childAssistantTransfer(id);
-    if(c==="raise-ceo")childAssistantCeo(id);
   });
 }
 function backFooter(parentFn){return '<button class="btn btn-soft" data-back>رجوع</button>'}
@@ -1033,34 +1021,75 @@ async function openDetails(id){
     const names=(a.transaction_assignment_targets||[]).map(x=>x.display_name).join("، ");
     return '<div class="action-item"><div class="action-top"><span>'+esc(a.assignment_type==="supporting"?"إدارة مساندة":a.assignment_type==="direct"?"إسناد مباشر":"الإدارة المسؤولة")+'</span><span>'+esc(fmtDate(a.created_at))+'</span></div><div class="action-text">'+esc(a.directive||"")+(names?'<br>'+esc(names):"")+'</div></div>';
   }).join("")||'<div class="muted">—</div>';
+
   const versionsByAction=new Map();
   for(const v of d.action_versions||[]){if(!versionsByAction.has(v.action_id))versionsByAction.set(v.action_id,[]);versionsByAction.get(v.action_id).push(v)}
-  const canDecide=["manager","assistant","ceo","ceo_office_manager","ceo_secretary"].includes(session.role);
+  const notesByAction=new Map();
+  for(const n of d.action_notes||[]){if(!notesByAction.has(n.action_id))notesByAction.set(n.action_id,[]);notesByAction.get(n.action_id).push(n)}
+  const canTryNote=hasTxPerm("transactions.act_all")||["manager","assistant","ceo","ceo_office_manager","ceo_secretary"].includes(session.role);
+
   const actions=(d.actions||[]).map(a=>{
     const vs=versionsByAction.get(a.id)||[];
-    const history=vs.length>1?'<div class="version-list">'+vs.map(v=>'<div>نسخة '+esc(v.version_no)+': '+esc(v.body)+(v.decision_status?'<br>'+esc(v.decision_status==="rejected"?"مرفوض":"معتمد")+(v.decision_reason?" — "+esc(v.decision_reason):""):"")+'</div>').join("")+'</div>':"";
-    const decisionButtons=canDecide&&a.status!=="approved"?'<div class="request-actions"><button class="row-btn btn-green" data-action-approve="'+a.id+'">اعتماد</button><button class="row-btn btn-red" data-action-reject="'+a.id+'">رفض</button></div>':"";
-    const reviseButton=a.status==="rejected"&&[session.display_name,session.login_name,session.username].includes(a.actor_name)?'<button class="row-btn btn-soft" data-action-revise="'+a.id+'">تعديل الإجراء</button>':"";
-    return '<div class="action-item"><div class="action-top"><span>'+esc(a.actor_name||"—")+'</span><span>'+esc(fmtDate(a.created_at))+'</span></div><div class="action-text">'+esc(a.action_text||"")+'</div><div class="badge '+(a.status==="rejected"?"pri-vh":a.status==="approved"?"st-open":"pri-n")+'">'+esc(a.status==="rejected"?"مرفوض":a.status==="approved"?"معتمد":"مسجل")+'</div>'+decisionButtons+reviseButton+history+'</div>';
+    const ns=notesByAction.get(a.id)||[];
+    const history=vs.length>1?'<div class="version-list">'+vs.map(v=>'<div>نسخة '+esc(v.version_no)+': '+esc(v.body)+'</div>').join("")+'</div>':"";
+    const notes=ns.length?'<div class="action-notes">'+ns.map(n=>'<div class="action-note"><b>'+esc(n.actor_name||"—")+' · '+esc(fmtDate(n.created_at))+'</b>'+esc(n.note||"")+'</div>').join("")+'</div>':"";
+    const revise=[session.display_name,session.login_name,session.username].includes(a.actor_name)
+      ?'<button class="row-btn btn-soft" data-action-revise="'+a.id+'">تعديل الإجراء</button>':"";
+    const noteBtn=canTryNote?'<button class="row-btn btn-soft" data-action-note="'+a.id+'">ملاحظة</button>':"";
+    return '<div class="action-item"><div class="action-top"><span>'+esc(a.actor_name||"—")+'</span><span>'+esc(fmtDate(a.created_at))+'</span></div><div class="action-text">'+esc(a.action_text||"")+'</div><div class="badge pri-n">مسجل</div><div class="action-controls">'+revise+noteBtn+'</div>'+notes+history+'</div>';
   }).join("")||'<div class="muted">—</div>';
+
   const periods=(d.periods||[]).map(p=>'<div class="action-item"><div class="action-top"><span>الدورة '+esc(p.cycle_no)+'</span><span>'+esc(p.ended_at?(p.duration_days||"—")+" يوم":"مستمرة")+'</span></div><div class="action-text">'+esc(fmtDate(p.started_at))+(p.ended_at?" — "+esc(fmtDate(p.ended_at)):"")+'</div></div>').join("");
   const routes=(d.routes||[]).map(r=>'<div class="action-item"><div class="action-top"><span>'+esc(r.from_name||"—")+' → '+esc(r.to_name||"—")+'</span><span>'+esc(fmtDate(r.created_at))+'</span></div><div class="action-text">'+esc(r.directive||r.raise_reason||r.transfer_reason||"")+(r.proposed_decision?'<br>القرار المقترح: '+esc(r.proposed_decision):"")+(r.rejection_reason?'<br>سبب الرفض: '+esc(r.rejection_reason):"")+'</div></div>').join("")||'<div class="muted">—</div>';
+
   const canDecideRequest=r=>{
     const requesterRole=String(r?.meta?.requester_role||"");
-    if(["ceo","ceo_office_manager","ceo_secretary"].includes(session.role))return true;
+    if(hasTxPerm("transactions.act_all"))return true;
     if(session.role==="assistant")return !!d.flags?.scope&&["employee","manager"].includes(requesterRole);
     if(session.role==="manager")return !!d.flags?.scope&&requesterRole==="employee";
     return false;
   };
   const requests=(d.requests||[]).map(r=>'<div class="action-item"><div class="action-top"><span>'+esc(r.requested_by_name||"—")+'</span><span>'+esc(fmtDate(r.created_at))+'</span></div><div class="action-text">'+esc(r.reason||"")+'</div>'+(r.status==="pending"&&canDecideRequest(r)?'<div class="request-actions"><button class="row-btn btn-green" data-request-approve="'+r.id+'">اعتماد</button><button class="row-btn btn-red" data-request-reject="'+r.id+'">رفض</button></div>':'<div class="badge '+(r.status==="approved"?"st-open":r.status==="rejected"?"pri-vh":"pri-n")+'">'+esc(r.status==="approved"?"معتمد":r.status==="rejected"?"مرفوض":"قيد الانتظار")+'</div>')+'</div>').join("")||'<div class="muted">—</div>';
   const hist=(d.history||[]).map(h=>'<div class="action-item"><div class="action-top"><span>'+esc(h.actor_name||"—")+'</span><span>'+esc(fmtDate(h.created_at))+'</span></div><div class="action-text">'+esc(h.detail||h.event_type||"")+'</div></div>').join("")||'<div class="muted">—</div>';
-  const w=modal(t.title,`
+  const pendingTransfer=(d.routes||[]).find(r=>r.route_type==="assistant_transfer"&&r.status==="pending"&&r.to_login_name===session.login_name);
+  const directClose=!!d.can_close&&hasTxPerm("transactions.close");
+  const directReopen=!!d.can_close&&hasTxPerm("transactions.reopen");
+
+  const toolbar=`
+    <div class="detail-toolbar">
+      <button class="tool-icon" id="waBtn" title="نسخ واتساب">WA</button>
+      <button class="tool-icon" id="excelBtn" title="Excel">XLS</button>
+      <button class="tool-icon" id="pdfBtn" title="PDF">PDF</button>
+    </div>`;
+
+  const priorityClickable=t.status==="open"&&hasTxPerm("transactions.change_priority");
+  const dueClickable=t.status==="open"&&hasTxPerm("transactions.set_due_date");
+  const responsibleClickable=t.status==="open"&&hasTxPerm("transactions.change_responsible");
+
+  const reviewBanner=t.migration_status==="needs_review"
+    ?'<div class="review-banner">هذه معاملة قديمة ينقصها سياق المسؤولية. اختر الإدارة والمسؤول لتكمل على المسار الجديد دون اختلاق بيانات.</div>':"";
+
+  const footer=`
+    ${pendingTransfer&&hasTxPerm("transactions.decide_assistant_transfer")?'<button class="btn btn-green" id="acceptTransferBtn">قبول التحويل</button><button class="btn btn-red" id="rejectTransferBtn">رفض التحويل</button>':""}
+    ${t.status==="open"&&d.can_act?'<button class="btn btn-soft" id="actionBtn">إجراء عمل</button>':""}
+    ${t.status==="open"&&d.can_act&&hasAnyRoutePerm()?'<button class="btn btn-soft" id="referralBtn">إحالة</button>':""}
+    ${t.status==="open"&&d.can_raise_ceo?'<button class="btn btn-gold" id="raiseCeoBtn">رفع للرئيس</button>':""}
+    ${t.status==="open"&&t.due_at?'<button class="btn btn-soft" id="extensionBtn">طلب تمديد</button>':""}
+    ${t.status==="open"&&hasTxPerm("transactions.ceo_view")?'<button class="btn btn-soft" id="ceoViewBtn">إطلاع الرئيس</button>':""}
+    ${t.status==="open"?'<button class="btn btn-red" id="cancelBtn">إلغاء المعاملة</button>':""}
+    ${t.status==="open"?'<button class="btn btn-red" id="closeBtn">'+(directClose?"إغلاق":"طلب إغلاق")+'</button>':""}
+    ${t.status==="closed"?'<button class="btn btn-soft" id="reopenBtn">'+(directReopen?"استرجاع المعاملة":"طلب استرجاع")+'</button>':""}
+    ${t.migration_status==="needs_review"&&hasTxPerm("transactions.act_all")&&hasTxPerm("transactions.change_responsible")?'<button class="btn btn-gold" id="resolveLegacyBtn">تهيئة المعاملة القديمة</button>':""}
+    ${t.status==="open"&&hasTxPerm("transactions.delete_hard")&&!t.workflow_started?'<button class="btn btn-red" id="deleteBtn">حذف نهائي</button>':""}
+  `;
+
+  const w=modal(t.title,toolbar+reviewBanner+`
     <div class="details-grid">
       <div class="detail"><div class="detail-k">رقم المعاملة</div><div class="detail-v">${esc(t.number)}</div></div>
-      <div class="detail"><div class="detail-k">الأولوية</div><div class="detail-v">${esc(t.priority)}</div></div>
-      <div class="detail"><div class="detail-k">مسؤول المعاملة</div><div class="detail-v">${esc(t.responsible_name||"—")}</div></div>
+      <div class="detail ${priorityClickable?"clickable":""}" id="${priorityClickable?"priorityField":""}"><div class="detail-k">الأولوية</div><div class="detail-v">${esc(t.priority)}</div></div>
+      <div class="detail ${responsibleClickable?"clickable":""}" id="${responsibleClickable?"responsibleField":""}"><div class="detail-k">مسؤول المعاملة</div><div class="detail-v">${esc(t.responsible_name||"—")}</div></div>
       <div class="detail"><div class="detail-k">تاريخ الإنشاء</div><div class="detail-v">${esc(fmtDate(t.created_at))}</div></div>
-      <div class="detail"><div class="detail-k">تاريخ الاستحقاق</div><div class="detail-v">${esc(fmtDate(t.due_at))}</div></div>
+      <div class="detail ${dueClickable?"clickable":""}" id="${dueClickable?"dueField":""}"><div class="detail-k">تاريخ الاستحقاق</div><div class="detail-v">${esc(fmtDate(t.due_at))}</div></div>
       <div class="detail"><div class="detail-k">الحالة</div><div class="detail-v">${esc(t.status==="closed"?"مغلقة":t.status==="cancelled"?"ملغاة":"مفتوحة")}</div></div>
     </div>
     <div class="section-title">موضوع المعاملة</div><div class="action-item"><div class="action-text">${esc(t.subject||"—")}</div></div>
@@ -1071,33 +1100,81 @@ async function openDetails(id){
     <div class="section-title">الإحالات والتوجيهات</div>${routes}
     <div class="section-title">الطلبات</div>${requests}
     <div class="section-title">السجل</div>${hist}
-  `,`
-    ${t.status==="open"&&hasTxPerm("transactions.change_priority")?'<button class="btn btn-soft" id="priorityBtn">الأولوية</button>':""}
-    ${t.status==="open"&&hasTxPerm("transactions.set_due_date")?'<button class="btn btn-soft" id="dueBtn">تاريخ الاستحقاق</button>':""}
-    ${t.status==="open"?'<button class="btn btn-soft" id="responsibleBtn">مسؤول المعاملة</button>':""}
-    ${t.status==="open"&&t.due_at?'<button class="btn btn-soft" id="extensionBtn">طلب تمديد</button>':""}
-    ${t.status==="open"&&hasTxPerm("transactions.ceo_view")?'<button class="btn btn-soft" id="ceoViewBtn">إطلاع الرئيس</button>':""}
-    ${t.status==="open"?'<button class="btn btn-red" id="cancelBtn">إلغاء المعاملة</button>':""}
-    ${t.status==="open"&&hasTxPerm("transactions.delete_hard")&&!t.workflow_started?'<button class="btn btn-red" id="deleteBtn">حذف نهائي</button>':""}
-    <button class="btn btn-soft" id="waBtn">نسخ واتساب</button>
-    <button class="btn btn-soft" id="excelBtn">Excel المعاملة</button>
-    <button class="btn btn-soft" id="pdfBtn">PDF المعاملة</button>
-  `);
-  w.querySelectorAll("[data-action-approve]").forEach(b=>b.onclick=()=>decideAction(b.dataset.actionApprove,true,w,id));
-  w.querySelectorAll("[data-action-reject]").forEach(b=>b.onclick=()=>decideAction(b.dataset.actionReject,false,w,id));
+  `,footer);
+
   w.querySelectorAll("[data-action-revise]").forEach(b=>b.onclick=()=>reviseAction(b.dataset.actionRevise,w,id));
+  w.querySelectorAll("[data-action-note]").forEach(b=>b.onclick=()=>addActionNote(b.dataset.actionNote,w,id));
   w.querySelectorAll("[data-request-approve]").forEach(b=>b.onclick=()=>decideRequest(b.dataset.requestApprove,true,w,id));
   w.querySelectorAll("[data-request-reject]").forEach(b=>b.onclick=()=>decideRequest(b.dataset.requestReject,false,w,id));
-  if(w.querySelector("#priorityBtn"))w.querySelector("#priorityBtn").onclick=()=>openPriority(id,w);
-  if(w.querySelector("#dueBtn"))w.querySelector("#dueBtn").onclick=()=>openDueDate(id,w,t.due_at);
-  if(w.querySelector("#responsibleBtn"))w.querySelector("#responsibleBtn").onclick=()=>openResponsible(id,w);
+  if(w.querySelector("#priorityField"))w.querySelector("#priorityField").onclick=()=>openPriority(id,w);
+  if(w.querySelector("#dueField"))w.querySelector("#dueField").onclick=()=>openDueDate(id,w,t.due_at);
+  if(w.querySelector("#responsibleField"))w.querySelector("#responsibleField").onclick=()=>openResponsible(id,w);
+  if(w.querySelector("#actionBtn"))w.querySelector("#actionBtn").onclick=()=>{w.remove();openAction(id)};
+  if(w.querySelector("#referralBtn"))w.querySelector("#referralBtn").onclick=()=>{w.remove();openReferral(id)};
+  if(w.querySelector("#raiseCeoBtn"))w.querySelector("#raiseCeoBtn").onclick=()=>openRaiseCeo(id,w);
   if(w.querySelector("#extensionBtn"))w.querySelector("#extensionBtn").onclick=()=>openExtension(id,w,t.due_at);
   if(w.querySelector("#ceoViewBtn"))w.querySelector("#ceoViewBtn").onclick=async()=>{await post(CONFIG.txFn,baseBody("mark_ceo_view",{transaction_id:id}));w.remove();await refresh()};
   if(w.querySelector("#cancelBtn"))w.querySelector("#cancelBtn").onclick=()=>{w.remove();openReason("request_cancel",id,"إلغاء المعاملة")};
+  if(w.querySelector("#closeBtn"))w.querySelector("#closeBtn").onclick=()=>{w.remove();openReason(directClose?"close":"request_close",id,directClose?"إغلاق":"طلب إغلاق")};
+  if(w.querySelector("#reopenBtn"))w.querySelector("#reopenBtn").onclick=()=>{
+    w.remove();
+    if(t.origin==="legacy"&&(!t.responsible_unit_id||!t.responsible_login_name))return openLegacyReopen(directReopen?"reopen":"request_reopen",id,directReopen?"استرجاع المعاملة":"طلب استرجاع");
+    openReason(directReopen?"reopen":"request_reopen",id,directReopen?"استرجاع المعاملة":"طلب استرجاع");
+  };
+  if(w.querySelector("#resolveLegacyBtn"))w.querySelector("#resolveLegacyBtn").onclick=()=>resolveLegacyReview(id,w,t);
   if(w.querySelector("#deleteBtn"))w.querySelector("#deleteBtn").onclick=async()=>{await post(CONFIG.txFn,baseBody("delete_hard",{transaction_id:id}));w.remove();await refresh()};
+  if(w.querySelector("#acceptTransferBtn"))w.querySelector("#acceptTransferBtn").onclick=async()=>{await decideTransfer(pendingTransfer.id,true);w.remove()};
+  if(w.querySelector("#rejectTransferBtn"))w.querySelector("#rejectTransferBtn").onclick=()=>{w.remove();decideTransfer(pendingTransfer.id,false)};
   w.querySelector("#waBtn").onclick=()=>copyWhatsApp(d);
   w.querySelector("#excelBtn").onclick=()=>exportTransactionExcel(d);
   w.querySelector("#pdfBtn").onclick=()=>printTransaction(d);
+}
+function addActionNote(actionId,parent,txId){
+  const w=modal("ملاحظة على الإجراء",'<label>الملاحظة</label><textarea class="field" id="actionNoteText"></textarea>',
+    '<button class="btn btn-green" id="saveActionNote">حفظ الملاحظة</button><button class="btn btn-soft" data-exit>خروج</button>');
+  w.querySelector("[data-exit]").onclick=()=>w.remove();
+  w.querySelector("#saveActionNote").onclick=async()=>{
+    const note=w.querySelector("#actionNoteText").value.trim();if(!note)return;
+    await post(CONFIG.txFn,baseBody("add_action_note",{action_id:actionId,note}));
+    w.remove();parent.remove();await refresh();
+  };
+}
+function openRaiseCeo(id,parent){
+  const w=modal("رفع للرئيس التنفيذي",'<label>سبب الرفع</label><textarea class="field" id="raiseCeoReason"></textarea><label>القرار المقترح</label><textarea class="field" id="raiseCeoProposed"></textarea>',
+    '<button class="btn btn-green" id="saveRaiseCeo">رفع</button><button class="btn btn-soft" data-exit>خروج</button>');
+  w.querySelector("[data-exit]").onclick=()=>w.remove();
+  w.querySelector("#saveRaiseCeo").onclick=async()=>{
+    const reason=w.querySelector("#raiseCeoReason").value.trim(),proposed=w.querySelector("#raiseCeoProposed").value.trim();
+    if(!reason||!proposed)return;
+    await post(CONFIG.txFn,baseBody("route_assistant_ceo",{transaction_id:id,raise_reason:reason,proposed_decision:proposed}));
+    w.remove();parent.remove();await refresh();
+  };
+}
+function resolveLegacyReview(id,parent,t){
+  const units=(directoryData.units||[]).filter(u=>["department","independent","branch"].includes(u.unit_type));
+  const w=modal("تهيئة المعاملة القديمة",`
+    <label>عنوان المعاملة</label><input class="field" id="legacyReviewTitle" value="${esc(t.title||"")}">
+    <label>موضوع المعاملة</label><textarea class="field" id="legacyReviewSubject">${esc(t.subject||"")}</textarea>
+    <label>الإدارة المسؤولة</label><select class="field" id="legacyReviewUnit">${units.map(u=>'<option value="'+u.id+'">'+esc(u.name)+'</option>').join("")}</select>
+    <label>مسؤول المعاملة</label><select class="field" id="legacyReviewUser"></select>`,
+    '<button class="btn btn-green" id="saveLegacyReview">اعتماد التهيئة</button><button class="btn btn-soft" data-exit>خروج</button>');
+  w.querySelector("[data-exit]").onclick=()=>w.remove();
+  const unit=w.querySelector("#legacyReviewUnit"),user=w.querySelector("#legacyReviewUser");
+  const fill=()=>{
+    const selected=units.find(x=>x.id===unit.value);
+    const choices=(directoryData.users||[]).filter(u=>selected&&(u.dept_names||[]).includes(selected.name));
+    user.innerHTML=choices.map(u=>'<option value="'+esc(u.login_name)+'">'+esc(u.display_name)+'</option>').join("");
+  };
+  unit.onchange=fill;fill();
+  w.querySelector("#saveLegacyReview").onclick=async()=>{
+    const title=w.querySelector("#legacyReviewTitle").value.trim();
+    if(!title||!unit.value||!user.value)return;
+    await post(CONFIG.txFn,baseBody("resolve_legacy_context",{
+      transaction_id:id,title,subject:w.querySelector("#legacyReviewSubject").value,
+      responsible_unit_id:unit.value,responsible_login_name:user.value
+    }));
+    w.remove();parent.remove();await refresh();
+  };
 }
 async function decideAction(actionId,approve,parent,txId){
   if(approve){

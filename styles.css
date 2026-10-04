@@ -150,3 +150,38 @@ textarea.field{min-height:90px;resize:vertical}
 .notification-item small{color:#64748b}
 .notification-item b{grid-column:1/-1;font-weight:600;color:#475569}
 .notification-item.read{opacity:.6;background:#f8fafc}
+
+.section-nav{
+  display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;
+}
+.section-tab{
+  border:none;border-radius:12px;padding:10px 18px;background:#fff;color:#334155;
+  font-weight:800;font-size:14px;box-shadow:0 2px 10px rgba(0,0,0,.06)
+}
+.section-tab.active{background:var(--navy);color:#fff}
+.permissions-card{border-top-color:var(--navy)}
+.permissions-tabs{
+  display:flex;gap:8px;padding:12px 14px;border-bottom:1px solid #eef2f6;background:#fbfdff
+}
+.permissions-tab{
+  border:none;border-radius:20px;padding:8px 16px;background:var(--navy);color:#fff;font-weight:800
+}
+.permissions-body{padding:16px}
+.permissions-userbar{
+  display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px
+}
+.permissions-userbar .field{margin:0;min-width:260px;max-width:420px}
+.permission-role{
+  display:inline-flex;padding:7px 12px;border-radius:20px;background:#eef4fb;color:var(--navy);font-size:12px;font-weight:800
+}
+#permissionsGrid{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px
+}
+.permission-item{
+  display:flex;align-items:center;justify-content:space-between;gap:14px;
+  border:1px solid #e3eaf3;border-radius:12px;padding:12px 13px;background:#fff;margin:0
+}
+.permission-item.fixed{background:#f8fafc}
+.permission-name{font-size:13px;font-weight:800;color:#334155}
+.permission-item input{width:18px;height:18px;accent-color:#0E7490}
+.permission-item input:disabled{opacity:.45}

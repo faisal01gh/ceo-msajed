@@ -267,6 +267,11 @@ async function boot(){
   if(!session){loginView();return}
   root.innerHTML='<div class="loading">جارٍ التحميل…</div>';
   try{
+    const gateProfile=await rpc("my_profile");
+    if(gateProfile?.must_change_password===true){
+      passwordChangeView({auth:{access_token:session.token,refresh_token:session.refresh_token||null}});
+      return;
+    }
     if(!currentTab)currentTab=defaultTab(session.role);
     const listArgs={
       p_tab:currentTab,p_search:searchText,p_priority:priorityFilter,p_status:statusFilter,

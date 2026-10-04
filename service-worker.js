@@ -1,5 +1,5 @@
-const CACHE="ceo-msajed-static-20261004-5";
-const STATIC=["./","./index.html","./styles.css?v=20261004-5","./app.js?v=20261004-5"];
+const CACHE="ceo-msajed-static-20261004-6";
+const STATIC=["./","./index.html","./styles.css?v=20261004-6","./app.js?v=20261004-6"];
 
 self.addEventListener("install",event=>{
   event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(STATIC)).then(()=>self.skipWaiting()));

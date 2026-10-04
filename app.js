@@ -123,13 +123,33 @@ function mapRole(s){
 function isExec(){return ["ceo","ceo_office_manager","ceo_secretary"].includes(session?.role)}
 function hasTxPerm(code){return sessionPermissions.includes(code)}
 function canManagePermissions(){return session?.app==="new"&&session?.role==="ceo_office_manager"}
+const ROUTE_PERMISSION_CODES=[
+  "transactions.raise_manager",
+  "transactions.assign_department",
+  "transactions.assign_sector",
+  "transactions.assign_cross_sector",
+  "transactions.raise_assistant",
+  "transactions.transfer_assistant",
+  "transactions.raise_ceo"
+];
+function hasAnyRoutePerm(){return ROUTE_PERMISSION_CODES.some(hasTxPerm)}
 function tabsFor(role){
-  if(role==="ceo")return [["incoming","وارد إليّ"],["ceo_view","معاملات للاطلاع"],["shared","معاملات مشتركة"],["all","جميع معاملات الجمعية"],["closed","المعاملات المغلقة"]];
-  if(role==="ceo_office_manager"||role==="ceo_secretary")return [["incoming","وارد إليّ"],["ceo","معاملات الرئيس التنفيذي"],["shared","معاملات مشتركة"],["all","جميع معاملات الجمعية"],["closed","المعاملات المغلقة"]];
-  if(role==="assistant"||role==="manager")return [["incoming","وارد إليّ"],["shared","معاملات مشتركة"],["scope","معاملات نطاقي"],["closed","المعاملات المغلقة"]];
-  return [["incoming","وارد إليّ"],["shared","معاملات مشتركة"],["closed","المعاملات المغلقة"]];
+  let tabs;
+  if(role==="ceo")tabs=[["incoming","وارد إليّ"],["ceo_view","معاملات للاطلاع"],["shared","معاملات مشتركة"],["closed","المعاملات المغلقة"]];
+  else if(role==="ceo_office_manager"||role==="ceo_secretary")tabs=[["incoming","وارد إليّ"],["ceo","معاملات الرئيس التنفيذي"],["shared","معاملات مشتركة"],["closed","المعاملات المغلقة"]];
+  else if(role==="assistant"||role==="manager")tabs=[["incoming","وارد إليّ"],["shared","معاملات مشتركة"],["scope","معاملات نطاقي"],["closed","المعاملات المغلقة"]];
+  else tabs=[["incoming","وارد إليّ"],["shared","معاملات مشتركة"],["closed","المعاملات المغلقة"]];
+  if(hasTxPerm("transactions.view_all")){
+    const i=tabs.findIndex(x=>x[0]==="closed");
+    tabs.splice(i<0?tabs.length:i,0,["all","جميع معاملات الجمعية"]);
+  }
+  return tabs;
 }
-function defaultTab(role){return role==="ceo"?"incoming":isExec()?"all":(role==="assistant"||role==="manager")?"scope":"incoming"}
+function defaultTab(role){
+  if(role==="ceo")return "incoming";
+  if(hasTxPerm("transactions.view_all"))return "all";
+  return (role==="assistant"||role==="manager")?"scope":"incoming";
+}
 function baseBody(action,extra={}){return {app:session.app,token:session.token,action,...extra}}
 
 function loginView(){
@@ -381,11 +401,11 @@ function renderPermissionsApp(){
   if(userSelect)userSelect.onchange=e=>{permissionsSelectedUser=e.target.value;renderPermissionsApp()};
   document.querySelectorAll("[data-permission-toggle]").forEach(input=>input.onchange=async e=>{
     const target=e.target;
-    if(!selected?.user_id){target.checked=!target.checked;return}
+    if(!selected?.canonical_key){target.checked=!target.checked;return}
     target.disabled=true;
     try{
-      await rpc("permissions_admin_set",{
-        p_target_user:selected.user_id,
+      await rpc("permissions_admin_set_by_account",{
+        p_target_key:selected.canonical_key,
         p_permission_code:target.dataset.permissionToggle,
         p_enabled:target.checked
       });
@@ -399,7 +419,7 @@ function renderPermissionsApp(){
 }
 function renderPermissionGrid(user){
   return (user.permissions||[]).map(p=>{
-    const disabled=!p.editable||!user.user_id;
+    const disabled=!p.editable;
     return `<label class="permission-item ${disabled?"fixed":""}">
       <span class="permission-name">${esc(p.name_ar)}</span>
       <input type="checkbox" data-permission-toggle="${esc(p.code)}" ${p.effective_enabled?"checked":""} ${disabled?"disabled":""}>
@@ -576,9 +596,9 @@ function renderTable(){
           <td>${esc(r.days||"—")}</td>
           <td>${esc(fmtDate(r.last_activity_at))}</td>
           <td><div class="actions">
-            ${r.pending_transfer?'<button class="row-btn btn-green" data-act="accept-transfer" data-route="'+r.pending_transfer.id+'">قبول</button><button class="row-btn btn-red" data-act="reject-transfer" data-route="'+r.pending_transfer.id+'">رفض</button>':""}
+            ${r.pending_transfer&&hasTxPerm("transactions.decide_assistant_transfer")?'<button class="row-btn btn-green" data-act="accept-transfer" data-route="'+r.pending_transfer.id+'">قبول</button><button class="row-btn btn-red" data-act="reject-transfer" data-route="'+r.pending_transfer.id+'">رفض</button>':""}
             ${open&&r.can_act?'<button class="row-btn btn-soft" data-act="action" data-id="'+r.id+'">إجراء</button>':""}
-            ${open&&r.can_act&&(session.role==="employee"||hasTxPerm("transactions.assign"))?'<button class="row-btn btn-soft" data-act="route" data-id="'+r.id+'">إحالة</button>':""}
+            ${open&&r.can_act&&hasAnyRoutePerm()?'<button class="row-btn btn-soft" data-act="route" data-id="'+r.id+'">إحالة</button>':""}
             ${open?'<button class="row-btn btn-red" data-act="close" data-id="'+r.id+'" data-direct="'+(directClose?"1":"0")+'">'+closeLabel+'</button>':""}
             ${r.status==="closed"?'<button class="row-btn btn-soft" data-act="reopen" data-id="'+r.id+'" data-direct="'+(directReopen?"1":"0")+'">'+reopenLabel+'</button>':""}
             <button class="row-btn btn-blue" data-act="open" data-id="${r.id}">فتح</button>
@@ -691,27 +711,27 @@ async function openCreate(){
   };
 }
 async function openReferral(id){
-  if(session.role==="employee")return childEmployeeRaise(id,null);
   const choices=[];
-  if(session.role==="manager"){
-    choices.push(["assign","إسناد لموظف أو أكثر"],["raise","رفع للمساعد"]);
-  }else if(session.role==="assistant"){
-    choices.push(["scope","إحالة داخل القطاع"],["transfer","تحويل لمساعد آخر"],["ceo","رفع للرئيس التنفيذي"]);
-  }else if(isExec()){
-    choices.push(["assistant","إحالة للمساعد"],["direct","إسناد مباشر لموظف"]);
-  }
+  if(hasTxPerm("transactions.raise_manager"))choices.push(["raise-manager","رفع للمدير"]);
+  if(hasTxPerm("transactions.assign_department"))choices.push(["assign-department","إسناد داخل الإدارة"]);
+  if(hasTxPerm("transactions.assign_sector"))choices.push(["assign-sector","إحالة داخل القطاع"]);
+  if(hasTxPerm("transactions.assign_cross_sector"))choices.push(["assign-cross-sector","إسناد إلى قطاع آخر"]);
+  if(hasTxPerm("transactions.raise_assistant"))choices.push(["raise-assistant","إحالة / رفع للمساعد"]);
+  if(hasTxPerm("transactions.transfer_assistant"))choices.push(["transfer-assistant","تحويل لمساعد آخر"]);
+  if(hasTxPerm("transactions.raise_ceo"))choices.push(["raise-ceo","رفع للرئيس التنفيذي"]);
+  if(!choices.length)return;
   const w=modal("إحالة",`<div class="choice-grid">${choices.map(([k,n])=>'<button class="choice-btn" data-choice="'+k+'">'+n+'</button>').join("")}</div>`,
     '<button class="btn btn-soft" data-exit>خروج</button>');
   w.querySelector("[data-exit]").onclick=()=>w.remove();
   w.querySelectorAll("[data-choice]").forEach(b=>b.onclick=()=>{
     const c=b.dataset.choice;w.remove();
-    if(c==="assign")childManagerAssign(id);
-    if(c==="raise")childManagerRaise(id);
-    if(c==="scope")childAssistantScope(id);
-    if(c==="transfer")childAssistantTransfer(id);
-    if(c==="ceo")childAssistantCeo(id);
-    if(c==="assistant")childExecAssistant(id);
-    if(c==="direct")childExecDirect(id);
+    if(c==="raise-manager")childEmployeeRaise(id);
+    if(c==="assign-department")childManagerAssign(id);
+    if(c==="assign-sector")childAssistantScope(id);
+    if(c==="assign-cross-sector")childExecDirect(id);
+    if(c==="raise-assistant")(isExec()?childExecAssistant(id):childManagerRaise(id));
+    if(c==="transfer-assistant")childAssistantTransfer(id);
+    if(c==="raise-ceo")childAssistantCeo(id);
   });
 }
 function backFooter(parentFn){return '<button class="btn btn-soft" data-back>رجوع</button>'}
@@ -764,12 +784,13 @@ function childAssistantScope(id){
     <label>الموظفون</label><select class="field multi" id="responsibleTargets" multiple></select>
     <label>التوجيه</label><textarea class="field" id="directive"></textarea>
     <div id="supports"></div>
-    <button class="btn btn-soft" id="addSupport" type="button">إضافة إدارة مساندة</button>`,
+    ${hasTxPerm("transactions.add_supporting")?'<button class="btn btn-soft" id="addSupport" type="button">إضافة إدارة مساندة</button>':""}`,
     '<button class="btn btn-green" id="save">حفظ</button>'+backFooter());
   wireBack(w,id);
   const ru=w.querySelector("#responsibleUnit"),rt=w.querySelector("#responsibleTargets");
   const fill=()=>{rt.innerHTML=employeesForUnit(ru.value).map(u=>'<option value="'+esc(u.login_name)+'">'+esc(u.display_name)+'</option>').join("")};ru.onchange=fill;fill();
-  w.querySelector("#addSupport").onclick=()=>{
+  const addSupport=w.querySelector("#addSupport");
+  if(addSupport)addSupport.onclick=()=>{
     const blockId="support-"+(crypto.randomUUID?.()||Date.now()+"-"+Math.random().toString(36).slice(2,8));
     const host=w.querySelector("#supports");host.insertAdjacentHTML("beforeend",supportBlock(blockId));
     const b=host.lastElementChild;fillTargetSelect(b);b.querySelector(".s-unit").onchange=()=>fillTargetSelect(b);b.querySelector(".s-remove").onclick=()=>b.remove();
@@ -923,7 +944,7 @@ async function openDetails(id){
     ${t.status==="open"&&t.due_at?'<button class="btn btn-soft" id="extensionBtn">طلب تمديد</button>':""}
     ${t.status==="open"&&hasTxPerm("transactions.ceo_view")?'<button class="btn btn-soft" id="ceoViewBtn">إطلاع الرئيس</button>':""}
     ${t.status==="open"?'<button class="btn btn-red" id="cancelBtn">إلغاء المعاملة</button>':""}
-    ${t.status==="open"&&session.role==="ceo_office_manager"&&!t.workflow_started?'<button class="btn btn-red" id="deleteBtn">حذف نهائي</button>':""}
+    ${t.status==="open"&&hasTxPerm("transactions.delete_hard")&&!t.workflow_started?'<button class="btn btn-red" id="deleteBtn">حذف نهائي</button>':""}
     <button class="btn btn-soft" id="waBtn">نسخ واتساب</button>
     <button class="btn btn-soft" id="excelBtn">Excel المعاملة</button>
     <button class="btn btn-soft" id="pdfBtn">PDF المعاملة</button>

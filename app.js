@@ -395,7 +395,7 @@ function renderPermissionsApp(){
   if(userSelect)userSelect.onchange=e=>{permissionsSelectedUser=e.target.value;renderPermissionsApp()};
   document.querySelectorAll("[data-permission-toggle]").forEach(input=>input.onchange=async e=>{
     const target=e.target;
-    if(!selected?.user_id){target.checked=!target.checked;return}
+    if(!selected?.canonical_key){target.checked=!target.checked;return}
     target.disabled=true;
     try{
       await rpc("permissions_admin_set",{
@@ -666,53 +666,23 @@ function assignmentScopeLabel(scopeKind){
   return scopeKind==="own_department"?"إسناد داخل الإدارة":scopeKind==="own_sector"?"إسناد داخل القطاع":"إسناد لقطاع آخر";
 }
 async function openCreate(){
-  let rolePart="";
-  if(session.role==="manager"){
-    rolePart=`
-      <div class="wide"><label>المسار</label><select class="field" id="createMode"><option value="assign">إسناد لموظف أو أكثر</option><option value="raise">رفع للمساعد</option></select></div>
-      <div class="wide" id="createRouteFields"></div>`;
-  }else if(isExec()){
-    rolePart=`
-      <div class="wide"><label>المساعد</label><select class="field" name="assistant">${userOptions(u=>u.role==="assistant"&&(hasTxPerm("transactions.assign_other_sector")||!session.org_name||u.org_name===session.org_name||isExec()))}</select></div>
-      <div class="wide"><label>التوجيه</label><textarea class="field" name="directive" required></textarea></div>`;
-  }
   const w=modal("إنشاء معاملة",`
     <form id="createForm"><div class="form-grid">
       <div class="wide"><label>عنوان المعاملة</label><input class="field" name="title" required></div>
       <div class="wide"><label>موضوع المعاملة</label><textarea class="field" name="subject"></textarea></div>
       <div><label>الأولوية</label><select class="field" name="priority"><option>عادي</option><option>عاجل</option><option>عاجل جدًا</option></select></div>
       <div><label>رابط المرفقات</label><input class="field" name="attachment_url" type="url"></div>
-      ${rolePart}
     </div></form>
   `,`<button class="btn btn-green" id="saveCreate">حفظ</button><button class="btn btn-soft" data-exit>خروج</button>`);
   w.querySelector("[data-exit]").onclick=()=>w.remove();
-  if(session.role==="manager"){
-    const mode=w.querySelector("#createMode"),host=w.querySelector("#createRouteFields");
-    const draw=()=>{
-      host.innerHTML=mode.value==="assign"?`
-        <label>الإدارة</label><select class="field" name="unit_id">${managerUnits().map(u=>'<option value="'+u.id+'">'+esc(u.name)+'</option>').join("")}</select>
-        <label>الموظفون</label><select class="field multi" name="targets" multiple>${userOptions(u=>u.role==="employee"&&u.dept_names.some(d=>myDeptNames().includes(d)))}</select>
-        <label>التوجيه</label><textarea class="field" name="directive"></textarea>`
-      :`<label>سبب الرفع</label><textarea class="field" name="raise_reason"></textarea><label>القرار المقترح</label><textarea class="field" name="proposed_decision"></textarea>`;
-    };mode.onchange=draw;draw();
-  }
   w.querySelector("#saveCreate").onclick=async()=>{
     const f=w.querySelector("#createForm"),fd=new FormData(f);
     const title=String(fd.get("title")||"").trim();if(!title)return;
     const btn=w.querySelector("#saveCreate");btn.disabled=true;
     try{
-      const created=await post(CONFIG.txFn,baseBody("create",{title,subject:fd.get("subject"),priority:fd.get("priority"),attachment_url:fd.get("attachment_url")}));
-      if(session.role==="manager"){
-        const mode=w.querySelector("#createMode").value;
-        if(mode==="assign"){
-          const targets=[...w.querySelector('[name="targets"]').selectedOptions].map(o=>o.value);
-          await post(CONFIG.txFn,baseBody("route_manager_employees",{transaction_id:created.row.id,unit_id:fd.get("unit_id"),targets,directive:fd.get("directive")}));
-        }else{
-          await post(CONFIG.txFn,baseBody("route_manager_assistant",{transaction_id:created.row.id,raise_reason:fd.get("raise_reason"),proposed_decision:fd.get("proposed_decision")}));
-        }
-      }else if(isExec()){
-        await post(CONFIG.txFn,baseBody("route_exec_assistant",{transaction_id:created.row.id,to_login:fd.get("assistant"),directive:fd.get("directive")}));
-      }
+      await post(CONFIG.txFn,baseBody("create",{
+        title,subject:fd.get("subject"),priority:fd.get("priority"),attachment_url:fd.get("attachment_url")
+      }));
       w.remove();await refresh();
     }catch(e){btn.disabled=false}
   };

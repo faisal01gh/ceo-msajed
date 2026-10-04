@@ -439,29 +439,6 @@ Deno.serve(async(req:Request)=>{
   const action=clean(b.action);
 
   try{
-    if(action==="admin_profile_name"){
-      if(who.role!=="ceo_office_manager"||!hasPerm(who,"profiles.admin_edit_name"))return out(req,{error:"forbidden"},403);
-      const key=clean(b.canonical_key),name=clean(b.name);
-      if(!key||name.length<2)return out(req,{error:"invalid_request"},400);
-      const {data:acct}=await db.from("account_migration_users")
-        .select("canonical_key,migrated_user_id,display_name").eq("canonical_key",key).eq("eligible",true).maybeSingle();
-      if(!acct)return out(req,{error:"not_found"},404);
-      const old=clean(acct.display_name);
-      const {error}=await db.from("account_migration_users").update({display_name:name}).eq("canonical_key",key);
-      if(error)throw error;
-      if(acct.migrated_user_id){
-        const {error:pe}=await db.from("profiles").update({full_name:name,updated_at:new Date().toISOString()})
-          .eq("id",acct.migrated_user_id);
-        if(pe)throw pe;
-      }
-      await db.from("audit_log").insert({
-        actor_id:who.user_id,event_type:"profile_name_changed",entity_type:"account",entity_id:key,
-        detail:"تعديل اسم المستخدم",meta:{old_name:old,new_name:name,actor_login:who.login_name}
-      });
-      directoryCache={at:0,data:[]};
-      return out(req,{ok:true,name});
-    }
-
     if(action==="directory"){
       const [users0,units0]=await Promise.all([directory(),units()]);
       let visibleUsers=users0,visibleUnits=units0;
@@ -601,23 +578,7 @@ Deno.serve(async(req:Request)=>{
     }
 
     if(action==="decide_action"){
-      const actionId=clean(b.action_id),decision=clean(b.decision),reason=clean(b.reason);
-      if(!["approved","rejected"].includes(decision))return out(req,{error:"bad_decision"},400);
-      const {data:act}=await db.from("transaction_actions").select("*").eq("id",actionId).maybeSingle();
-      if(!act)return out(req,{error:"not_found"},404);
-      const a=await txAccess(who,act.transaction_id);if(!a||!a.flags.visible||!["manager","assistant","ceo","ceo_office_manager","ceo_secretary"].includes(who.role))return out(req,{error:"forbidden"},403);
-      if(!hasPerm(who,"transactions.act_all")){
-        const d=await directory();
-        const actor=d.find((u:any)=>u.display_name===clean(act.actor_name)||u.login_name===clean(act.actor_name));
-        if(!actor||levelRank(level(who.role))<=levelRank(level(actor.role)))return out(req,{error:"forbidden"},403);
-      }
-      if(decision==="rejected"&&!reason)return out(req,{error:"reason_required"},400);
-      await db.from("transaction_actions").update({status:decision,updated_at:new Date().toISOString()}).eq("id",actionId);
-      await db.from("transaction_action_versions").update({
-        decision_status:decision,decision_reason:reason||null,decision_by_name:who.display_name,decision_at:new Date().toISOString()
-      }).eq("action_id",actionId).eq("version_no",act.current_version);
-      await history(act.transaction_id,"action_"+decision,who,reason||decision,{action_id:actionId});
-      return out(req,{ok:true});
+      return out(req,{error:"action_approval_retired"},410);
     }
 
     if(action==="revise_action"){

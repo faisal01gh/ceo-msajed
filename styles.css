@@ -196,7 +196,13 @@ textarea.field{min-height:90px;resize:vertical}
 .permission-role{
   display:inline-flex;padding:7px 12px;border-radius:20px;background:#eef4fb;color:var(--navy);font-size:12px;font-weight:800
 }
-#permissionsGrid{
+#permissionsGrid{display:block}
+.permission-group{margin-bottom:18px}
+.permission-group:last-child{margin-bottom:0}
+.permission-group h3{
+  margin:0 0 10px;padding:0 2px;color:var(--navy);font-size:14px;font-weight:900
+}
+.permission-group-grid{
   display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px
 }
 .permission-item{

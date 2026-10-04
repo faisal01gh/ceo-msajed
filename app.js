@@ -3,14 +3,9 @@
 const CONFIG={
   supabaseUrl:"https://movzojtnkkmdsjhmlgtq.supabase.co",
   publishableKey:"sb_publishable_FjLQ_5HZEg_CGhdw3CC0CA_KbG3WKj8",
-  loginFn:"legacy-login",
   resolveFn:"account-resolve",
-  activateFn:"account-activate",
   confirmPasswordFn:"account-confirm-password",
-  txFn:"transactions-api",
-  logoutFn:"session-logout",
-  legacyAuthUrl:"https://urgkbbconlxeagfgyjee.supabase.co",
-  legacyAuthKey:"sb_publishable_76BLD35YhIoDSI8d-qdp7A_EWhsjEVT"
+  txFn:"transactions-api"
 };
 
 const root=document.getElementById("app");
@@ -69,13 +64,10 @@ async function fetchJson(url,options={},timeoutMs=15000){
   }
 }
 async function refreshAuthSession(){
-  if(!session||!["auth","new"].includes(session.app)||!session.refresh_token)return false;
-  const isNew=session.app==="new";
-  const url=(isNew?CONFIG.supabaseUrl:CONFIG.legacyAuthUrl)+"/auth/v1/token?grant_type=refresh_token";
-  const key=isNew?CONFIG.publishableKey:CONFIG.legacyAuthKey;
-  const {r,data}=await fetchJson(url,{
+  if(!session?.refresh_token)return false;
+  const {r,data}=await fetchJson(CONFIG.supabaseUrl+"/auth/v1/token?grant_type=refresh_token",{
     method:"POST",
-    headers:{"Content-Type":"application/json","apikey":key},
+    headers:{"Content-Type":"application/json","apikey":CONFIG.publishableKey},
     body:JSON.stringify({refresh_token:session.refresh_token})
   });
   if(!r.ok||!data.access_token)return false;
@@ -90,7 +82,7 @@ async function post(fn,body,retry=true){
     headers:{"Content-Type":"application/json","apikey":CONFIG.publishableKey},
     body:JSON.stringify(body)
   });
-  if(r.status===401&&retry&&["auth","new"].includes(session?.app)&&await refreshAuthSession()){
+  if(r.status===401&&retry&&session&&await refreshAuthSession()){
     body={...body,token:session.token};
     ({r,data}=await fetchJson(apiUrl(fn),{
       method:"POST",
@@ -106,7 +98,7 @@ async function rpc(name,body={},retry=true){
   const url=CONFIG.supabaseUrl+"/rest/v1/rpc/"+name;
   const headers={"Content-Type":"application/json","apikey":CONFIG.publishableKey,Authorization:"Bearer "+session.token};
   let {r,data}=await fetchJson(url,{method:"POST",headers,body:JSON.stringify(body)});
-  if(r.status===401&&retry&&session?.app==="new"&&await refreshAuthSession()){
+  if(r.status===401&&retry&&session&&await refreshAuthSession()){
     headers.Authorization="Bearer "+session.token;
     ({r,data}=await fetchJson(url,{method:"POST",headers,body:JSON.stringify(body)}));
   }
@@ -114,17 +106,11 @@ async function rpc(name,body={},retry=true){
   return data;
 }
 function saveSession(){sessionStorage.setItem(SESSION_KEY,JSON.stringify(session))}
-function loadSession(){try{session=JSON.parse(sessionStorage.getItem(SESSION_KEY)||"null")}catch{session=null}}
+function loadSession(){try{session=JSON.parse(sessionStorage.getItem(SESSION_KEY)||"null");if(session?.app!=="new")session=null}catch{session=null}}
 function clearSession(){sessionStorage.removeItem(SESSION_KEY);session=null}
-function mapRole(s){
-  if(s.app==="ceo")return s.legacy_role==="secretary"?"ceo_secretary":"ceo_office_manager";
-  if(s.legacy_role==="manager")return "manager";
-  if(s.legacy_role==="employee")return "employee";
-  return "assistant";
-}
 function isExec(){return ["ceo","ceo_office_manager","ceo_secretary"].includes(session?.role)}
 function hasTxPerm(code){return sessionPermissions.includes(code)}
-function canManagePermissions(){return session?.app==="new"&&session?.role==="ceo_office_manager"}
+function canManagePermissions(){return session?.role==="ceo_office_manager"}
 const ROUTE_PERMISSION_CODES=[
   "transactions.raise_manager",
   "transactions.assign_department",
@@ -152,7 +138,7 @@ function defaultTab(role){
   if(hasTxPerm("transactions.view_all"))return "all";
   return (role==="assistant"||role==="manager")?"scope":"incoming";
 }
-function baseBody(action,extra={}){return {app:session.app,token:session.token,action,...extra}}
+function baseBody(action,extra={}){return {app:"new",token:session.token,action,...extra}}
 
 function loginView(){
   root.innerHTML=`
@@ -178,29 +164,6 @@ async function signInNew(email,password){
     body:JSON.stringify({email,password})
   });
   return r.ok&&data.access_token?data:null;
-}
-async function signInLegacy(username,password){
-  if(username.includes("@")){
-    const {r:authRes,data:authData}=await fetchJson(CONFIG.legacyAuthUrl+"/auth/v1/token?grant_type=password",{
-      method:"POST",
-      headers:{"Content-Type":"application/json","apikey":CONFIG.legacyAuthKey},
-      body:JSON.stringify({email:username,password})
-    });
-    if(authRes.ok&&authData.access_token){
-      return {app:"auth",token:authData.access_token,refresh_token:authData.refresh_token,
-        display_name:authData.user?.user_metadata?.full_name||username,role:"auth"};
-    }
-  }
-  return await post(CONFIG.loginFn,{username,password},false);
-}
-async function exchangeRecovery(tokenHash){
-  const {r,data}=await fetchJson(CONFIG.supabaseUrl+"/auth/v1/verify",{
-    method:"POST",
-    headers:{"Content-Type":"application/json","apikey":CONFIG.publishableKey},
-    body:JSON.stringify({type:"recovery",token_hash:tokenHash})
-  });
-  if(!r.ok||!data.access_token)throw new Error("recovery_failed");
-  return data;
 }
 function passwordPolicy(value){
   return {
@@ -310,24 +273,11 @@ async function boot(){
       p_department:departmentFilter,p_employee:employeeFilter,p_origin:originFilter,p_late_only:lateOnly,
       p_date_from:dateFrom||null,p_date_to:dateTo||null,p_page:page,p_page_size:50
     };
-    let dir,list,perms=[];
-    if(session.app==="new"){
-      [dir,list,perms]=await Promise.all([
-        rpc("transaction_directory_my"),
-        rpc("list_my_transactions",listArgs),
-        rpc("my_permissions")
-      ]);
-    }else{
-      [dir,list]=await Promise.all([
-        post(CONFIG.txFn,baseBody("directory")),
-        post(CONFIG.txFn,baseBody("list",{
-          tab:currentTab,search:searchText,priority:priorityFilter,status:statusFilter,
-          department:departmentFilter,employee:employeeFilter,origin:originFilter,late_only:lateOnly,
-          date_from:dateFrom,date_to:dateTo,page,page_size:50
-        }))
-      ]);
-      perms=dir.permissions||dir.me?.permissions||[];
-    }
+    const [dir,list,perms]=await Promise.all([
+      rpc("transaction_directory_my"),
+      rpc("list_my_transactions",listArgs),
+      rpc("my_permissions")
+    ]);
     directoryData=dir;
     listData=list;
     sessionPermissions=Array.isArray(perms)?perms:[];
@@ -352,19 +302,11 @@ async function boot(){
   }
 }
 async function loadList(){
-  if(session.app==="new"){
-    listData=await rpc("list_my_transactions",{
-      p_tab:currentTab,p_search:searchText,p_priority:priorityFilter,p_status:statusFilter,
-      p_department:departmentFilter,p_employee:employeeFilter,p_origin:originFilter,p_late_only:lateOnly,
-      p_date_from:dateFrom||null,p_date_to:dateTo||null,p_page:page,p_page_size:50
-    });
-    return;
-  }
-  listData=await post(CONFIG.txFn,baseBody("list",{
-    tab:currentTab,search:searchText,priority:priorityFilter,status:statusFilter,
-    department:departmentFilter,employee:employeeFilter,origin:originFilter,late_only:lateOnly,
-    date_from:dateFrom,date_to:dateTo,page,page_size:50
-  }));
+  listData=await rpc("list_my_transactions",{
+    p_tab:currentTab,p_search:searchText,p_priority:priorityFilter,p_status:statusFilter,
+    p_department:departmentFilter,p_employee:employeeFilter,p_origin:originFilter,p_late_only:lateOnly,
+    p_date_from:dateFrom||null,p_date_to:dateTo||null,p_page:page,p_page_size:50
+  });
 }
 function sectionSidebar(active){
   return `
@@ -1298,9 +1240,19 @@ function printTransaction(d){
   printHtml("معاملة "+t.number,'<h1>'+esc(t.title)+'</h1><table><tr><th>رقم المعاملة</th><td>'+esc(t.number)+'</td></tr><tr><th>الموضوع</th><td>'+esc(t.subject||"")+'</td></tr><tr><th>الأولوية</th><td>'+esc(t.priority)+'</td></tr></table><h2 class="sec">إجراءات العمل</h2><table><tr><th>التاريخ</th><th>بواسطة</th><th>الإجراء</th></tr>'+acts+'</table><h2 class="sec">الإحالات والتوجيهات</h2><table><tr><th>التاريخ</th><th>من</th><th>إلى</th><th>التفاصيل</th></tr>'+routes+'</table>');
 }
 async function logout(){
-  const old=session;
-  try{if(old?.token)await post(CONFIG.logoutFn,{app:old.app,token:old.token},false)}catch{}
-  clearSession();directoryData={users:[],units:[],me:null};listData={rows:[]};sessionPermissions=[];permissionsData=null;currentSection="transactions";currentTab="";loginView();
+  const token=session?.token;
+  if(token){
+    try{
+      await fetchJson(CONFIG.supabaseUrl+"/auth/v1/logout",{
+        method:"POST",
+        headers:{apikey:CONFIG.publishableKey,Authorization:"Bearer "+token}
+      },8000);
+    }catch{}
+  }
+  clearSession();
+  directoryData={users:[],units:[],me:null};
+  listData={rows:[]};sessionPermissions=[];permissionsData=null;profileData=null;
+  currentSection="transactions";currentTab="";loginView();
 }
 
 root.addEventListener("click",handleTableActionClick);

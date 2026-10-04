@@ -1052,7 +1052,9 @@ Deno.serve(async(req:Request)=>{
 
     if(action==="delete_hard"){
       if(!hasPerm(who,"transactions.delete_hard"))return out(req,{error:"forbidden"},403);
-      const id=clean(b.transaction_id);const tx=await txRow(id);if(!tx)return out(req,{error:"not_found"},404);
+      const id=clean(b.transaction_id);
+      const access=await txAccess(who,id);if(!access||!access.flags.visible)return out(req,{error:"forbidden"},403);
+      const tx=access.tx;
       const [{count:routes},{count:acts},{count:assigns}]=await Promise.all([
         db.from("transaction_routes").select("id",{count:"exact",head:true}).eq("transaction_id",id),
         db.from("transaction_actions").select("id",{count:"exact",head:true}).eq("transaction_id",id),

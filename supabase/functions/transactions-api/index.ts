@@ -633,8 +633,8 @@ Deno.serve(async(req:Request)=>{
       if(!["approved","rejected"].includes(decision))return out(req,{error:"bad_decision"},400);
       const {data:act}=await db.from("transaction_actions").select("*").eq("id",actionId).maybeSingle();
       if(!act)return out(req,{error:"not_found"},404);
-      const a=await txAccess(who,act.transaction_id);if(!a||!a.flags.visible||!["manager","assistant","ceo","ceo_office_manager","ceo_secretary"].includes(who.role))return out(req,{error:"forbidden"},403);
-      if(!isExec(who.role)){
+      const a=await txAccess(who,act.transaction_id);if(!a||!a.flags.visible||(!hasPerm(who,"transactions.act_all")&&!["manager","assistant","ceo","ceo_office_manager","ceo_secretary"].includes(who.role)))return out(req,{error:"forbidden"},403);
+      if(!hasPerm(who,"transactions.act_all")){
         const d=await directory();
         const actor=d.find((u:any)=>u.display_name===clean(act.actor_name)||u.login_name===clean(act.actor_name));
         if(!actor||levelRank(level(who.role))<=levelRank(level(actor.role)))return out(req,{error:"forbidden"},403);
@@ -685,32 +685,53 @@ Deno.serve(async(req:Request)=>{
       const required=scopePerm[scopeKind];
       if(!required||!hasPerm(who,required))return out(req,{error:"forbidden"},403);
       if(!id||!directive||!unitId||!targets.length)return out(req,{error:"missing"},400);
-      const a=await txAccess(who,id);if(!a||!a.flags.visible||!canAct(who,a.tx,a.flags))return out(req,{error:"forbidden"},403);
+      const access=await txAccess(who,id);
+      if(!access||!access.flags.visible||!canAct(who,access.tx,access.flags))return out(req,{error:"forbidden"},403);
+
       const users=await directory(),allUnits=await units();
-      const unit=allUnits.find((u:any)=>u.id===unitId);if(!unit)return out(req,{error:"invalid_unit"},400);
+      const unit=allUnits.find((u:any)=>u.id===unitId);
+      if(!unit)return out(req,{error:"invalid_unit"},400);
+
       for(const login of targets){
         const target=users.find((u:any)=>u.login_name===login);
-        if(!target||!arr(target.dept_names).includes(unit.name)||assignmentPermission(who,target)!==required)return out(req,{error:"forbidden_target"},403);
+        if(!target||!arr(target.dept_names).includes(unit.name)||assignmentPermission(who,target)!==required)
+          return out(req,{error:"forbidden_target"},403);
       }
-      if(supports.length&&!hasPerm(who,"transactions.assign_supporting"))return out(req,{error:"forbidden_supporting"},403);
-      await completeActive(id);
-      await addAssignment(id,unitId,"responsible",directive,targets,null,who);
+
+      if(supports.length&&!hasPerm(who,"transactions.assign_supporting"))
+        return out(req,{error:"forbidden_supporting"},403);
+
+      const normalizedSupports:any[]=[];
       for(const item of supports){
-        const supportUnitId=clean(item.unit_id),supportDirective=clean(item.directive),supportTargets=unique(arr(item.targets).map(String).filter(Boolean));
+        const supportUnitId=clean(item.unit_id),supportDirective=clean(item.directive);
+        const supportTargets=unique(arr(item.targets).map(String).filter(Boolean));
         if(!supportUnitId||!supportDirective||!supportTargets.length)return out(req,{error:"invalid_supporting"},400);
-        const supportUnit=allUnits.find((u:any)=>u.id===supportUnitId);if(!supportUnit)return out(req,{error:"invalid_unit"},400);
+        const supportUnit=allUnits.find((u:any)=>u.id===supportUnitId);
+        if(!supportUnit)return out(req,{error:"invalid_unit"},400);
         for(const login of supportTargets){
           const target=users.find((u:any)=>u.login_name===login);
-          if(!target||!arr(target.dept_names).includes(supportUnit.name)||!canAssignTarget(who,target))return out(req,{error:"forbidden_target"},403);
+          if(!target||!arr(target.dept_names).includes(supportUnit.name)||!canAssignTarget(who,target))
+            return out(req,{error:"forbidden_target"},403);
         }
-        await addAssignment(id,supportUnitId,"supporting",supportDirective,supportTargets,null,who);
+        normalizedSupports.push({unitId:supportUnitId,directive:supportDirective,targets:supportTargets,name:supportUnit.name});
       }
-      await addRoute(id,"directive",who,{unit_id:unitId,name:unit.name,display_name:targets.join("، ")},{directive,meta:{targets,scope_kind:scopeKind,supporting:supports}});
+
+      await completeActive(id);
+      await addAssignment(id,unitId,"responsible",directive,targets,null,who);
+      for(const item of normalizedSupports){
+        await addAssignment(id,item.unitId,"supporting",item.directive,item.targets,null,who);
+      }
+      await addRoute(id,"directive",who,{unit_id:unitId,name:unit.name,display_name:targets.join("، ")},{
+        directive,meta:{targets,scope_kind:scopeKind,supporting:normalizedSupports}
+      });
       await db.from("transactions").update({
-        responsible_unit_id:unitId,current_level:"employee",close_level:higherLevel(a.tx.close_level,routingCloseLevel(who)),
+        responsible_unit_id:unitId,current_level:"employee",
+        close_level:higherLevel(access.tx.close_level,routingCloseLevel(who)),
         workflow_started:true,migration_status:"ready",updated_at:new Date().toISOString(),last_activity_at:new Date().toISOString()
       }).eq("id",id);
-      await history(id,"permission_assignment",who,directive,{targets,unit:unit.name,scope_kind:scopeKind,supporting:supports});
+      await history(id,"permission_assignment",who,directive,{
+        targets,unit:unit.name,scope_kind:scopeKind,supporting:normalizedSupports
+      });
       return out(req,{ok:true});
     }
 
@@ -763,8 +784,6 @@ Deno.serve(async(req:Request)=>{
         const u=directoryUsers.find((x:any)=>x.login_name===login);
         if(!u||!u.dept_names.includes(responsibleUnitRow.name)||!canAssignTarget(who,u))return out(req,{error:"forbidden_target"},403);
       }
-      await completeActive(id);
-      await addAssignment(id,responsibleUnit,"responsible",directive,responsibleTargets,null,who);
       if(supports.length&&!hasPerm(who,"transactions.assign_supporting"))return out(req,{error:"forbidden_supporting"},403);
       for(const s of supports){
         const unitId=clean(s.unit_id),supportDirective=clean(s.directive),targets=unique(arr(s.targets).map(String).filter(Boolean));
@@ -776,6 +795,11 @@ Deno.serve(async(req:Request)=>{
           const u=directoryUsers.find((x:any)=>x.login_name===login);
           if(!u||!u.dept_names.includes(unitRow.name)||!canAssignTarget(who,u))return out(req,{error:"forbidden_target"},403);
         }
+      }
+      await completeActive(id);
+      await addAssignment(id,responsibleUnit,"responsible",directive,responsibleTargets,null,who);
+      for(const s of supports){
+        const unitId=clean(s.unit_id),supportDirective=clean(s.directive),targets=unique(arr(s.targets).map(String).filter(Boolean));
         await addAssignment(id,unitId,"supporting",supportDirective,targets,null,who);
       }
       await addRoute(id,"directive",who,{unit_id:responsibleUnit,name:""},{directive,meta:{responsible_targets:responsibleTargets,supporting:supports}});
@@ -835,6 +859,8 @@ Deno.serve(async(req:Request)=>{
       if(!id||!toLogin||!directive)return out(req,{error:"missing"},400);
       const a=await txAccess(who,id);if(!a)return out(req,{error:"not_found"},404);
       const target=await account(toLogin);if(!target||target.role!=="assistant")return out(req,{error:"invalid_target"},400);
+      if(!isExec(who.role)&&target.org_name!==who.org_name&&!hasPerm(who,"transactions.assign_other_sector"))
+        return out(req,{error:"forbidden_target"},403);
       await completeActive(id);
       await addRoute(id,"directive",who,target,{directive,meta:isExec(who.role)?{directive_owner:"الرئيس التنفيذي",entered_by:who.display_name}:{}});
       await db.from("transactions").update({current_level:"assistant",close_level:higherLevel(a.tx.close_level,routingCloseLevel(who)),workflow_started:true,migration_status:"ready",ceo_attention:false,updated_at:new Date().toISOString(),last_activity_at:new Date().toISOString()}).eq("id",id);
@@ -849,10 +875,12 @@ Deno.serve(async(req:Request)=>{
       if(!id||!unitId||!directive||!targets.length)return out(req,{error:"missing"},400);
       if(!["employee_exec","manager","assistant","manager_assistant"].includes(visibility))return out(req,{error:"bad_visibility"},400);
       const a=await txAccess(who,id);if(!a)return out(req,{error:"not_found"},404);
-      const directoryUsers=await directory();
+      const directoryUsers=await directory(),allUnits=await units();
+      const selectedUnit=allUnits.find((u:any)=>u.id===unitId);if(!selectedUnit)return out(req,{error:"invalid_unit"},400);
       for(const login of targets){
         const target=directoryUsers.find((u:any)=>u.login_name===login);
-        if(!target||!canAssignTarget(who,target))return out(req,{error:"forbidden_target"},403);
+        if(!target||!arr(target.dept_names).includes(selectedUnit.name)||!canAssignTarget(who,target))
+          return out(req,{error:"forbidden_target"},403);
       }
       await completeActive(id);
       await addAssignment(id,unitId,"direct",directive,targets,visibility,who);

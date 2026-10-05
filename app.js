@@ -1403,7 +1403,7 @@ async function openDetails(id,invoker=document.activeElement){
   ]);
   const w=modal(t.title,toolbar+reviewBanner+`
     <div class="workspace-context">
-      <div class="workspace-subject ${subjectClickable?"clickable":""}" id="${subjectClickable?"subjectField":""}"><h3 class="section-title">موضوع المعاملة ${subjectClickable?uiIcon("edit"):""}</h3><div class="action-text">${esc(t.subject||"—")}</div>
+      <div class="workspace-subject"><h3 class="section-title">موضوع المعاملة ${subjectClickable?'<button class="inline-edit-btn" type="button" id="subjectField" aria-label="تعديل موضوع المعاملة">'+uiIcon("edit")+'</button>':""}</h3><div class="action-text">${esc(t.subject||"—")}</div>
         ${safeUrl(t.attachment_url)?'<div class="workspace-attachment"><span>رابط المرفقات</span><br><a href="'+esc(safeUrl(t.attachment_url))+'" target="_blank" rel="noopener noreferrer">'+esc(t.attachment_url)+'</a></div>':""}
       </div>
       <div class="details-grid">

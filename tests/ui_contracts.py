@@ -2,55 +2,88 @@ import json, subprocess
 from pathlib import Path
 from tree_sitter import Language, Parser
 import tree_sitter_javascript
+
 repo=Path(__file__).resolve().parents[1]
 p=Parser(Language(tree_sitter_javascript.language()))
-baseline='6c1f8fa40457c94a2ac9c0b0c4b7e3879368c0fe'
+baseline='d4005fa2e6f530fab4cd53fe2dfd6539e6a9f439'
 before=subprocess.check_output(['git','show',baseline+':app.js'],cwd=repo)
 after=(repo/'app.js').read_bytes()
+
 def functions(data):
     tree=p.parse(data);f={}
     for n in tree.root_node.children:
         if n.type=='function_declaration':
-            name=n.child_by_field_name('name').text.decode(); f[name]=n.text.decode().replace('\r\n','\n')
+            name=n.child_by_field_name('name').text.decode()
+            f[name]=n.text.decode().replace('\r\n','\n')
     return f
+
 b=functions(before);a=functions(after)
-# The approved passwordPolicy change is frontend validation, not an Auth/backend change.
-preserve=['passwordStrong','tabsFor','defaultTab','hasTxPerm','isExec','canManagePermissions','hasAnyRoutePerm','baseBody','apiUrl','fetchJson','rpc','post','refreshAuthSession','signInNew','saveSession','loadSession','clearSession','priorityClass','statusBadge','myDeptNames','managerUnits','sectorUnits','employeesForUnit','safeUrl','esc','xmlCell','excelXml','exportListExcel','exportTransactionExcel','printList','printTransaction','download']
-results={k: b.get(k)==a.get(k) for k in preserve}
-approved_changed={'passwordPolicy','passwordRulesMarkup','passwordChangeView','openOwnPasswordChange'}
-approved_added={'passwordComponentIds','passwordComponentMarkup','wirePasswordComponent'}
-changed={k for k in b if b[k]!=a.get(k)}
-added=set(a)-set(b)
-assert changed<=approved_changed and added==approved_added, 'Out-of-scope frontend function change'
-allowed={'app.js','styles.css','index.html','service-worker.js','CHANGELOG.md','docs/PROJECT_STATE.md','docs/HANDOFF.md','tests/password_component.py','tests/ui_contracts.py','tests/ui_static.py','tests/ui_public_deployment.py'}
+
+# Security/auth/session/navigation primitives were not part of this approved
+# transaction-workflow refinement and must remain byte-for-byte stable.
+preserve=[
+    'passwordPolicy','passwordStrong','tabsFor','defaultTab','hasTxPerm','isExec',
+    'canManagePermissions','hasAnyRoutePerm','baseBody','apiUrl','fetchJson','rpc',
+    'post','refreshAuthSession','signInNew','saveSession','loadSession','clearSession',
+    'myDeptNames','managerUnits','sectorUnits','employeesForUnit','safeUrl','esc',
+    'xmlCell','download'
+]
+results={k:b.get(k)==a.get(k) for k in preserve}
+
+expected_added={
+    'fmtDateTime','periodDays','requestTypeLabel','requestStatusLabel',
+    'requestTargetLabel','transactionRequestedText','historyText',
+    'openSubject','openResponsibleUnit'
+}
+missing_added=sorted(expected_added-set(a))
+
+source=after.decode()
+required_frontend_markers=[
+    'transactions.edit_subject',
+    'transactions.change_responsible_unit',
+    'الطلبات والاعتمادات',
+    'إغلاق المعاملة',
+    'notification-dot',
+    'عدد أيام المعاملة',
+    'الإدارة المسؤولة',
+    'المسؤول عن المعاملة'
+]
+missing_markers=[x for x in required_frontend_markers if x not in source]
+
+allowed={
+    'CHANGELOG.md','app.js','docs/HANDOFF.md','docs/PROJECT_STATE.md',
+    'docs/permissions/SPEC.md','docs/transactions/EXECUTIVE_APPROVAL.md',
+    'docs/transactions/SPEC.md','index.html','service-worker.js','styles.css',
+    'supabase/functions/transactions-api/index.ts',
+    'supabase/migrations/20261005182000_transaction_detail_edit_permissions.sql',
+    'tests/ui_contracts.py','tests/ui_public_deployment.py','tests/ui_renderer.py',
+    'tests/ui_static.py','tests/transaction_refinements.py'
+}
 paths=set(subprocess.check_output(['git','diff','--name-only',baseline],cwd=repo,text=True).splitlines())
 paths.update(subprocess.check_output(['git','ls-files','--others','--exclude-standard'],cwd=repo,text=True).splitlines())
-assert paths<=allowed, 'File changed outside approved UI/test/document scope'
+
 for name in ['index.html','service-worker.js']:
-    original=subprocess.check_output(['git','show',baseline+':'+name],cwd=repo).decode().replace('\r\n','\n')
     current=(repo/name).read_text(encoding='utf-8').replace('\r\n','\n')
-    assert original.replace('20261005-1','20261005-2')==current, 'Non-version HTML/service-worker change'
-old_css=subprocess.check_output(['git','show',baseline+':styles.css'],cwd=repo).decode().replace('\r\n','\n')
-new_css=(repo/'styles.css').read_text(encoding='utf-8').replace('\r\n','\n')
-end='\n\n/* One form/control vocabulary'
-assert old_css.split('.password-inline-hint{',1)[0]==new_css.split('.password-requirements{',1)[0], 'CSS before password rules changed'
-assert old_css.split(end,1)[1]==new_css.split(end,1)[1], 'CSS after password rules changed'
-# Compare backend operation names and payload property names, not display markup.
-def calls(data):
-    found=[]
-    def visit(n):
-        if n.type=='call_expression':
-            name=n.child_by_field_name('function')
-            if name and name.text.decode() in ['post','rpc','baseBody','fetchJson']:
-                # AST excludes whitespace while preserving identifiers/operators/string values.
-                def tokens(x):return (x.type,x.text.decode()) if not x.children else (x.type,tuple(tokens(c) for c in x.children))
-                found.append(tokens(n))
-        for c in n.children:visit(c)
-    visit(p.parse(data).root_node)
-    return found
-from collections import Counter
-bc=Counter(map(repr,calls(before)));ac=Counter(map(repr,calls(after)))
-print(json.dumps({'preserved_functions':results,'changed_network_expressions':{'removed':list((bc-ac).elements()),'added':list((ac-bc).elements())},'parse_errors':p.parse(after).root_node.has_error},ensure_ascii=False,indent=2))
-assert all(results.values()), 'A protected function changed'
-assert not (bc-ac) and not (ac-bc), 'A backend expression changed'
-assert not p.parse(after).root_node.has_error, 'JavaScript parse error'
+    assert '20261005-3' in current, f'{name} does not reference current asset version'
+
+restricted=[x for x in ['urgkbbconlxeagfgyjee','msajed-tasks','sb_secret_','service_role','setInterval(']
+            if x in source+(repo/'index.html').read_text(encoding='utf-8')]
+
+tree=p.parse(after)
+report={
+    'baseline':baseline,
+    'preserved_functions':results,
+    'missing_expected_functions':missing_added,
+    'missing_frontend_markers':missing_markers,
+    'changed_paths':sorted(paths),
+    'unexpected_paths':sorted(paths-allowed),
+    'restricted_frontend_markers':restricted,
+    'parse_errors':tree.root_node.has_error
+}
+print(json.dumps(report,ensure_ascii=False,indent=2))
+assert all(results.values()), 'Protected auth/session/navigation function changed'
+assert not missing_added, 'Expected transaction helper missing'
+assert not missing_markers, 'Expected transaction UI marker missing'
+assert paths<=allowed, 'File changed outside approved transaction/UI/test/document scope'
+assert not restricted, 'Restricted frontend marker found'
+assert not tree.root_node.has_error, 'JavaScript parse error'

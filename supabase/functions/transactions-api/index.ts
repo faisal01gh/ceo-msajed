@@ -274,12 +274,42 @@ function closeAuthority(tx:any){
   if(tx.current_level==="assistant")return "assistant";
   return "manager";
 }
-function canClose(who:Who,tx:any,flags:any){
-  const a=closeAuthority(tx);
-  if(a==="ceo")return who.role==="ceo";
-  if(a==="assistant")return who.role==="assistant"&&flags.scope;
-  if(a==="manager")return who.role==="manager"&&flags.scope;
+function rootUnitId(unitId:string|null,unitMap:Map<string,any>){
+  if(!unitId)return "";
+  let current=unitMap.get(unitId),guard=0;
+  while(current?.parent_id&&guard++<20){
+    const parent=unitMap.get(current.parent_id);
+    if(!parent)break;
+    current=parent;
+  }
+  return current?.id||unitId;
+}
+function isCrossSector(access:any){
+  const roots=new Set<string>();
+  const add=(unitId:any)=>{const root=rootUnitId(clean(unitId)||null,access.unitMap);if(root)roots.add(root)};
+  add(access.tx.responsible_unit_id);
+  for(const a of arr(access.assigns))if(a.status==="active"&&a.unit_id)add(a.unit_id);
+  return roots.size>1;
+}
+function effectiveCloseAuthority(access:any){
+  return isCrossSector(access)?"ceo":closeAuthority(access.tx);
+}
+function canClose(who:Who,access:any){
+  if(!access?.flags?.visible)return false;
+  const authority=effectiveCloseAuthority(access);
+  if(isExec(who.role))return true;
+  if(authority==="ceo")return false;
+  if(who.role==="assistant"&&access.flags.scope&&["manager","assistant"].includes(authority))return true;
+  if(who.role==="manager"&&access.flags.scope&&authority==="manager")return true;
   return false;
+}
+function closeRequestTarget(who:Who,access:any){
+  if(isCrossSector(access))return "ceo";
+  if(who.role==="employee")return "manager";
+  if(who.role==="assistant_secretary")return "assistant";
+  if(who.role==="manager")return "assistant";
+  if(who.role==="assistant")return "ceo";
+  return "ceo";
 }
 function canRaiseCeo(who:Who,access:any){
   if(hasPerm(who,"transactions.raise_ceo"))return true;
@@ -391,6 +421,8 @@ async function txAccess(who:Who,id:string){
   for(const a of assigns)for(const t of arr(a.transaction_assignment_targets))targetRows.push({...t,assignment_id:a.id});
   const targetsByAssignment=byKey(targetRows,"assignment_id");
   const scope=scopeOf(who,allUnits);const unitMap=new Map(allUnits.map((u:any)=>[u.id,u]));
+  const responsibleUnit=tx.responsible_unit_id?unitMap.get(tx.responsible_unit_id):null;
+  tx.responsible_unit_name=responsibleUnit?.name||tx.legacy_department_name||null;
   const flags=flagsFor(who,tx,assigns,targetsByAssignment,routes,scope,unitMap);
   return {tx,assigns,routes,targetsByAssignment,flags,scope,unitMap,units:allUnits};
 }
@@ -413,14 +445,24 @@ async function reopenTx(who:Who,tx:any,reason:string){
   await history(tx.id,"reopened",who,reason);
 }
 async function createRequest(who:Who,tx:any,type:string,reason:string,extra:any={}){
+  const meta={requester_role:who.role,...(extra.meta||{})};
   const {data,error}=await db.from("transaction_requests").insert({
     transaction_id:tx.id,request_type:type,requested_by:null,requested_by_login_name:who.login_name,
     requested_by_name:who.display_name,reason,requested_due_at:extra.requested_due_at||null,
-    requested_user_id:null,status:"pending",meta:{requester_role:who.role,...(extra.meta||{})}
+    requested_user_id:null,status:"pending",meta
   }).select("*").single();
   if(error)throw error;
-  await history(tx.id,"request_"+type,who,reason,{request_id:data.id});
-  if(who.role==="manager"||who.role==="assistant")await notifyExec(tx.id,"request",tx.title,reason);
+  await history(tx.id,"request_"+type,who,reason,{request_id:data.id,target_role:meta.target_role||null});
+  const targetRole=clean(meta.target_role);
+  if(targetRole==="ceo")await notifyExec(tx.id,"request",tx.title,reason);
+  else if(targetRole==="assistant"){
+    const a=await assistantForOrg(who.org_name);
+    if(a)await notify(a.login_name,a.display_name,tx.id,"request",tx.title,reason);
+    else await notifyExec(tx.id,"request",tx.title,reason);
+  }else if(targetRole==="manager"){
+    const m=await managerFor(who);
+    if(m)await notify(m.login_name,m.display_name,tx.id,"request",tx.title,reason);
+  }else if(who.role==="manager"||who.role==="assistant")await notifyExec(tx.id,"request",tx.title,reason);
   else{
     const m=await managerFor(who);
     if(m)await notify(m.login_name,m.display_name,tx.id,"request",tx.title,reason);
@@ -429,7 +471,7 @@ async function createRequest(who:Who,tx:any,type:string,reason:string,extra:any=
 }
 
 Deno.serve(async(req:Request)=>{
-  if(req.method==="GET")return out(req,{ok:true,service:"transactions-api",version:31});
+  if(req.method==="GET")return out(req,{ok:true,service:"transactions-api",version:32});
   if(req.method==="OPTIONS")return new Response("ok",{headers:cors(req)});
   if(req.method!=="POST")return out(req,{error:"method_not_allowed"},405);
   let b:any;try{b=await req.json()}catch{return out(req,{error:"bad_request"},400)}
@@ -518,7 +560,7 @@ Deno.serve(async(req:Request)=>{
         db.from("transaction_assignments").select("*,transaction_assignment_targets(*)").eq("transaction_id",id).order("created_at")
       ]);
       return out(req,{ok:true,transaction:access.tx,flags:access.flags,can_act:canAct(who,access.tx,access.flags),
-        can_close:canClose(who,access.tx,access.flags),can_raise_ceo:canRaiseCeo(who,access),actions:actions||[],action_versions:versions||[],action_notes:actionNotes||[],routes:routes||[],
+        can_close:canClose(who,access),close_authority:effectiveCloseAuthority(access),cross_sector:isCrossSector(access),can_raise_ceo:canRaiseCeo(who,access),actions:actions||[],action_versions:versions||[],action_notes:actionNotes||[],routes:routes||[],
         requests:requests||[],history:historyRows||[],periods:periods||[],links:links||[],assignments:assignments||[]});
     }
 
@@ -745,7 +787,7 @@ Deno.serve(async(req:Request)=>{
       await completeActive(id);
       await addRoute(id,"raise",who,{name:"الرئيس التنفيذي"},{raise_reason:reason,proposed_decision:proposed});
       await db.from("transactions").update({current_level:"ceo",close_level:"ceo",workflow_started:true,ceo_attention:false,updated_at:new Date().toISOString(),last_activity_at:new Date().toISOString()}).eq("id",id);
-      await history(id,"raise_ceo",who,reason,{proposed_decision:proposed});
+      await history(id,"raise_ceo",who,"تم رفع المعاملة للرئيس التنفيذي",{reason,requested:proposed,proposed_decision:proposed});
       await notifyExec(id,"raise_ceo",a.tx.title,reason);
       return out(req,{ok:true});
     }
@@ -797,13 +839,50 @@ Deno.serve(async(req:Request)=>{
       return out(req,{ok:true});
     }
 
+    if(action==="change_subject"){
+      const id=clean(b.transaction_id),subject=clean(b.subject);
+      const a=await txAccess(who,id);
+      if(!a||!a.flags.visible||!hasPerm(who,"transactions.edit_subject")||(!canAct(who,a.tx,a.flags)&&!hasPerm(who,"transactions.act_all")))return out(req,{error:"forbidden"},403);
+      const old=clean(a.tx.subject);
+      if(old===subject)return out(req,{ok:true,unchanged:true});
+      const now=new Date().toISOString();
+      await db.from("transactions").update({subject:subject||null,updated_at:now,last_activity_at:now}).eq("id",id);
+      await history(id,"subject_changed",who,"تم تعديل موضوع المعاملة",{old_subject:old,new_subject:subject});
+      return out(req,{ok:true});
+    }
+
+    if(action==="change_responsible_unit"){
+      const id=clean(b.transaction_id),unitId=clean(b.responsible_unit_id),toLogin=clean(b.responsible_login_name);
+      if(!id||!unitId||!toLogin)return out(req,{error:"missing"},400);
+      const a=await txAccess(who,id);
+      if(!a||!a.flags.visible||!hasPerm(who,"transactions.change_responsible_unit"))return out(req,{error:"forbidden"},403);
+      if(!hasPerm(who,"transactions.act_all")&&!(await scopeCheck(who,unitId)))return out(req,{error:"forbidden_scope"},403);
+      const unit=a.units.find((u:any)=>u.id===unitId);
+      const target=await account(toLogin);
+      if(!unit||!target)return out(req,{error:"invalid_target"},400);
+      if(!arr(target.dept_names).includes(unit.name)&&!isExec(target.role)&&target.role!=="assistant")return out(req,{error:"target_unit_mismatch"},409);
+      const oldUnit=a.tx.responsible_unit_name||"";
+      const oldResponsible=a.tx.responsible_name||a.tx.responsible_login_name||"";
+      const now=new Date().toISOString();
+      await db.from("transactions").update({
+        responsible_unit_id:unitId,responsible_login_name:target.login_name,responsible_name:target.display_name,
+        updated_at:now,last_activity_at:now
+      }).eq("id",id);
+      await history(id,"responsible_unit_changed",who,"تم تغيير الإدارة المسؤولة",{
+        old_unit:oldUnit,new_unit:unit.name,old_responsible:oldResponsible,new_responsible:target.display_name
+      });
+      await notify(target.login_name,target.display_name,id,"responsible_changed",a.tx.title,"تم تعيينك مسؤولًا عن المعاملة");
+      return out(req,{ok:true});
+    }
+
     if(action==="change_priority"){
-      const id=clean(b.transaction_id),priority=clean(b.priority);
+      const id=clean(b.transaction_id),priority=clean(b.priority),reason=clean(b.reason);
       if(!["عاجل جدًا","عاجل","عادي"].includes(priority))return out(req,{error:"bad_priority"},400);
+      if(!reason)return out(req,{error:"reason_required"},400);
       const a=await txAccess(who,id);if(!a||!a.flags.visible||!canAct(who,a.tx,a.flags)||!hasPerm(who,"transactions.change_priority"))return out(req,{error:"forbidden"},403);
       const old=a.tx.priority;
       await db.from("transactions").update({priority,updated_at:new Date().toISOString(),last_activity_at:new Date().toISOString()}).eq("id",id);
-      await history(id,"priority_changed",who,old+" → "+priority);
+      await history(id,"priority_changed",who,"تم تغيير أولوية المعاملة",{old_priority:old,new_priority:priority,reason});
       return out(req,{ok:true});
     }
 
@@ -811,8 +890,10 @@ Deno.serve(async(req:Request)=>{
       const id=clean(b.transaction_id),due=clean(b.due_at);
       const a=await txAccess(who,id);if(!a||!a.flags.visible||!canSetDue(who,a.tx,a.flags)||!hasPerm(who,"transactions.set_due_date"))return out(req,{error:"forbidden"},403);
       const d=due?new Date(due):null;if(d&&Number.isNaN(d.getTime()))return out(req,{error:"bad_date"},400);
-      await db.from("transactions").update({due_at:d?d.toISOString():null,updated_at:new Date().toISOString()}).eq("id",id);
-      await history(id,"due_date_changed",who,d?d.toISOString():"إزالة تاريخ الاستحقاق");
+      const oldDue=a.tx.due_at||null;
+      const nextDue=d?d.toISOString():null;
+      await db.from("transactions").update({due_at:nextDue,updated_at:new Date().toISOString()}).eq("id",id);
+      await history(id,"due_date_changed",who,nextDue?"تم تعيين تاريخ استحقاق المعاملة":"تمت إزالة تاريخ استحقاق المعاملة",{old_due_at:oldDue,new_due_at:nextDue});
       return out(req,{ok:true});
     }
 
@@ -838,25 +919,27 @@ Deno.serve(async(req:Request)=>{
         return out(req,{ok:true,requested:true,row});
       }
       const old=a.tx.responsible_name||a.tx.responsible_login_name||"";
-      await db.from("transactions").update({responsible_login_name:target.login_name,responsible_name:target.display_name,updated_at:new Date().toISOString()}).eq("id",id);
-      await history(id,"responsible_changed",who,old+" → "+target.display_name,{reason});
+      await db.from("transactions").update({responsible_login_name:target.login_name,responsible_name:target.display_name,updated_at:new Date().toISOString(),last_activity_at:new Date().toISOString()}).eq("id",id);
+      await history(id,"responsible_changed",who,"تم تغيير مسؤول المعاملة",{old_responsible:old,new_responsible:target.display_name,reason});
       await notify(target.login_name,target.display_name,id,"responsible_changed",a.tx.title,reason);
       return out(req,{ok:true});
     }
 
     if(action==="close"){
       const id=clean(b.transaction_id),reason=clean(b.reason);if(!reason)return out(req,{error:"reason_required"},400);
-      const a=await txAccess(who,id);if(!a||!a.flags.visible||!canClose(who,a.tx,a.flags)||!hasPerm(who,"transactions.close"))return out(req,{error:"forbidden"},403);
+      const a=await txAccess(who,id);if(!a||!a.flags.visible||!canClose(who,a)||!hasPerm(who,"transactions.close"))return out(req,{error:"forbidden"},403);
       await closeTx(who,a.tx,reason);return out(req,{ok:true});
     }
     if(action==="request_close"){
       const id=clean(b.transaction_id),reason=clean(b.reason);if(!reason)return out(req,{error:"reason_required"},400);
       const a=await txAccess(who,id);if(!a||!a.flags.visible)return out(req,{error:"forbidden"},403);
-      const row=await createRequest(who,a.tx,"close",reason);return out(req,{ok:true,row});
+      const targetRole=closeRequestTarget(who,a);
+      const row=await createRequest(who,a.tx,"close",reason,{meta:{target_role:targetRole,cross_sector:isCrossSector(a)}});
+      return out(req,{ok:true,row,target_role:targetRole});
     }
     if(action==="reopen"){
       const id=clean(b.transaction_id),reason=clean(b.reason);if(!reason)return out(req,{error:"reason_required"},400);
-      const a=await txAccess(who,id);if(!a||!a.flags.visible||!canClose(who,a.tx,a.flags)||!hasPerm(who,"transactions.reopen"))return out(req,{error:"forbidden"},403);
+      const a=await txAccess(who,id);if(!a||!a.flags.visible||!canClose(who,a)||!hasPerm(who,"transactions.reopen"))return out(req,{error:"forbidden"},403);
       if(a.tx.origin==="legacy"&&(!a.tx.responsible_unit_id||!a.tx.responsible_login_name)){
         const unitId=clean(b.responsible_unit_id),login=clean(b.responsible_login_name);
         if(!unitId||!login)return out(req,{error:"legacy_context_required"},409);
@@ -900,15 +983,27 @@ Deno.serve(async(req:Request)=>{
       const {data:r}=await db.from("transaction_requests").select("*").eq("id",requestId).eq("status","pending").maybeSingle();
       if(!r)return out(req,{error:"not_found"},404);
       const a=await txAccess(who,r.transaction_id);if(!a||!a.flags.visible)return out(req,{error:"forbidden"},403);
-      const requesterRole=clean(r.meta?.requester_role);
-      let allowed=hasPerm(who,"transactions.act_all");
-      if(who.role==="assistant"&&["manager","employee"].includes(requesterRole)&&a.flags.scope)allowed=true;
-      if(who.role==="manager"&&requesterRole==="employee"&&a.flags.scope)allowed=true;
+      const requesterRole=clean(r.meta?.requester_role),targetRole=clean(r.meta?.target_role);
+      let allowed=false;
+      if(targetRole==="ceo")allowed=isExec(who.role)&&hasPerm(who,"transactions.act_all");
+      else if(targetRole==="assistant")allowed=who.role==="assistant"&&a.flags.scope;
+      else if(targetRole==="manager")allowed=who.role==="manager"&&a.flags.scope;
+      else{
+        allowed=hasPerm(who,"transactions.act_all");
+        if(who.role==="assistant"&&["manager","employee"].includes(requesterRole)&&a.flags.scope)allowed=true;
+        if(who.role==="manager"&&requesterRole==="employee"&&a.flags.scope)allowed=true;
+      }
       if(!allowed)return out(req,{error:"forbidden"},403);
       if(!approve&&!decisionReason)return out(req,{error:"reason_required"},400);
       const now=new Date().toISOString();
       if(approve){
-        if(r.request_type==="close")await closeTx(who,a.tx,r.reason);
+        if(r.request_type==="close"){
+          if(canClose(who,a))await closeTx(who,a.tx,r.reason);
+          else{
+            const nextRole=closeRequestTarget(who,a);
+            await createRequest(who,a.tx,"close",r.reason,{meta:{target_role:nextRole,forwarded_from_request:r.id,cross_sector:isCrossSector(a)}});
+          }
+        }
         else if(r.request_type==="reopen"){
           if(a.tx.origin==="legacy"&&(!a.tx.responsible_unit_id||!a.tx.responsible_login_name)){
             const unitId=clean(r.meta?.responsible_unit_id),login=clean(r.meta?.responsible_login_name);

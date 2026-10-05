@@ -193,6 +193,7 @@ body.modal-open{overflow:hidden}
 .workspace-subject{min-width:0}
 .workspace-subject .section-title{margin:0 0 10px}
 .workspace-subject .action-text{font-size:15px;color:var(--ink);line-height:1.9}
+.workspace-help{margin:0 0 14px;padding:11px 13px;border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--surface-2);color:var(--muted);font-size:12.5px;line-height:1.8}
 .workspace-attachment{margin-top:18px;font-size:13px}
 .details-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0;align-content:start}
 .detail{border:0;border-bottom:1px solid var(--line);padding:12px;min-height:74px;min-width:0;background:var(--surface);text-align:start;color:inherit;font:inherit;border-radius:0}

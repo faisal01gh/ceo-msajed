@@ -370,6 +370,7 @@ function wirePasswordToggle(button,input){
   };
 }
 function passwordChangeView(ctx){
+  const operationId=crypto.randomUUID();
   root.innerHTML=`
   <section class="password-shell" role="main">
     <form class="password-card" id="passwordForm">
@@ -396,21 +397,15 @@ function passwordChangeView(ctx){
     if(p!==pConfirm){msg.textContent="كلمتا المرور غير متطابقتين";return}
     component.setBusy(true);msg.textContent="";
     try{
-      const {r:upd}=await fetchJson(CONFIG.supabaseUrl+"/auth/v1/user",{
-        method:"PUT",
-        headers:{"Content-Type":"application/json","apikey":CONFIG.publishableKey,Authorization:"Bearer "+ctx.auth.access_token},
-        body:JSON.stringify({password:p})
-      });
-      if(!upd.ok)throw new Error("password_update_failed");
-      const confirmed=await post(CONFIG.confirmPasswordFn,{access_token:ctx.auth.access_token},false);
+      const confirmed=await credentialCommand(CONFIG.confirmPasswordFn,ctx.auth.access_token,p,operationId);
       session={
-        app:"new",token:ctx.auth.access_token,refresh_token:ctx.auth.refresh_token||null,
+        app:"new",token:confirmed.auth.access_token,refresh_token:confirmed.auth.refresh_token||null,
         username:confirmed.login_username||confirmed.preferred_login,login_name:confirmed.preferred_login,
         display_name:confirmed.display_name,role:confirmed.role,legacy_role:""
       };
       saveSession();currentTab="";currentSection="transactions";await boot();
-    }catch{
-      msg.textContent="تعذر حفظ كلمة المرور";
+    }catch(err){
+      msg.textContent=credentialError(err);
       component.setBusy(false);
     }
   };
@@ -485,7 +480,7 @@ async function boot(){
     }
     renderApp();
   }catch(err){
-    if(err.status===401){clearSession();loginView();return}
+    if(err.status===401||err.status===403){clearSession();loginView();return}
     root.innerHTML='<section class="loading"><h1>تعذّر تحميل المعاملات</h1><p role="alert">تحقق من الاتصال ثم أعد المحاولة. لم تتغير بياناتك.</p><button class="btn btn-blue" id="retryBoot">إعادة المحاولة</button></section>';
     document.getElementById("retryBoot").onclick=boot;
   }
@@ -532,7 +527,24 @@ async function wireSectionSidebar(){
 async function loadProfile(){
   profileData=await rpc("my_profile");
 }
+async function credentialCommand(fn,token,password,operationId,targetKey){
+  return post(fn,{access_token:token,new_password:password,operation_id:operationId,...(targetKey?{target_key:targetKey}:{})},false);
+}
+function credentialError(err){
+  if(err?.message==='same_password')return 'اختر كلمة مرور مختلفة عن كلمة المرور الحالية.';
+  if(err?.message==='password_changed_login_required')return 'تغيّرت كلمة المرور. سجّل الدخول بكلمة المرور الجديدة.';
+  if(err?.message==='provider_password_rejected')return 'رفضت خدمة الدخول كلمة المرور. سجّل الدخول مجددًا ثم اختر كلمة أخرى تحقق الشروط.';
+  if(err?.message==='operation_candidate_mismatch')return 'هذه ليست كلمة المرور التي عُيّنت في العملية الأصلية. لا تسلّمها للموظف.';
+  if(err?.message==='credential_operation_superseded')return 'أصبحت هذه العملية قديمة. أعد فتح الحساب للتحقق من حالته الحالية.';
+  if(['credential_operation_pending','credential_operation_unresolved'].includes(err?.message))return 'لم تتأكد نتيجة العملية. لا تعِد تعيين كلمة أخرى؛ أعد المحاولة نفسها أو تواصل مع مدير المكتب.';
+  if(['unauthorized','forbidden'].includes(err?.message))return 'انتهت الجلسة أو لا تملك الصلاحية. سجّل الدخول ثم حاول مرة أخرى.';
+  return 'تعذر حفظ كلمة المرور. تحقق من الاتصال ثم حاول مرة أخرى.';
+}
+function credentialUncertain(err){
+  return !err?.status||err.status>=500||['credential_operation_pending','credential_operation_unresolved','operation_candidate_mismatch','credential_operation_superseded'].includes(err?.message);
+}
 function openOwnPasswordChange(){
+  const operationId=crypto.randomUUID();
   const w=modal("تغيير كلمة المرور",passwordComponentMarkup("profile"),
     '<button class="btn btn-green" id="saveProfilePassword" disabled>حفظ</button><button class="btn btn-soft" data-exit>خروج</button>');
   w.querySelector("[data-exit]").onclick=()=>w.remove();
@@ -543,14 +555,12 @@ function openOwnPasswordChange(){
     if(!passwordStrong(p)||p!==p2.value){showRequestError(w,"أكمل شروط كلمة المرور وتأكد من تطابق كلمتي المرور.");return}
     component.setBusy(true);
     try{
-      const {r}=await fetchJson(CONFIG.supabaseUrl+"/auth/v1/user",{
-        method:"PUT",
-        headers:{"Content-Type":"application/json","apikey":CONFIG.publishableKey,Authorization:"Bearer "+session.token},
-        body:JSON.stringify({password:p})
-      });
-      if(!r.ok)throw new Error("password_update_failed");
+      const changed=await credentialCommand(CONFIG.confirmPasswordFn,session.token,p,operationId);
+      session.token=changed.auth.access_token;session.refresh_token=changed.auth.refresh_token;saveSession();
+      p1.value='';p2.value='';
       w.remove();
-    }catch{component.setBusy(false);showRequestError(w)}
+      showNotice('حُفظت كلمة المرور الجديدة.',true);
+    }catch(err){component.setBusy(false);showRequestError(w,credentialError(err))}
   };
 }
 function renderProfileApp(){
@@ -633,6 +643,7 @@ function renderPermissionsApp(){
             </select></label>
             ${selected?'<span class="account-state '+(selected.user_id?"linked":"pending")+'">'+(selected.user_id?"الحساب مفعل":"بانتظار تفعيل الحساب")+'</span>':""}
             ${selected&&sessionPermissions.includes("profiles.admin_edit_name")?'<button class="btn btn-soft" id="editAccountNameBtn">تعديل الاسم</button>':""}
+            ${selected?.user_id&&selected.canonical_key!=='faisal'&&session?.role==='ceo_office_manager'&&sessionPermissions.includes('profiles.admin_reset_password')?'<button class="btn btn-soft" id="resetAccountPasswordBtn">إعادة تعيين كلمة المرور</button>':''}
           </div>
           <div id="permissionsGrid">
             ${selected?renderPermissionGrid(selected):'<div class="empty">لا توجد حسابات</div>'}
@@ -652,6 +663,8 @@ function renderPermissionsApp(){
   if(userSelect)userSelect.onchange=e=>{permissionsSelectedUser=e.target.value;renderPermissionsApp()};
   const editNameBtn=document.getElementById("editAccountNameBtn");
   if(editNameBtn&&selected)editNameBtn.onclick=()=>openAdminAccountName(selected);
+  const resetBtn=document.getElementById('resetAccountPasswordBtn');
+  if(resetBtn&&selected)resetBtn.onclick=()=>openAdminPasswordReset(selected);
   document.querySelectorAll("[data-permission-toggle]").forEach(input=>input.onchange=async e=>{
     const target=e.target;
     if(!selected?.canonical_key){target.checked=!target.checked;return}
@@ -670,6 +683,38 @@ function renderPermissionsApp(){
       showNotice(saved?"حُفظ التعديل، لكن تعذر تحديث القائمة. أعد فتح قسم الصلاحيات للتحقق.":"تعذر تأكيد حفظ الصلاحية. أعد فتح القسم للتحقق من القيمة الحالية.");
     }
   });
+}
+function temporaryPassword(){
+  const alphabet='ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%';
+  let value;
+  do{value=Array.from(crypto.getRandomValues(new Uint32Array(18)),n=>alphabet[n%alphabet.length]).join('')}while(!passwordStrong(value));
+  return value;
+}
+function openAdminPasswordReset(user){
+  if(session?.role!=='ceo_office_manager'||!hasTxPerm('profiles.admin_reset_password')||!user?.user_id||user.canonical_key==='faisal')return;
+  let operationId=crypto.randomUUID();
+  const w=modal('إعادة تعيين كلمة المرور','<p>'+esc(user.display_name)+'</p><p class="profile-note">كلمة مؤقتة للتسليم. سيُطلب من الموظف تغييرها عند الدخول التالي.</p>'+passwordComponentMarkup('admin'),
+    '<button class="btn btn-soft" id="generateAdminPassword" type="button">توليد كلمة مؤقتة</button><button class="btn btn-green" id="saveAdminPassword" disabled>تعيين كلمة المرور</button><button class="btn btn-soft" data-exit>خروج</button>');
+  const component=wirePasswordComponent(w,'admin',w.querySelector('#saveAdminPassword'));
+  w.querySelector('[data-exit]').onclick=()=>{component.first.value='';component.second.value='';w.remove()};
+  const generate=w.querySelector('#generateAdminPassword');
+  generate.onclick=()=>{const value=temporaryPassword();component.first.value=value;component.second.value=value;component.first.dispatchEvent(new Event('input',{bubbles:true}));component.second.dispatchEvent(new Event('input',{bubbles:true}))};
+  w.querySelector('#saveAdminPassword').onclick=async()=>{
+    const value=component.first.value;
+    if(!passwordStrong(value)||value!==component.second.value)return;
+    component.setBusy(true);generate.disabled=true;
+    try{
+      await credentialCommand('account-admin-reset-password',session.token,value,operationId,user.canonical_key);
+      component.setBusy(false);component.first.readOnly=true;component.second.readOnly=true;
+      w.querySelector('#saveAdminPassword').remove();generate.remove();
+      showRequestError(w,'عُيّنت كلمة المرور المؤقتة. سلّمها للموظف بأمان قبل إغلاق النافذة؛ لا تُحفظ نسخة منها في النظام.');
+    }catch(err){
+      component.setBusy(false);
+      if(credentialUncertain(err)){component.first.readOnly=true;component.second.readOnly=true;generate.disabled=true}
+      else{generate.disabled=false;if(err?.message==='provider_password_rejected')operationId=crypto.randomUUID()}
+      showRequestError(w,credentialError(err));
+    }
+  };
 }
 function openAdminAccountName(user){
   const w=modal("تعديل اسم المستخدم",`

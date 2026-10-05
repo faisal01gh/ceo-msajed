@@ -62,7 +62,10 @@ with sync_playwright() as pw:
     check('delayed-open-no-pageerror',not errors,errors);page.close()
 
     page,errors=fresh()
-    page.evaluate('openOwnPasswordChange()');page.wait_for_timeout(80);page.locator('#saveProfilePassword').click();page.wait_for_timeout(80)
+    page.evaluate('openOwnPasswordChange()');page.wait_for_timeout(80)
+    check('password-invalid-submit-disabled',page.locator('#saveProfilePassword').is_disabled())
+    # Exercise defense-in-depth directly; an actual disabled-button click cannot submit.
+    page.evaluate('document.getElementById("saveProfilePassword").onclick()');page.wait_for_timeout(80)
     message=page.locator('.modal-feedback').inner_text()
     check('password-invalid-has-specific-feedback','كلمة المرور' in message and 'الاتصال' not in message,message)
     check('password-invalid-no-backend-call',not page.evaluate('window.__fixtureCalls.length'))

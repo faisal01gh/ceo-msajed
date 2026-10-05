@@ -7,7 +7,7 @@ const db=createClient(URL,KEY,{auth:{persistSession:false,autoRefreshToken:false
 const CACHE_MS=60000;
 let directoryCache:{at:number,data:any[]}={at:0,data:[]};
 let unitsCache:{at:number,data:any[]}={at:0,data:[]};
-const identityCache=new Map<string,{at:number,who:Who}>();
+
 
 type Who={
   app:string;
@@ -45,7 +45,7 @@ function safeHttpUrl(v:any){
   const value=clean(v);
   if(!value)return null;
   try{
-    const u=new URL(value);
+    const u=new globalThis.URL(value);
     return ["http:","https:"].includes(u.protocol)?u.href:null;
   }catch{return null}
 }
@@ -121,12 +121,16 @@ async function directory(){
 }
 async function identity(app:string,token:string):Promise<Who|null>{
   if(app!=="new"||!token)return null;
-  const cacheKey=app+":"+token;
-  const cached=identityCache.get(cacheKey);
-  if(cached&&Date.now()-cached.at<5000)return cached.who;
-
   const auth=await db.auth.getUser(token);
   if(auth.error||!auth.data.user)return null;
+  let sid:string;
+  try{
+    const claims=JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')),x=>x.charCodeAt(0))));
+    if(claims.sub!==auth.data.user.id||claims.iss!==URL+'/auth/v1'||claims.role!=='authenticated'||typeof claims.session_id!=='string'||!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(claims.session_id))return null;
+    sid=claims.session_id;
+  }catch{return null}
+  const access=await db.rpc('account_session_check_internal',{p_user:auth.data.user.id,p_session:sid,p_allow_forced:false});
+  if(access.error||access.data!==true)return null;
   const {data:ctx,error}=await db.rpc("user_context_internal",{p_user_id:auth.data.user.id});
   if(error||!ctx||ctx.active!==true||ctx.must_change_password===true)return null;
 
@@ -148,7 +152,7 @@ async function identity(app:string,token:string):Promise<Who|null>{
     permissions:[]
   };
   who.permissions=await effectivePermissions(who);
-  identityCache.set(cacheKey,{at:Date.now(),who});
+
   return who;
 }
 async function units(){

@@ -5,7 +5,7 @@ import tree_sitter_javascript
 
 repo=Path(__file__).resolve().parents[1]
 p=Parser(Language(tree_sitter_javascript.language()))
-baseline='d4005fa2e6f530fab4cd53fe2dfd6539e6a9f439'
+baseline='b1dcc08091a7f4a482e2be10dc442bb6bc0b46ec'
 before=subprocess.check_output(['git','show',baseline+':app.js'],cwd=repo)
 after=(repo/'app.js').read_bytes()
 
@@ -19,8 +19,8 @@ def functions(data):
 
 b=functions(before);a=functions(after)
 
-# Security/auth/session/navigation primitives were not part of this approved
-# transaction-workflow refinement and must remain byte-for-byte stable.
+# Preserve unchanged transport/session/navigation and transaction-scope primitives.
+# The approved password command, bootstrap recovery and reset UI are tested separately.
 preserve=[
     'passwordPolicy','passwordStrong','tabsFor','defaultTab','hasTxPerm','isExec',
     'canManagePermissions','hasAnyRoutePerm','baseBody','apiUrl','fetchJson','rpc',
@@ -57,14 +57,27 @@ allowed={
     'supabase/functions/transactions-api/index.ts',
     'supabase/migrations/20261005182000_transaction_detail_edit_permissions.sql',
     'tests/ui_contracts.py','tests/ui_public_deployment.py','tests/ui_renderer.py',
-    'tests/ui_static.py','tests/transaction_refinements.py'
+    'tests/ui_static.py','tests/transaction_refinements.py',
+    '.gitignore','docs/auth/ACCOUNTS_SPEC.md',
+    'scripts/accounts-provision.mjs',
+    'supabase/functions/account-confirm-password/index.ts',
+    'supabase/functions/account-admin-reset-password/index.ts',
+    'supabase/functions/_shared/password-command.ts',
+    'supabase/functions/_shared/password-port.ts',
+    'supabase/migrations/20261005200000_password_operations_and_safe_provisioning.sql',
+    'tests/accounts_provision.mjs','tests/accounts_live_e2e.py',
+    'tests/accounts_live_e2e_contracts.py','tests/password_command_test.ts',
+    'tests/password_edge_test.ts','tests/password_security_sql.mjs',
+    'tests/password_security_sql_cases.mjs','tests/password_security_sql_README.md',
+    'tests/password_transaction_gate.py','tests/password_transport.py',
+    'tests/transaction_safe_url.py','tests/ui_regressions.py'
 }
 paths=set(subprocess.check_output(['git','diff','--name-only',baseline],cwd=repo,text=True).splitlines())
 paths.update(subprocess.check_output(['git','ls-files','--others','--exclude-standard'],cwd=repo,text=True).splitlines())
 
 for name in ['index.html','service-worker.js']:
     current=(repo/name).read_text(encoding='utf-8').replace('\r\n','\n')
-    assert '20261005-5' in current, f'{name} does not reference current asset version'
+    assert '20261005-7' in current, f'{name} does not reference current asset version'
 
 restricted=[x for x in ['urgkbbconlxeagfgyjee','msajed-tasks','sb_secret_','service_role','setInterval(']
             if x in source+(repo/'index.html').read_text(encoding='utf-8')]
@@ -84,6 +97,6 @@ print(json.dumps(report,ensure_ascii=False,indent=2))
 assert all(results.values()), 'Protected auth/session/navigation function changed'
 assert not missing_added, 'Expected transaction helper missing'
 assert not missing_markers, 'Expected transaction UI marker missing'
-assert paths<=allowed, 'File changed outside approved transaction/UI/test/document scope'
+assert paths<=allowed, 'File changed outside approved accounts/password/UI/test/document scope'
 assert not restricted, 'Restricted frontend marker found'
 assert not tree.root_node.has_error, 'JavaScript parse error'

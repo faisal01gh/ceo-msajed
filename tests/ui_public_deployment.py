@@ -11,7 +11,7 @@ def check(name,ok,info=None):report['checks'].append({'name':name,'passed':bool(
 with sync_playwright() as pw:
     browser=pw.chromium.launch();context=browser.new_context()
     context.add_init_script('window.__cspViolations=[];document.addEventListener("securitypolicyviolation",e=>window.__cspViolations.push({directive:e.violatedDirective,blocked:e.blockedURI}));')
-    for name,path in [('index.html','/'),('app.js','/app.js?v=20261005-1'),('styles.css','/styles.css?v=20261005-1'),('service-worker.js','/service-worker.js')]:
+    for name,path in [('index.html','/'),('app.js','/app.js?v=20261005-2'),('styles.css','/styles.css?v=20261005-2'),('service-worker.js','/service-worker.js')]:
         response=context.request.get(base+path);data=response.body();committed=subprocess.check_output(['git','show',sha+':'+name],cwd=repo)
         # Git normalization can make the checkout CRLF; compare committed bytes.
         item={'file':name,'status':response.status,'matches_commit':data==committed,'sha256':hashlib.sha256(data).hexdigest(),'commit_sha256':hashlib.sha256(committed).hexdigest()};report['assets'].append(item)
@@ -24,12 +24,12 @@ with sync_playwright() as pw:
         check(f'{width}/identity',page.title()=='جمعية عمارة المساجد')
         page.locator('#loginBtn').click();check(f'{width}/empty-form-feedback','أكمل الحقلين' in page.locator('#loginMsg').inner_text())
         check(f'{width}/csp',not page.evaluate('window.__cspViolations'),page.evaluate('window.__cspViolations'))
-        check(f'{width}/script-version','20261005-1' in page.locator('script[src]').get_attribute('src'))
+        check(f'{width}/script-version','20261005-2' in page.locator('script[src]').get_attribute('src'))
         page.locator('#toggleLoginPassword').click();check(f'{width}/show-hide',page.locator('#password').get_attribute('type')=='text')
         page.screenshot(path=str(out/f'{width}-public-login.png'),full_page=True)
     page.wait_for_function('navigator.serviceWorker.controller!==null',timeout=20000)
     worker=page.evaluate('async()=>{const r=await navigator.serviceWorker.ready;return {script:r.active?.scriptURL,state:r.active?.state,caches:await caches.keys()}}')
-    check('service-worker/active',worker['state']=='activated',worker);check('service-worker/new-cache','ceo-msajed-static-20261005-1' in worker['caches'],worker)
+    check('service-worker/active',worker['state']=='activated',worker);check('service-worker/new-cache','ceo-msajed-static-20261005-2' in worker['caches'],worker)
     check('no-page-errors',not report['page_errors']);check('no-console-errors',not report['console_errors']);check('no-failed-requests',not report['failed_requests'])
     browser.close()
 report['passed']=all(c['passed'] for c in report['checks']);(out/'public-report.json').write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding='utf-8')

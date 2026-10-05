@@ -213,15 +213,63 @@ async function signInNew(email,password){
 }
 function passwordPolicy(value){
   return {
-    length:value.length>=8,
+    length:Array.from(value).length>=8,
     upper:/[A-Z]/.test(value),
     lower:/[a-z]/.test(value),
-    symbol:/[^A-Za-z0-9]/.test(value)
+    symbol:/[!@#$%^&*()_+\-=\[\]{};':"\\|<>?,.\/\x60~]/.test(value),
+    digit:/[0-9]/.test(value)
   };
 }
-function passwordRulesMarkup(value=""){
-  const policy=passwordPolicy(value);
-  return [["length","8+ أحرف"],["upper","حرف كبير"],["lower","حرف صغير"],["symbol","رمز"]].map(([key,label])=>'<span class="password-rule '+(policy[key]?"ok":"")+'">'+(policy[key]?'<span class="password-hint-icon" aria-hidden="true">✓</span><span class="sr-only">متحقق: </span>':"")+esc(label)+'</span>').join("");
+function passwordComponentIds(prefix=""){
+  const stem=prefix?prefix[0].toUpperCase()+prefix.slice(1):"";
+  return {
+    first:prefix?prefix+"NewPassword":"newPassword",
+    second:prefix?prefix+"ConfirmPassword":"confirmPassword",
+    firstToggle:"toggle"+stem+"NewPassword",
+    secondToggle:"toggle"+stem+"ConfirmPassword",
+    rules:prefix?prefix+"PasswordRules":"passwordRules",
+    match:prefix?prefix+"PasswordMatch":"passwordMatch"
+  };
+}
+function passwordRulesMarkup(value="",confirmation="",prefix=""){
+  const ids=passwordComponentIds(prefix);
+  const state={...passwordPolicy(value),match:!!value&&!!confirmation&&value===confirmation};
+  const rules=[["upper","حرف كبير (ABC)"],["lower","حرف صغير (abc)"],["symbol","رمز (! @ #)"],["length","8 خانات على الأقل"],["digit","رقم (123)"],["match","كلمتا المرور متطابقتان"]];
+  return '<ul class="password-requirements" id="'+ids.rules+'" aria-label="شروط كلمة المرور">'+rules.map(([key,label])=>'<li class="password-requirement '+(state[key]?"ok":"")+'" data-password-rule="'+key+'" id="'+(key==="match"?ids.match:ids.rules+"-"+key)+'"><span class="password-rule-indicator" aria-hidden="true">'+(state[key]?"✓":"")+'</span><span>'+esc(label)+'</span><span class="sr-only">'+(state[key]?" — متحقق":" — غير متحقق")+'</span></li>').join("")+'</ul>';
+}
+function passwordComponentMarkup(prefix=""){
+  const ids=passwordComponentIds(prefix);
+  return `<div class="password-field-group">
+    <label for="${ids.first}">كلمة المرور الجديدة</label>
+    <div class="password-input-wrap">
+      <input class="field password-input" id="${ids.first}" type="password" autocomplete="new-password" aria-describedby="${ids.rules}" placeholder="أدخل كلمة المرور الجديدة">
+      <button class="password-toggle" id="${ids.firstToggle}" type="button" aria-label="إظهار كلمة المرور">${passwordEyeIcon()}</button>
+    </div>
+  </div><div class="password-field-group">
+    <label for="${ids.second}">تأكيد كلمة المرور</label>
+    <div class="password-input-wrap">
+      <input class="field password-input" id="${ids.second}" type="password" autocomplete="new-password" aria-describedby="${ids.match}" placeholder="أعد إدخال كلمة المرور">
+      <button class="password-toggle" id="${ids.secondToggle}" type="button" aria-label="إظهار كلمة المرور">${passwordEyeIcon()}</button>
+    </div>
+  </div>${passwordRulesMarkup("","",prefix)}<span class="sr-only" role="status" aria-live="polite" aria-atomic="true" data-password-match-status></span>`;
+}
+function wirePasswordComponent(container,prefix,button){
+  const ids=passwordComponentIds(prefix);
+  const first=container.querySelector('#'+ids.first),second=container.querySelector('#'+ids.second);
+  const toggles=[container.querySelector('#'+ids.firstToggle),container.querySelector('#'+ids.secondToggle)];
+  wirePasswordToggle(toggles[0],first);wirePasswordToggle(toggles[1],second);
+  let busy=false;
+  const ready=()=>passwordStrong(first.value)&&!!second.value&&first.value===second.value;
+  const draw=()=>{
+    const list=container.querySelector('#'+ids.rules);
+    if(list)list.outerHTML=passwordRulesMarkup(first.value,second.value,prefix);
+    const matchStatus=container.querySelector('[data-password-match-status]');
+    const matchText=second.value?(first.value&&first.value===second.value?"كلمتا المرور متطابقتان":"كلمتا المرور غير متطابقتين"):"";
+    if(matchStatus&&matchStatus.textContent!==matchText)matchStatus.textContent=matchText;
+    button.disabled=busy||!ready();
+  };
+  first.addEventListener('input',draw);second.addEventListener('input',draw);draw();
+  return {first,second,ready,setBusy(value){busy=value;first.disabled=value;second.disabled=value;toggles.forEach(b=>{b.disabled=value});draw()}};
 }
 function passwordStrong(value){return Object.values(passwordPolicy(value)).every(Boolean)}
 function passwordEyeIcon(){
@@ -250,54 +298,20 @@ function passwordChangeView(ctx){
         <p>حدّث كلمة المرور للمتابعة.</p>
       </div>
 
-      <div class="password-field-group">
-        <label for="newPassword">كلمة المرور الجديدة</label>
-        <div class="password-input-wrap">
-          <input class="field password-input" id="newPassword" type="password" autocomplete="new-password" aria-describedby="passwordRules passwordMsg" placeholder="أدخل كلمة المرور الجديدة">
-          <button class="password-toggle" id="toggleNewPassword" type="button" aria-label="إظهار كلمة المرور">${passwordEyeIcon()}</button>
-        </div>
-        <div class="password-inline-hint" id="passwordRules">${passwordRulesMarkup("")}</div>
-      </div>
-
-      <div class="password-field-group">
-        <label for="confirmPassword">تأكيد كلمة المرور</label>
-        <div class="password-input-wrap">
-          <input class="field password-input" id="confirmPassword" type="password" autocomplete="new-password" aria-describedby="passwordMatch passwordMsg" placeholder="أعد إدخال كلمة المرور">
-          <button class="password-toggle" id="toggleConfirmPassword" type="button" aria-label="إظهار كلمة المرور">${passwordEyeIcon()}</button>
-        </div>
-        <div class="password-inline-hint" id="passwordMatch" aria-live="polite"><span class="password-hint-icon">•</span><span>يجب أن تتطابق كلمتا المرور</span></div>
-      </div>
-
-      <button class="password-submit" id="passwordBtn" type="submit">حفظ والدخول</button>
+      ${passwordComponentMarkup()}
+      <button class="password-submit" id="passwordBtn" type="submit" disabled>حفظ والدخول</button>
       <p class="login-msg" id="passwordMsg" aria-live="polite"></p>
     </form>
   </section>`;
-  const p1=document.getElementById("newPassword"),p2=document.getElementById("confirmPassword");
-  wirePasswordToggle(document.getElementById("toggleNewPassword"),p1);
-  wirePasswordToggle(document.getElementById("toggleConfirmPassword"),p2);
-  const updateRules=()=>{
-    const rules=document.getElementById("passwordRules");
-    const valid=passwordStrong(p1.value);
-    rules.innerHTML=passwordRulesMarkup(p1.value);
-    rules.className="password-inline-hint "+(valid?"ok":"");
-    const match=document.getElementById("passwordMatch");
-    if(!p2.value){
-      match.innerHTML='<span class="password-hint-icon">•</span><span>يجب أن تتطابق كلمتا المرور</span>';
-      match.className="password-inline-hint";
-      return;
-    }
-    const ok=p1.value===p2.value;
-    match.innerHTML='<span class="password-hint-icon">'+(ok?"✓":"×")+'</span><span>'+(ok?"يجب أن تتطابق كلمتا المرور · متطابقة":"يجب أن تتطابق كلمتا المرور · غير متطابقة")+'</span>';
-    match.className="password-inline-hint "+(ok?"ok":"bad");
-  };
-  p1.oninput=updateRules;p2.oninput=updateRules;
+  const component=wirePasswordComponent(document.getElementById("passwordForm"),"",document.getElementById("passwordBtn"));
+  const p1=component.first,p2=component.second;
   document.getElementById("passwordForm").onsubmit=async e=>{
     e.preventDefault();
     const p=p1.value,pConfirm=p2.value;
     const msg=document.getElementById("passwordMsg"),btn=document.getElementById("passwordBtn");
     if(!passwordStrong(p)){msg.textContent="أكمل شروط كلمة المرور";return}
     if(p!==pConfirm){msg.textContent="كلمتا المرور غير متطابقتين";return}
-    btn.disabled=true;msg.textContent="";
+    component.setBusy(true);msg.textContent="";
     try{
       const {r:upd}=await fetchJson(CONFIG.supabaseUrl+"/auth/v1/user",{
         method:"PUT",
@@ -314,7 +328,7 @@ function passwordChangeView(ctx){
       saveSession();currentTab="";currentSection="transactions";await boot();
     }catch{
       msg.textContent="تعذر حفظ كلمة المرور";
-      btn.disabled=false;
+      component.setBusy(false);
     }
   };
   p1.focus();
@@ -436,55 +450,24 @@ async function loadProfile(){
   profileData=await rpc("my_profile");
 }
 function openOwnPasswordChange(){
-  const w=modal("تغيير كلمة المرور",`
-    <div class="password-field-group">
-      <label>كلمة المرور الجديدة</label>
-      <div class="password-input-wrap">
-        <input class="field password-input" id="profileNewPassword" type="password" autocomplete="new-password" aria-describedby="profilePasswordRules" placeholder="أدخل كلمة المرور الجديدة">
-        <button class="password-toggle" id="toggleProfileNewPassword" type="button" aria-label="إظهار كلمة المرور">${passwordEyeIcon()}</button>
-      </div>
-      <div class="password-inline-hint" id="profilePasswordRules">${passwordRulesMarkup("")}</div>
-    </div>
-    <div class="password-field-group">
-      <label>تأكيد كلمة المرور</label>
-      <div class="password-input-wrap">
-        <input class="field password-input" id="profileConfirmPassword" type="password" autocomplete="new-password" aria-describedby="profilePasswordMatch" placeholder="أعد إدخال كلمة المرور">
-        <button class="password-toggle" id="toggleProfileConfirmPassword" type="button" aria-label="إظهار كلمة المرور">${passwordEyeIcon()}</button>
-      </div>
-      <div class="password-inline-hint" id="profilePasswordMatch" aria-live="polite"><span class="password-hint-icon">•</span><span>يجب أن تتطابق كلمتا المرور</span></div>
-    </div>`,
-    '<button class="btn btn-green" id="saveProfilePassword">حفظ</button><button class="btn btn-soft" data-exit>خروج</button>');
+  const w=modal("تغيير كلمة المرور",passwordComponentMarkup("profile"),
+    '<button class="btn btn-green" id="saveProfilePassword" disabled>حفظ</button><button class="btn btn-soft" data-exit>خروج</button>');
   w.querySelector("[data-exit]").onclick=()=>w.remove();
-  const p1=w.querySelector("#profileNewPassword"),p2=w.querySelector("#profileConfirmPassword");
-  wirePasswordToggle(w.querySelector("#toggleProfileNewPassword"),p1);
-  wirePasswordToggle(w.querySelector("#toggleProfileConfirmPassword"),p2);
-  const draw=()=>{
-    const rules=w.querySelector("#profilePasswordRules");
-    const valid=passwordStrong(p1.value);
-    rules.innerHTML=passwordRulesMarkup(p1.value);
-    rules.className="password-inline-hint "+(valid?"ok":"");
-    const match=w.querySelector("#profilePasswordMatch");
-    if(!p2.value){
-      match.innerHTML='<span class="password-hint-icon">•</span><span>يجب أن تتطابق كلمتا المرور</span>';
-      match.className="password-inline-hint";
-      return;
-    }
-    const ok=p1.value===p2.value;
-    match.innerHTML='<span class="password-hint-icon">'+(ok?"✓":"×")+'</span><span>'+(ok?"يجب أن تتطابق كلمتا المرور · متطابقة":"يجب أن تتطابق كلمتا المرور · غير متطابقة")+'</span>';
-    match.className="password-inline-hint "+(ok?"ok":"bad");
-  };
-  p1.oninput=draw;p2.oninput=draw;
+  const component=wirePasswordComponent(w,"profile",w.querySelector("#saveProfilePassword"));
+  const p1=component.first,p2=component.second;
   w.querySelector("#saveProfilePassword").onclick=async()=>{
     const p=p1.value;
     if(!passwordStrong(p)||p!==p2.value){showRequestError(w,"أكمل شروط كلمة المرور وتأكد من تطابق كلمتي المرور.");return}
-    const btn=w.querySelector("#saveProfilePassword");btn.disabled=true;
-    const {r}=await fetchJson(CONFIG.supabaseUrl+"/auth/v1/user",{
-      method:"PUT",
-      headers:{"Content-Type":"application/json","apikey":CONFIG.publishableKey,Authorization:"Bearer "+session.token},
-      body:JSON.stringify({password:p})
-    });
-    if(!r.ok){btn.disabled=false;showRequestError(w);return}
-    w.remove();
+    component.setBusy(true);
+    try{
+      const {r}=await fetchJson(CONFIG.supabaseUrl+"/auth/v1/user",{
+        method:"PUT",
+        headers:{"Content-Type":"application/json","apikey":CONFIG.publishableKey,Authorization:"Bearer "+session.token},
+        body:JSON.stringify({password:p})
+      });
+      if(!r.ok)throw new Error("password_update_failed");
+      w.remove();
+    }catch{component.setBusy(false);showRequestError(w)}
   };
 }
 function renderProfileApp(){

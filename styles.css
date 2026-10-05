@@ -47,12 +47,12 @@ button svg,.ui-icon{width:20px;height:20px;fill:none;stroke:currentColor;stroke-
 .password-input{padding-inline-end:54px!important;margin:0!important;min-height:50px}
 .password-toggle{position:absolute;inset-inline-end:3px;top:50%;transform:translateY(-50%);width:44px;height:44px;border:0;background:transparent;color:var(--muted);border-radius:var(--radius-sm);display:grid;place-items:center;transition:background .18s var(--ease),color .18s var(--ease)}
 .password-toggle:hover,.password-toggle.active{background:#eaf1fa;color:var(--blue)}
-.password-inline-hint{min-height:21px;margin:7px 0 0;font-size:12px;line-height:1.7;color:var(--muted);display:flex;align-items:center;gap:5px;flex-wrap:wrap}
-.password-rule{white-space:nowrap;display:inline-flex;align-items:center;gap:3px}
-.password-rule+.password-rule::before{content:"·";margin-inline:2px;color:var(--muted)}
-.password-rule.ok,.password-inline-hint.ok{color:var(--green)}
-.password-inline-hint.bad{color:var(--red)}
-.password-hint-icon{font-size:12px;line-height:1;display:inline-grid;place-items:center;min-width:12px}
+.password-requirements{list-style:none;margin:0 0 22px;padding:0;display:grid;gap:6px}
+.password-requirement{display:flex;align-items:center;gap:9px;font-size:13px;line-height:1.65;color:var(--muted)}
+.password-rule-indicator{display:inline-grid;place-items:center;width:15px;height:15px;border:1px solid #8d9bac;border-radius:50%;flex:none;font-size:11px;font-weight:700;line-height:1}
+.password-requirement.ok{color:var(--green)}
+.password-requirement.ok .password-rule-indicator{border-color:var(--green);background:#e7f3ed}
+.password-field-group+.password-requirements{margin-top:-4px}
 
 /* One form/control vocabulary, including dynamic referral forms. */
 label{display:block;font-size:13px;line-height:1.55;font-weight:600;color:var(--ink-2);margin:0 0 7px}

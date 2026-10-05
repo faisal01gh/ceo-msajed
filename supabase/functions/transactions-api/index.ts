@@ -288,7 +288,7 @@ function isCrossSector(access:any){
   const roots=new Set<string>();
   const add=(unitId:any)=>{const root=rootUnitId(clean(unitId)||null,access.unitMap);if(root)roots.add(root)};
   add(access.tx.responsible_unit_id);
-  for(const a of arr(access.assigns))if(a.status==="active"&&a.unit_id)add(a.unit_id);
+  for(const a of arr(access.assigns))if(a.unit_id)add(a.unit_id);
   return roots.size>1;
 }
 function effectiveCloseAuthority(access:any){
@@ -471,7 +471,7 @@ async function createRequest(who:Who,tx:any,type:string,reason:string,extra:any=
 }
 
 Deno.serve(async(req:Request)=>{
-  if(req.method==="GET")return out(req,{ok:true,service:"transactions-api",version:32});
+  if(req.method==="GET")return out(req,{ok:true,service:"transactions-api",version:33});
   if(req.method==="OPTIONS")return new Response("ok",{headers:cors(req)});
   if(req.method!=="POST")return out(req,{error:"method_not_allowed"},405);
   let b:any;try{b=await req.json()}catch{return out(req,{error:"bad_request"},400)}
@@ -1028,8 +1028,9 @@ Deno.serve(async(req:Request)=>{
         }else if(r.request_type==="change_responsible"){
           const toLogin=clean(r.meta?.to_login),target=await account(toLogin);
           if(!target)return out(req,{error:"invalid_target"},409);
-          await db.from("transactions").update({responsible_login_name:toLogin,responsible_name:target.display_name,updated_at:now}).eq("id",a.tx.id);
-          await history(a.tx.id,"responsible_changed",who,r.reason,{to:target.display_name});
+          const oldResponsible=a.tx.responsible_name||a.tx.responsible_login_name||"";
+          await db.from("transactions").update({responsible_login_name:toLogin,responsible_name:target.display_name,updated_at:now,last_activity_at:now}).eq("id",a.tx.id);
+          await history(a.tx.id,"responsible_changed",who,"تم تغيير مسؤول المعاملة",{old_responsible:oldResponsible,new_responsible:target.display_name,reason:r.reason});
         }
       }
       await db.from("transaction_requests").update({

@@ -44,6 +44,61 @@ function fmtDate(v){
   const d=new Date(v);if(Number.isNaN(d.getTime()))return String(v);
   return new Intl.DateTimeFormat("ar-SA-u-ca-gregory",{year:"numeric",month:"2-digit",day:"2-digit"}).format(d);
 }
+function fmtDateTime(v){
+  if(!v)return "—";
+  const d=new Date(v);if(Number.isNaN(d.getTime()))return String(v);
+  return new Intl.DateTimeFormat("ar-SA-u-ca-gregory",{year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"}).format(d);
+}
+function periodDays(p){
+  if(p?.ended_at)return Number(p.duration_days||0);
+  const start=new Date(p?.started_at||"").getTime();
+  return Number.isFinite(start)?Math.max(1,Math.floor((Date.now()-start)/86400000)+1):0;
+}
+function requestTypeLabel(type){
+  return ({close:"طلب إغلاق المعاملة",reopen:"طلب استرجاع المعاملة",extension:"طلب تمديد",change_responsible:"طلب تغيير المسؤول",cancel:"طلب إلغاء المعاملة"})[type]||"طلب";
+}
+function requestStatusLabel(status){
+  return ({pending:"قيد الانتظار",approved:"معتمد",rejected:"مرفوض"})[status]||status||"—";
+}
+function requestTargetLabel(role){
+  return ({manager:"مدير الإدارة",assistant:"المساعد",ceo:"مستوى الرئيس"})[role]||"";
+}
+function transactionRequestedText(d){
+  const routes=[...(d?.routes||[])].reverse();
+  return routes.find(r=>String(r.proposed_decision||"").trim())?.proposed_decision||d?.transaction?.subject||"—";
+}
+function historyText(h){
+  const m=h?.meta||{},actor=h?.actor_name||"—",detail=String(h?.detail||"").trim();
+  if(h.event_type==="priority_changed"){
+    let old=m.old_priority||"",next=m.new_priority||"";
+    if((!old||!next)&&detail.includes("→")){const p=detail.split("→");old=p[0]?.trim()||old;next=p[1]?.trim()||next}
+    return "تم تغيير أولوية المعاملة"+(old&&next?" من «"+old+"» إلى «"+next+"»":"")+" من قبل «"+actor+"»"+(m.reason?" بسبب «"+m.reason+"»":"");
+  }
+  if(h.event_type==="due_date_changed"){
+    if(m.new_due_at)return (m.old_due_at?"تم تعديل تاريخ استحقاق المعاملة إلى ":"تم تعيين تاريخ استحقاق المعاملة بتاريخ ")+"«"+fmtDate(m.new_due_at)+"» من قبل «"+actor+"»";
+    return "تمت إزالة تاريخ استحقاق المعاملة من قبل «"+actor+"»";
+  }
+  if(h.event_type==="responsible_changed"){
+    return "تم تغيير مسؤول المعاملة"+(m.old_responsible||m.new_responsible?" من «"+(m.old_responsible||"—")+"» إلى «"+(m.new_responsible||"—")+"»":"")+" من قبل «"+actor+"»"+(m.reason?" بسبب «"+m.reason+"»":"");
+  }
+  if(h.event_type==="responsible_unit_changed"){
+    return "تم تغيير الإدارة المسؤولة من «"+(m.old_unit||"—")+"» إلى «"+(m.new_unit||"—")+"» وتعيين «"+(m.new_responsible||"—")+"» مسؤولًا عن المعاملة بواسطة «"+actor+"»";
+  }
+  if(h.event_type==="subject_changed"){
+    return "تم تعديل موضوع المعاملة من قبل «"+actor+"»"+(m.old_subject||m.new_subject?" من «"+(m.old_subject||"—")+"» إلى «"+(m.new_subject||"—")+"»":"");
+  }
+  if(h.event_type==="raise_ceo"){
+    return "تمت إحالة المعاملة من قبل «"+actor+"» إلى الرئيس التنفيذي"+((m.reason||detail)?" بسبب «"+(m.reason||detail)+"»":"")+(m.requested?"، والمطلوب «"+m.requested+"»":"");
+  }
+  if(h.event_type==="closed")return "تم إغلاق المعاملة من قبل «"+actor+"»"+(detail?" بسبب «"+detail+"»":"");
+  if(h.event_type==="reopened")return "تم استرجاع المعاملة من قبل «"+actor+"»"+(detail?" بسبب «"+detail+"»":"");
+  if(h.event_type==="request_close")return "تم طلب إغلاق المعاملة من قبل «"+actor+"»"+(detail?" بسبب «"+detail+"»":"");
+  if(h.event_type==="request_reopen")return "تم طلب استرجاع المعاملة من قبل «"+actor+"»"+(detail?" بسبب «"+detail+"»":"");
+  if(h.event_type==="ceo_view_marked")return "تم إرسال المعاملة لإطلاع الرئيس التنفيذي بواسطة «"+actor+"»";
+  if(h.event_type==="request_approved")return "تم اعتماد الطلب من قبل «"+actor+"»"+(detail?" — "+detail:"");
+  if(h.event_type==="request_rejected")return "تم رفض الطلب من قبل «"+actor+"»"+(detail?" بسبب «"+detail+"»":"");
+  return detail||h?.event_type||"—";
+}
 function apiUrl(fn){return CONFIG.supabaseUrl+"/functions/v1/"+fn}
 async function fetchJson(url,options={},timeoutMs=15000){
   const controller=new AbortController();
@@ -152,7 +207,8 @@ function uiIcon(name){
     edit:'<path d="m15 4 5 5M4 20l4-1 12-12-3-3L5 16Z"/>',
     plus:'<path d="M12 5v14M5 12h14"/>',
     building:'<path d="M4 21V10l8-7 8 7v11M2 21h20M9 21v-7h6v7M8 10h.01M16 10h.01"/>',
-    empty:'<rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 9h8M8 13h5"/>'
+    empty:'<rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 9h8M8 13h5"/>',
+    bell:'<path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/>'
   };
   return '<svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true">'+(paths[name]||paths.transactions)+'</svg>';
 }
@@ -611,7 +667,7 @@ function renderPermissionGrid(user){
   const groups=[
     ["العرض والعمل",["transactions.view_all","transactions.act_all","transactions.create","transactions.ceo_view"]],
     ["الإحالات والإسناد",[...ROUTE_PERMISSION_CODES,"transactions.add_supporting","transactions.decide_assistant_transfer"]],
-    ["إدارة المعاملة",["transactions.change_priority","transactions.change_responsible","transactions.set_due_date","transactions.close","transactions.reopen","transactions.delete_hard"]],
+    ["إدارة المعاملة",["transactions.edit_subject","transactions.change_responsible_unit","transactions.change_priority","transactions.change_responsible","transactions.set_due_date","transactions.close","transactions.reopen","transactions.delete_hard"]],
     ["بيانات الحساب",["profiles.edit_email","profiles.admin_edit_name","profiles.admin_reset_password"]],
     ["صلاحيات أخرى",[]]
   ];
@@ -649,7 +705,7 @@ function renderApp(){
           <h1>المعاملات</h1>
           <div class="user-box">
             <span class="user-name">${esc(session.display_name)}</span>
-            <button class="btn btn-white" id="notifBtn">التنبيهات${unread?" ("+unread+")":""}</button>
+            <button class="btn btn-white notification-bell" id="notifBtn" aria-label="${unread?"لديك "+unread+" تنبيهات غير مقروءة":"لا توجد تنبيهات غير مقروءة"}">${uiIcon("bell")}${unread?'<span class="notification-dot" aria-hidden="true"></span>':""}</button>
             <button class="btn btn-white" id="logoutBtn">تسجيل الخروج</button>
           </div>
         </div>
@@ -762,7 +818,8 @@ function renderListOnly(){
   const notifBtn=document.getElementById("notifBtn");
   if(notifBtn){
     const unread=Number(listData?.counters?.notifications||0);
-    notifBtn.textContent="التنبيهات"+(unread?" ("+unread+")":"");
+    notifBtn.innerHTML=uiIcon("bell")+(unread?'<span class="notification-dot" aria-hidden="true"></span>':"");
+    notifBtn.setAttribute("aria-label",unread?"لديك "+unread+" تنبيهات غير مقروءة":"لا توجد تنبيهات غير مقروءة");
   }
   const stats={
     statIncoming:listData.counters?.incoming,

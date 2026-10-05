@@ -1624,20 +1624,26 @@ function download(name,type,content){
   const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([content],{type}));a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1000);
 }
 function excelXml(rows){
-  return '<?xml version="1.0"?><?mso-application progid="Excel.Sheet"?><Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"><Worksheet ss:Name="المعاملات"><Table>'+rows.map(r=>'<Row>'+r.map(xmlCell).join("")+'</Row>').join("")+'</Table></Worksheet></Workbook>';
+  const body=rows.map((r,i)=>{
+    const prev=i>0?rows[i-1]:null;
+    const style=r.length===1?"Section":(i===0||prev?.length===1?"Header":"Body");
+    return '<Row ss:StyleID="'+style+'">'+r.map(xmlCell).join("")+'</Row>';
+  }).join("");
+  return '<?xml version="1.0"?><?mso-application progid="Excel.Sheet"?><Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"><Styles><Style ss:ID="Body"><Alignment ss:Horizontal="Right" ss:Vertical="Center"/><Font ss:FontName="Arial" ss:Size="11"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E5E7EB"/></Borders></Style><Style ss:ID="Header"><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Font ss:FontName="Arial" ss:Size="11" ss:Bold="1" ss:Color="#FFFFFF"/><Interior ss:Color="#0E7490" ss:Pattern="Solid"/></Style><Style ss:ID="Section"><Alignment ss:Horizontal="Right"/><Font ss:FontName="Arial" ss:Size="12" ss:Bold="1" ss:Color="#0B2E4F"/><Interior ss:Color="#EAF4F8" ss:Pattern="Solid"/></Style></Styles><Worksheet ss:Name="المعاملات"><Table><Column ss:Width="45"/><Column ss:Width="105"/><Column ss:Width="220"/><Column ss:Width="160"/><Column ss:Width="160"/><Column ss:Width="110"/><Column ss:Width="110"/><Column ss:Width="110"/><Column ss:Width="130"/>'+body+'</Table><WorksheetOptions xmlns="urn:schemas-microsoft-com:office:excel"><DisplayRightToLeft/></WorksheetOptions></Worksheet></Workbook>';
 }
 function exportListExcel(){
-  const rows=[["رقم المعاملة","عنوان المعاملة","الإدارة المسؤولة","مسؤول المعاملة","الأولوية","الحالة","عدد الأيام","آخر تحديث"],...(listData.rows||[]).map(r=>[r.number,r.title,r.responsible_unit_name||"",r.responsible_name||"",r.priority,r.status,r.days,fmtDate(r.last_activity_at)])];
+  const rows=[["م","رقم المعاملة","عنوان المعاملة","الإدارة المسؤولة","مسؤول المعاملة","الأولوية","الحالة","عدد الأيام","آخر تحديث"],...(listData.rows||[]).map((r,i)=>[i+1+(page-1)*Number(listData.page_size||50),r.number,r.title,r.responsible_unit_name||"",r.responsible_name||"",r.priority,r.status,r.days,fmtDate(r.last_activity_at)])];
   download("المعاملات.xls","application/vnd.ms-excel;charset=utf-8",excelXml(rows));
 }
 function exportTransactionExcel(d){
   const t=d.transaction,rows=[
-    ["رقم المعاملة",t.number],["عنوان المعاملة",t.title],["موضوع المعاملة",t.subject||""],["الأولوية",t.priority],["الحالة",t.status],["مسؤول المعاملة",t.responsible_name||""],["تاريخ الإنشاء",fmtDate(t.created_at)],["تاريخ الاستحقاق",fmtDate(t.due_at)],
-    [],["إجراءات العمل"],["التاريخ","بواسطة","الإجراء"],...(d.actions||[]).map(a=>[fmtDate(a.created_at),a.actor_name||"",a.action_text||""]),
-    [],["الإسناد"],["التاريخ","النوع","التوجيه","الموظفون"],...(d.assignments||[]).map(a=>[fmtDate(a.created_at),a.assignment_type,a.directive||"",(a.transaction_assignment_targets||[]).map(x=>x.display_name).join("، ")]),
-    [],["الإحالات"],["التاريخ","من","إلى","التوجيه","سبب الرفع","المطلوب"],...(d.routes||[]).map(r=>[fmtDate(r.created_at),r.from_name||"",r.to_name||"",r.directive||"",r.raise_reason||r.transfer_reason||"",r.proposed_decision||""]),
-    [],["الطلبات"],["التاريخ","الطالب","النوع","السبب","الحالة"],...(d.requests||[]).map(r=>[fmtDate(r.created_at),r.requested_by_name||"",r.request_type,r.reason,r.status]),
-    [],["السجل"],["التاريخ","الحدث","بواسطة","التفاصيل"],...(d.history||[]).map(h=>[fmtDate(h.created_at),h.event_type,h.actor_name||"",h.detail||""])
+    ["بيانات المعاملة"],["الحقل","القيمة"],
+    ["رقم المعاملة",t.number],["عنوان المعاملة",t.title],["موضوع المعاملة",t.subject||""],["الإدارة المسؤولة",t.responsible_unit_name||t.legacy_department_name||""],["مسؤول المعاملة",t.responsible_name||""],["الأولوية",t.priority],["الحالة",t.status],["تاريخ الإنشاء",fmtDate(t.created_at)],["تاريخ الاستحقاق",fmtDate(t.due_at)],
+    ["إجراءات العمل"],["التاريخ","بواسطة","الإجراء"],...(d.actions||[]).map(a=>[fmtDateTime(a.created_at),a.actor_name||"",a.action_text||""]),
+    ["الإسناد"],["التاريخ","النوع","التوجيه","الموظفون"],...(d.assignments||[]).map(a=>[fmtDateTime(a.created_at),a.assignment_type,a.directive||"",(a.transaction_assignment_targets||[]).map(x=>x.display_name).join("، ")]),
+    ["الإحالات"],["التاريخ","من","إلى","التوجيه/السبب","المطلوب"],...(d.routes||[]).map(r=>[fmtDateTime(r.created_at),r.from_name||"",r.to_name||"",r.directive||r.raise_reason||r.transfer_reason||"",r.proposed_decision||""]),
+    ["الطلبات والاعتمادات"],["التاريخ","الطالب","النوع","السبب","الحالة"],...(d.requests||[]).map(r=>[fmtDateTime(r.created_at),r.requested_by_name||"",requestTypeLabel(r.request_type),r.reason||"",requestStatusLabel(r.status)]),
+    ["سجل المعاملة"],["التاريخ","التفاصيل"],...(d.history||[]).map(h=>[fmtDateTime(h.created_at),historyText(h)])
   ];
   download("معاملة-"+t.number+".xls","application/vnd.ms-excel;charset=utf-8",excelXml(rows));
 }
@@ -1647,14 +1653,16 @@ function printHtml(title,body){
   w.document.close();w.focus();setTimeout(()=>w.print(),200);
 }
 function printList(){
-  const rows=(listData.rows||[]).map(r=>'<tr><td>'+esc(r.number)+'</td><td>'+esc(r.title)+'</td><td>'+esc(r.responsible_unit_name||"")+'</td><td>'+esc(r.priority)+'</td><td>'+esc(r.status)+'</td></tr>').join("");
-  printHtml("المعاملات",'<h1>المعاملات</h1><table><thead><tr><th>الرقم</th><th>العنوان</th><th>الإدارة</th><th>الأولوية</th><th>الحالة</th></tr></thead><tbody>'+rows+'</tbody></table>');
+  const rows=(listData.rows||[]).map((r,i)=>'<tr><td>'+esc(i+1+(page-1)*Number(listData.page_size||50))+'</td><td>'+esc(r.number)+'</td><td>'+esc(r.title)+'</td><td>'+esc(r.responsible_unit_name||"")+'</td><td>'+esc(r.priority)+'</td><td>'+esc(r.status)+'</td></tr>').join("");
+  printHtml("المعاملات",'<h1>المعاملات</h1><table><thead><tr><th>م</th><th>رقم المعاملة</th><th>العنوان</th><th>الإدارة</th><th>الأولوية</th><th>الحالة</th></tr></thead><tbody>'+rows+'</tbody></table>');
 }
 function printTransaction(d){
   const t=d.transaction;
-  const acts=(d.actions||[]).map(a=>'<tr><td>'+esc(fmtDate(a.created_at))+'</td><td>'+esc(a.actor_name||"")+'</td><td>'+esc(a.action_text||"")+'</td></tr>').join("");
-  const routes=(d.routes||[]).map(r=>'<tr><td>'+esc(fmtDate(r.created_at))+'</td><td>'+esc(r.from_name||"")+'</td><td>'+esc(r.to_name||"")+'</td><td>'+esc(r.directive||r.raise_reason||r.transfer_reason||"")+'</td></tr>').join("");
-  printHtml("معاملة "+t.number,'<h1>'+esc(t.title)+'</h1><table><tr><th>رقم المعاملة</th><td>'+esc(t.number)+'</td></tr><tr><th>الموضوع</th><td>'+esc(t.subject||"")+'</td></tr><tr><th>الأولوية</th><td>'+esc(t.priority)+'</td></tr></table><h2 class="sec">إجراءات العمل</h2><table><tr><th>التاريخ</th><th>بواسطة</th><th>الإجراء</th></tr>'+acts+'</table><h2 class="sec">الإحالات والتوجيهات</h2><table><tr><th>التاريخ</th><th>من</th><th>إلى</th><th>التفاصيل</th></tr>'+routes+'</table>');
+  const acts=(d.actions||[]).map(a=>'<tr><td>'+esc(fmtDateTime(a.created_at))+'</td><td>'+esc(a.actor_name||"")+'</td><td>'+esc(a.action_text||"")+'</td></tr>').join("");
+  const routes=(d.routes||[]).map(r=>'<tr><td>'+esc(fmtDateTime(r.created_at))+'</td><td>'+esc(r.from_name||"")+'</td><td>'+esc(r.to_name||"")+'</td><td>'+esc(r.directive||r.raise_reason||r.transfer_reason||"")+'</td><td>'+esc(r.proposed_decision||"")+'</td></tr>').join("");
+  const hist=(d.history||[]).map(h=>'<tr><td>'+esc(fmtDateTime(h.created_at))+'</td><td>'+esc(historyText(h))+'</td></tr>').join("");
+  const periods=(d.periods||[]).map(p=>'<tr><td>'+esc(p.cycle_no)+'</td><td>'+esc(fmtDate(p.started_at))+'</td><td>'+esc(p.ended_at?fmtDate(p.ended_at):"مستمرة")+'</td><td>'+esc(periodDays(p))+' يوم</td></tr>').join("");
+  printHtml("معاملة "+t.number,'<h1>'+esc(t.title)+'</h1><table><tr><th>رقم المعاملة</th><td>'+esc(t.number)+'</td></tr><tr><th>الموضوع</th><td>'+esc(t.subject||"")+'</td></tr><tr><th>الإدارة المسؤولة</th><td>'+esc(t.responsible_unit_name||t.legacy_department_name||"")+'</td></tr><tr><th>مسؤول المعاملة</th><td>'+esc(t.responsible_name||"")+'</td></tr><tr><th>الأولوية</th><td>'+esc(t.priority)+'</td></tr><tr><th>تاريخ الاستحقاق</th><td>'+esc(fmtDate(t.due_at))+'</td></tr></table><h2 class="sec">دورات العمل</h2><table><tr><th>الدورة</th><th>البداية</th><th>النهاية</th><th>المدة</th></tr>'+periods+'</table><h2 class="sec">إجراءات العمل</h2><table><tr><th>التاريخ</th><th>بواسطة</th><th>الإجراء</th></tr>'+acts+'</table><h2 class="sec">الإحالات والتوجيهات</h2><table><tr><th>التاريخ</th><th>من</th><th>إلى</th><th>السبب/التوجيه</th><th>المطلوب</th></tr>'+routes+'</table><h2 class="sec">سجل المعاملة</h2><table><tr><th>التاريخ</th><th>التفاصيل</th></tr>'+hist+'</table>');
 }
 async function logout(){
   const token=session?.token;

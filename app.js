@@ -1527,11 +1527,43 @@ async function decideRequest(requestId,approve,parent,txId){
     w.remove();parent.remove();await refresh();
   };
 }
-function openPriority(id,parent){
-  const w=modal("الأولوية",'<label>الأولوية</label><select class="field" id="newPriority"><option>عادي</option><option>عاجل</option><option>عاجل جدًا</option></select>',
+function openPriority(id,parent,current){
+  const options=["عادي","عاجل","عاجل جدًا"].map(x=>'<option '+(x===current?"selected":"")+'>'+x+'</option>').join("");
+  const w=modal("تغيير الأولوية",'<label>الأولوية الجديدة</label><select class="field" id="newPriority">'+options+'</select><label>سبب التغيير</label><textarea class="field" id="priorityReason"></textarea>',
     '<button class="btn btn-green" id="save">حفظ</button><button class="btn btn-soft" data-exit>خروج</button>');
   w.querySelector("[data-exit]").onclick=()=>w.remove();
-  w.querySelector("#save").onclick=async()=>{await post(CONFIG.txFn,baseBody("change_priority",{transaction_id:id,priority:w.querySelector("#newPriority").value}));w.remove();parent.remove();await refresh()};
+  w.querySelector("#save").onclick=async()=>{
+    const reason=w.querySelector("#priorityReason").value.trim();if(!reason)return;
+    await post(CONFIG.txFn,baseBody("change_priority",{transaction_id:id,priority:w.querySelector("#newPriority").value,reason}));
+    w.remove();parent.remove();await refresh();
+  };
+}
+function openSubject(id,parent,current){
+  const w=modal("تعديل موضوع المعاملة",'<label>موضوع المعاملة</label><textarea class="field" id="newSubject">'+esc(current||"")+'</textarea>',
+    '<button class="btn btn-green" id="saveSubject">حفظ</button><button class="btn btn-soft" data-exit>خروج</button>');
+  w.querySelector("[data-exit]").onclick=()=>w.remove();
+  w.querySelector("#saveSubject").onclick=async()=>{
+    await post(CONFIG.txFn,baseBody("change_subject",{transaction_id:id,subject:w.querySelector("#newSubject").value}));
+    w.remove();parent.remove();await refresh();
+  };
+}
+function openResponsibleUnit(id,parent,currentUnitId){
+  const units=(directoryData.units||[]).filter(u=>["department","independent","branch","office"].includes(u.unit_type));
+  const w=modal("تغيير الإدارة المسؤولة",'<label>الإدارة المسؤولة</label><select class="field" id="newResponsibleUnit">'+units.map(u=>'<option value="'+u.id+'" '+(u.id===currentUnitId?"selected":"")+'>'+esc(u.name)+'</option>').join("")+'</select><label>مسؤول المعاملة</label><select class="field" id="unitResponsibleUser"></select>',
+    '<button class="btn btn-green" id="saveResponsibleUnit">حفظ</button><button class="btn btn-soft" data-exit>خروج</button>');
+  w.querySelector("[data-exit]").onclick=()=>w.remove();
+  const unit=w.querySelector("#newResponsibleUnit"),user=w.querySelector("#unitResponsibleUser");
+  const fill=()=>{
+    const selected=units.find(x=>x.id===unit.value);
+    const choices=(directoryData.users||[]).filter(u=>selected&&(u.dept_names||[]).includes(selected.name));
+    user.innerHTML=choices.map(u=>'<option value="'+esc(u.login_name)+'">'+esc(u.display_name)+'</option>').join("");
+  };
+  unit.onchange=fill;fill();
+  w.querySelector("#saveResponsibleUnit").onclick=async()=>{
+    if(!unit.value||!user.value)return;
+    await post(CONFIG.txFn,baseBody("change_responsible_unit",{transaction_id:id,responsible_unit_id:unit.value,responsible_login_name:user.value}));
+    w.remove();parent.remove();await refresh();
+  };
 }
 function openDueDate(id,parent,current){
   const v=current?String(current).slice(0,10):"";
@@ -1559,15 +1591,29 @@ function openResponsible(id,parent){
   w.querySelector("#save").onclick=async()=>{const reason=w.querySelector("#respReason").value.trim();if(!reason)return;await post(CONFIG.txFn,baseBody("change_responsible",{transaction_id:id,to_login:w.querySelector("#newResponsible").value,reason}));w.remove();parent.remove();await refresh()};
 }
 async function openNotifications(){
+  const invoker=document.getElementById("notifBtn")||document.activeElement;
   const n=await post(CONFIG.txFn,baseBody("notifications"));
-  const rows=n.rows||[];
-  const w=modal("التنبيهات",rows.length?rows.map(x=>'<button class="notification-item '+(x.read_at?"read":"")+'" data-notif="'+x.id+'"><span>'+esc(x.title)+'</span><small>'+esc(fmtDate(x.created_at))+'</small><b>'+esc(x.body||"")+'</b></button>').join(""):emptyState("لا توجد تنبيهات","ستظهر التنبيهات الجديدة هنا."));
-  w.querySelectorAll("[data-notif]").forEach(b=>b.onclick=async()=>{await post(CONFIG.txFn,baseBody("notification_read",{notification_id:b.dataset.notif}));b.classList.add("read")});
+  const rows=(n.rows||[]).filter(x=>!x.read_at);
+  const w=modal("التنبيهات",rows.length?rows.map(x=>'<button class="notification-item" data-notif="'+x.id+'"><span>'+esc(x.title)+'</span><small>'+esc(fmtDateTime(x.created_at))+'</small><b>'+esc(x.body||"")+'</b></button>').join(""):emptyState("لا توجد تنبيهات جديدة","عند وصول تنبيه جديد سيظهر هنا."));
+  w.querySelectorAll("[data-notif]").forEach((b,i)=>b.onclick=async()=>{
+    const row=rows[i];
+    await post(CONFIG.txFn,baseBody("notification_read",{notification_id:row.id}));
+    listData.counters.notifications=Math.max(0,Number(listData?.counters?.notifications||0)-1);
+    w.remove();renderListOnly();
+    if(row.transaction_id)await openDetails(row.transaction_id,invoker);
+  });
 }
 function copyWhatsApp(d){
-  const t=d.transaction;
-  const text=['*'+t.title+'*','رقم المعاملة: '+t.number,'الأولوية: '+t.priority,'الحالة: '+(t.status==="closed"?"مغلقة":"مفتوحة"),t.subject?'الموضوع: '+t.subject:""].filter(Boolean).join("\n");
-  navigator.clipboard.writeText(text);
+  const t=d.transaction,requested=transactionRequestedText(d);
+  const days=(d.periods||[]).length?periodDays((d.periods||[]).at(-1)):Math.max(1,Math.floor((Date.now()-new Date(t.created_at).getTime())/86400000)+1);
+  const text=[
+    'عنوان المعاملة: *'+(t.title||"—")+'*',
+    'عدد أيام المعاملة: *'+days+'*',
+    'المطلوب: *'+requested+'*',
+    'الإدارة المسؤولة: *'+(t.responsible_unit_name||t.legacy_department_name||"—")+'*',
+    'المسؤول عن المعاملة: *'+(t.responsible_name||"—")+'*'
+  ].join("\n");
+  navigator.clipboard.writeText(text).then(()=>showNotice("تم نسخ ملخص المعاملة لواتساب.",true)).catch(()=>showNotice("تعذر نسخ النص."));
 }
 function xmlCell(v){
   const value=String(v??"").replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g,"")

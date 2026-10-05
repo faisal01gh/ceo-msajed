@@ -76,10 +76,16 @@ function historyText(h){
   }
   if(h.event_type==="due_date_changed"){
     if(m.new_due_at)return (m.old_due_at?"تم تعديل تاريخ استحقاق المعاملة إلى ":"تم تعيين تاريخ استحقاق المعاملة بتاريخ ")+"«"+fmtDate(m.new_due_at)+"» من قبل «"+actor+"»";
+    if(detail&&!detail.includes("إزالة")){
+      const parsed=new Date(detail);
+      if(!Number.isNaN(parsed.getTime()))return "تم تعيين تاريخ استحقاق المعاملة بتاريخ «"+fmtDate(detail)+"» من قبل «"+actor+"»";
+    }
     return "تمت إزالة تاريخ استحقاق المعاملة من قبل «"+actor+"»";
   }
   if(h.event_type==="responsible_changed"){
-    return "تم تغيير مسؤول المعاملة"+(m.old_responsible||m.new_responsible?" من «"+(m.old_responsible||"—")+"» إلى «"+(m.new_responsible||"—")+"»":"")+" من قبل «"+actor+"»"+(m.reason?" بسبب «"+m.reason+"»":"");
+    let old=m.old_responsible||"",next=m.new_responsible||m.to||"";
+    if((!old||!next)&&detail.includes("→")){const p=detail.split("→");old=p[0]?.trim()||old;next=p[1]?.trim()||next}
+    return "تم تغيير مسؤول المعاملة"+(old||next?" من «"+(old||"—")+"» إلى «"+(next||"—")+"»":"")+" من قبل «"+actor+"»"+(m.reason?" بسبب «"+m.reason+"»":"");
   }
   if(h.event_type==="responsible_unit_changed"){
     return "تم تغيير الإدارة المسؤولة من «"+(m.old_unit||"—")+"» إلى «"+(m.new_unit||"—")+"» وتعيين «"+(m.new_responsible||"—")+"» مسؤولًا عن المعاملة بواسطة «"+actor+"»";
@@ -88,7 +94,8 @@ function historyText(h){
     return "تم تعديل موضوع المعاملة من قبل «"+actor+"»"+(m.old_subject||m.new_subject?" من «"+(m.old_subject||"—")+"» إلى «"+(m.new_subject||"—")+"»":"");
   }
   if(h.event_type==="raise_ceo"){
-    return "تمت إحالة المعاملة من قبل «"+actor+"» إلى الرئيس التنفيذي"+((m.reason||detail)?" بسبب «"+(m.reason||detail)+"»":"")+(m.requested?"، والمطلوب «"+m.requested+"»":"");
+    const requested=m.requested||m.proposed_decision||"";
+    return "تمت إحالة المعاملة من قبل «"+actor+"» إلى الرئيس التنفيذي"+((m.reason||detail)?" بسبب «"+(m.reason||detail)+"»":"")+(requested?"، والمطلوب «"+requested+"»":"");
   }
   if(h.event_type==="closed")return "تم إغلاق المعاملة من قبل «"+actor+"»"+(detail?" بسبب «"+detail+"»":"");
   if(h.event_type==="reopened")return "تم استرجاع المعاملة من قبل «"+actor+"»"+(detail?" بسبب «"+detail+"»":"");

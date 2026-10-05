@@ -405,7 +405,7 @@ function passwordChangeView(ctx){
       const confirmed=await post(CONFIG.confirmPasswordFn,{access_token:ctx.auth.access_token},false);
       session={
         app:"new",token:ctx.auth.access_token,refresh_token:ctx.auth.refresh_token||null,
-        username:confirmed.preferred_login,login_name:confirmed.preferred_login,
+        username:confirmed.login_username||confirmed.preferred_login,login_name:confirmed.preferred_login,
         display_name:confirmed.display_name,role:confirmed.role,legacy_role:""
       };
       saveSession();currentTab="";currentSection="transactions";await boot();
@@ -434,7 +434,7 @@ async function login(e){
     }
     session={
       app:"new",token:auth.access_token,refresh_token:auth.refresh_token||null,
-      username:resolved.preferred_login||username,login_name:resolved.preferred_login||username,
+      username:resolved.login_username||username,login_name:resolved.preferred_login||username,
       display_name:resolved.display_name||username,role:resolved.role,legacy_role:""
     };
     saveSession();currentTab="";currentSection="transactions";await boot();return;

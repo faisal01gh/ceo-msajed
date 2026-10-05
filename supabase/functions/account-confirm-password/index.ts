@@ -34,7 +34,7 @@ Deno.serve(async(req:Request)=>{
   const userId=user.data.user.id;
 
   const {data:row}=await admin.from("account_migration_users")
-    .select("canonical_key,preferred_login,display_name,role_code")
+    .select("canonical_key,login_username,preferred_login,display_name,role_code")
     .eq("migrated_user_id",userId).maybeSingle();
   if(!row)return out(req,{error:"not_migrated_account"},403);
 
@@ -47,7 +47,7 @@ Deno.serve(async(req:Request)=>{
   }).eq("canonical_key",row.canonical_key);
 
   return out(req,{
-    ok:true,preferred_login:row.preferred_login,
+    ok:true,login_username:row.login_username,preferred_login:row.preferred_login,
     display_name:row.display_name,role:row.role_code
   });
 });

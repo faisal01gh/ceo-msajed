@@ -8,7 +8,7 @@ edge=(repo/'supabase/functions/transactions-api/index.ts').read_text(encoding='u
 migration=(repo/'supabase/migrations/20261005182000_transaction_detail_edit_permissions.sql').read_text(encoding='utf-8')
 spec=(repo/'docs/transactions/SPEC.md').read_text(encoding='utf-8')
 checks={
-  'edge-version-32':'version:32' in edge,
+  'edge-version-34':'version:34' in edge,
   'exec-direct-close':'if(isExec(who.role))return true' in edge,
   'cross-sector-close':'isCrossSector' in edge and 'effectiveCloseAuthority' in edge,
   'close-target-hierarchy':'closeRequestTarget' in edge and 'target_role' in edge,

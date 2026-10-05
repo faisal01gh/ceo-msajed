@@ -64,28 +64,34 @@ function requestTargetLabel(role){
   return ({manager:"مدير الإدارة",assistant:"المساعد",ceo:"مستوى الرئيس"})[role]||"";
 }
 function transactionRequestedText(d){
+  const assignments=[...(d?.assignments||[])].reverse();
+  const active=assignments.find(a=>a.status==="active"&&String(a.directive||"").trim());
+  if(active?.directive)return active.directive;
   const routes=[...(d?.routes||[])].reverse();
-  return routes.find(r=>String(r.proposed_decision||"").trim())?.proposed_decision||d?.transaction?.subject||"—";
+  const route=routes.find(r=>String(r.proposed_decision||r.directive||r.raise_reason||"").trim());
+  return route?.proposed_decision||route?.directive||route?.raise_reason||d?.transaction?.subject||"—";
 }
 function historyText(h){
   const m=h?.meta||{},actor=h?.actor_name||"—",detail=String(h?.detail||"").trim();
+  const splitArrow=()=>detail.includes("→")?detail.split("→").map(x=>x.trim()):["",""];
+  if(h.event_type==="created")return "تم إنشاء المعاملة بواسطة «"+actor+"»";
+  if(h.event_type==="action")return "تمت إضافة إجراء عمل بواسطة «"+actor+"»: «"+detail+"»";
+  if(h.event_type==="action_revised")return "تم تعديل إجراء عمل بواسطة «"+actor+"»: «"+detail+"»";
+  if(h.event_type==="action_note")return "تمت إضافة ملاحظة على إجراء العمل بواسطة «"+actor+"»: «"+detail+"»";
   if(h.event_type==="priority_changed"){
     let old=m.old_priority||"",next=m.new_priority||"";
-    if((!old||!next)&&detail.includes("→")){const p=detail.split("→");old=p[0]?.trim()||old;next=p[1]?.trim()||next}
+    if(!old||!next){const p=splitArrow();old=old||p[0];next=next||p[1]}
     return "تم تغيير أولوية المعاملة"+(old&&next?" من «"+old+"» إلى «"+next+"»":"")+" من قبل «"+actor+"»"+(m.reason?" بسبب «"+m.reason+"»":"");
   }
   if(h.event_type==="due_date_changed"){
-    if(m.new_due_at)return (m.old_due_at?"تم تعديل تاريخ استحقاق المعاملة إلى ":"تم تعيين تاريخ استحقاق المعاملة بتاريخ ")+"«"+fmtDate(m.new_due_at)+"» من قبل «"+actor+"»";
-    if(detail&&!detail.includes("إزالة")){
-      const parsed=new Date(detail);
-      if(!Number.isNaN(parsed.getTime()))return "تم تعيين تاريخ استحقاق المعاملة بتاريخ «"+fmtDate(detail)+"» من قبل «"+actor+"»";
-    }
+    const date=m.new_due_at||(detail&&detail!=="إزالة تاريخ الاستحقاق"&&detail!=="تمت إزالة تاريخ استحقاق المعاملة"?detail:null);
+    if(date&&!Number.isNaN(new Date(date).getTime()))return (m.old_due_at?"تم تعديل تاريخ استحقاق المعاملة إلى ":"تم تعيين تاريخ استحقاق المعاملة بتاريخ ")+"«"+fmtDate(date)+"» من قبل «"+actor+"»";
     return "تمت إزالة تاريخ استحقاق المعاملة من قبل «"+actor+"»";
   }
   if(h.event_type==="responsible_changed"){
     let old=m.old_responsible||"",next=m.new_responsible||m.to||"";
-    if((!old||!next)&&detail.includes("→")){const p=detail.split("→");old=p[0]?.trim()||old;next=p[1]?.trim()||next}
-    return "تم تغيير مسؤول المعاملة"+(old||next?" من «"+(old||"—")+"» إلى «"+(next||"—")+"»":"")+" من قبل «"+actor+"»"+(m.reason?" بسبب «"+m.reason+"»":"");
+    if(!old||!next){const p=splitArrow();old=old||p[0];next=next||p[1]}
+    return "تم تغيير مسؤول المعاملة"+(old||next?" من «"+(old||"—")+"» إلى «"+(next||"—")+"»":"")+" من قبل «"+actor+"»"+(m.reason?" بسبب «"+m.reason+"»":detail&&!detail.includes("→")?" بسبب «"+detail+"»":"");
   }
   if(h.event_type==="responsible_unit_changed"){
     return "تم تغيير الإدارة المسؤولة من «"+(m.old_unit||"—")+"» إلى «"+(m.new_unit||"—")+"» وتعيين «"+(m.new_responsible||"—")+"» مسؤولًا عن المعاملة بواسطة «"+actor+"»";
@@ -93,17 +99,31 @@ function historyText(h){
   if(h.event_type==="subject_changed"){
     return "تم تعديل موضوع المعاملة من قبل «"+actor+"»"+(m.old_subject||m.new_subject?" من «"+(m.old_subject||"—")+"» إلى «"+(m.new_subject||"—")+"»":"");
   }
+  if(h.event_type==="raise_manager")return "تم رفع المعاملة من قبل «"+actor+"» إلى «"+(m.to||"مدير الإدارة")+"»"+(detail?" بسبب «"+detail+"»":"")+(m.proposed_decision?"، والمطلوب «"+m.proposed_decision+"»":"");
+  if(h.event_type==="raise_assistant")return "تم رفع المعاملة من قبل «"+actor+"» إلى «"+(m.to||"المساعد")+"»"+(detail?" بسبب «"+detail+"»":"")+(m.proposed_decision?"، والمطلوب «"+m.proposed_decision+"»":"");
   if(h.event_type==="raise_ceo"){
     const requested=m.requested||m.proposed_decision||"";
     return "تمت إحالة المعاملة من قبل «"+actor+"» إلى الرئيس التنفيذي"+((m.reason||detail)?" بسبب «"+(m.reason||detail)+"»":"")+(requested?"، والمطلوب «"+requested+"»":"");
   }
+  if(h.event_type==="exec_to_assistant")return "تمت إحالة المعاملة من قبل «"+actor+"» إلى «"+(m.to||"المساعد")+"»"+(detail?" بالتوجيه «"+detail+"»":"");
+  if(h.event_type==="directive_employee")return "تم إسناد المعاملة بواسطة «"+actor+"»"+(m.unit?" إلى إدارة «"+m.unit+"»":"")+(Array.isArray(m.targets)&&m.targets.length?" للموظفين «"+m.targets.join("، ")+"»":"")+(detail?" بالتوجيه «"+detail+"»":"");
+  if(h.event_type==="assistant_scope_route")return "تم إسناد المعاملة داخل نطاق المساعد بواسطة «"+actor+"»"+(detail?" بالتوجيه «"+detail+"»":"");
+  if(h.event_type==="direct_assign")return "تم إسناد المعاملة مباشرة بواسطة «"+actor+"»"+(Array.isArray(m.targets)&&m.targets.length?" إلى «"+m.targets.join("، ")+"»":"")+(detail?" بالتوجيه «"+detail+"»":"");
+  if(h.event_type==="assistant_transfer_requested")return "تم طلب تحويل المعاملة من قبل «"+actor+"» إلى «"+(m.to||"مساعد آخر")+"»"+(detail?" بسبب «"+detail+"»":"");
+  if(h.event_type==="assistant_transfer_accepted")return "تم قبول تحويل المعاملة بواسطة «"+actor+"»"+(m.from?" المحولة من «"+m.from+"»":"");
+  if(h.event_type==="assistant_transfer_rejected")return "تم رفض تحويل المعاملة بواسطة «"+actor+"»"+(detail?" بسبب «"+detail+"»":"");
   if(h.event_type==="closed")return "تم إغلاق المعاملة من قبل «"+actor+"»"+(detail?" بسبب «"+detail+"»":"");
   if(h.event_type==="reopened")return "تم استرجاع المعاملة من قبل «"+actor+"»"+(detail?" بسبب «"+detail+"»":"");
+  if(h.event_type==="cancelled")return "تم إلغاء المعاملة من قبل «"+actor+"»"+(detail?" بسبب «"+detail+"»":"");
   if(h.event_type==="request_close")return "تم طلب إغلاق المعاملة من قبل «"+actor+"»"+(detail?" بسبب «"+detail+"»":"");
   if(h.event_type==="request_reopen")return "تم طلب استرجاع المعاملة من قبل «"+actor+"»"+(detail?" بسبب «"+detail+"»":"");
+  if(h.event_type==="request_extension")return "تم طلب تمديد المعاملة من قبل «"+actor+"»"+(detail?" بسبب «"+detail+"»":"");
+  if(h.event_type==="request_change_responsible")return "تم طلب تغيير مسؤول المعاملة من قبل «"+actor+"»"+(detail?" بسبب «"+detail+"»":"");
+  if(h.event_type==="extension_approved")return "تم اعتماد تمديد المعاملة بواسطة «"+actor+"» إلى تاريخ «"+fmtDate(m.due_at)+"»"+(detail?" بسبب «"+detail+"»":"");
   if(h.event_type==="ceo_view_marked")return "تم إرسال المعاملة لإطلاع الرئيس التنفيذي بواسطة «"+actor+"»";
   if(h.event_type==="request_approved")return "تم اعتماد الطلب من قبل «"+actor+"»"+(detail?" — "+detail:"");
   if(h.event_type==="request_rejected")return "تم رفض الطلب من قبل «"+actor+"»"+(detail?" بسبب «"+detail+"»":"");
+  if(h.event_type==="legacy_context_resolved")return "تم تهيئة بيانات المعاملة القديمة بواسطة «"+actor+"»";
   return detail||h?.event_type||"—";
 }
 function apiUrl(fn){return CONFIG.supabaseUrl+"/functions/v1/"+fn}
@@ -1308,8 +1328,10 @@ async function openDetails(id,invoker=document.activeElement){
   const d=await post(CONFIG.txFn,baseBody("details",{transaction_id:id})),t=d.transaction;
   const assignments=(d.assignments||[]).map(a=>{
     const names=(a.transaction_assignment_targets||[]).map(x=>x.display_name).join("، ");
-    return '<div class="action-item"><div class="action-top"><span>'+esc(a.assignment_type==="supporting"?"إدارة مساندة":a.assignment_type==="direct"?"إسناد مباشر":"الإدارة المسؤولة")+'</span><span>'+esc(fmtDate(a.created_at))+'</span></div><div class="action-text">'+esc(a.directive||"")+(names?'<br>'+esc(names):"")+'</div></div>';
-  }).join("")||'<div class="muted">—</div>';
+    const unitName=(directoryData.units||[]).find(u=>u.id===a.unit_id)?.name||"—";
+    const kind=a.assignment_type==="supporting"?"إدارة مساندة":a.assignment_type==="direct"?"إسناد مباشر":"إدارة مسؤولة";
+    return '<div class="action-item"><div class="action-top"><span>'+esc(kind)+'</span><span>'+esc(fmtDateTime(a.created_at))+'</span></div><div class="action-text">الإدارة: '+esc(unitName)+(names?'<br>المكلفون: '+esc(names):"")+(a.directive?'<br>المطلوب: '+esc(a.directive):"")+'</div></div>';
+  }).join("")||'<div class="muted">لا توجد إسنادات مسجلة.</div>';
 
   const versionsByAction=new Map();
   for(const v of d.action_versions||[]){if(!versionsByAction.has(v.action_id))versionsByAction.set(v.action_id,[]);versionsByAction.get(v.action_id).push(v)}
@@ -1341,10 +1363,11 @@ async function openDetails(id,invoker=document.activeElement){
     if(session.role==="manager")return !!d.flags?.scope&&requesterRole==="employee";
     return false;
   };
-  const requests=(d.requests||[]).map(r=>{
+  const requestHelp='<div class="workspace-help">تظهر هنا الطلبات التي تحتاج موافقة مستوى أعلى، مثل الإغلاق والاسترجاع والتمديد وتغيير المسؤول.</div>';
+  const requests=requestHelp+(d.requests||[]).map(r=>{
     const target=requestTargetLabel(r?.meta?.target_role);
     return '<div class="action-item"><div class="action-top"><span>'+esc(requestTypeLabel(r.request_type))+'</span><span>'+esc(fmtDateTime(r.created_at))+'</span></div><div class="action-text">مقدم الطلب: '+esc(r.requested_by_name||"—")+(target?'<br>موجّه إلى: '+esc(target):"")+'<br>السبب: '+esc(r.reason||"—")+'</div>'+(r.status==="pending"&&canDecideRequest(r)?'<div class="request-actions"><button class="row-btn btn-green" data-request-approve="'+r.id+'">اعتماد</button><button class="row-btn btn-red" data-request-reject="'+r.id+'">رفض</button></div>':'<div class="badge '+(r.status==="approved"?"st-open":r.status==="rejected"?"pri-vh":"pri-n")+'">'+esc(requestStatusLabel(r.status))+'</div>')+'</div>';
-  }).join("")||'<div class="muted">لا توجد طلبات معلقة أو سابقة لهذه المعاملة.</div>';
+  }).join("");
   const hist=(d.history||[]).map(h=>'<div class="action-item"><div class="action-top"><span>سجل المعاملة</span><span>'+esc(fmtDateTime(h.created_at))+'</span></div><div class="action-text">'+esc(historyText(h))+'</div></div>').join("")||'<div class="muted">—</div>';
   const pendingTransfer=(d.routes||[]).find(r=>r.route_type==="assistant_transfer"&&r.status==="pending"&&r.to_login_name===session.login_name);
   const directClose=!!d.can_close&&hasTxPerm("transactions.close");

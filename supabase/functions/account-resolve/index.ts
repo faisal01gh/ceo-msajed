@@ -28,21 +28,31 @@ Deno.serve(async(req:Request)=>{
   let b:any;try{b=await req.json()}catch{return out(req,{error:"bad_request"},400)}
   const raw=String(b?.login||"").trim();
   if(!raw)return out(req,{error:"missing_login"},400);
-  const alias=raw.includes("@")?raw.toLowerCase():raw;
+  const ascii=raw.toLowerCase();
 
-  const {data:a}=await db.from("account_migration_aliases")
-    .select("canonical_key,active").eq("alias",alias).eq("active",true).maybeSingle();
-  if(!a)return out(req,{eligible:false});
+  let {data:u}=await db.from("account_migration_users")
+    .select("canonical_key,login_username,preferred_login,display_name,role_code,internal_email,eligible,migrated_user_id,must_change_password")
+    .eq("login_username",ascii).eq("eligible",true).maybeSingle();
 
-  const {data:u}=await db.from("account_migration_users")
-    .select("preferred_login,display_name,role_code,internal_email,eligible,migrated_user_id,must_change_password")
-    .eq("canonical_key",a.canonical_key).eq("eligible",true).maybeSingle();
+  if(!u){
+    const alias=raw.includes("@")?raw.toLowerCase():raw;
+    const {data:a}=await db.from("account_migration_aliases")
+      .select("canonical_key,active").eq("alias",alias).eq("active",true).maybeSingle();
+    if(!a)return out(req,{eligible:false});
+
+    const found=await db.from("account_migration_users")
+      .select("canonical_key,login_username,preferred_login,display_name,role_code,internal_email,eligible,migrated_user_id,must_change_password")
+      .eq("canonical_key",a.canonical_key).eq("eligible",true).maybeSingle();
+    u=found.data;
+  }
+
   if(!u)return out(req,{eligible:false});
 
   return out(req,{
     eligible:true,
     migrated:!!u.migrated_user_id,
     internal_email:u.migrated_user_id?u.internal_email:null,
+    login_username:u.login_username,
     preferred_login:u.preferred_login,
     display_name:u.display_name,
     role:u.role_code,

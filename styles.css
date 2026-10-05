@@ -435,6 +435,6 @@ body.modal-open{overflow:hidden}
 .notification-bell{position:relative;width:44px;min-width:44px;height:44px;padding:0;display:grid;place-items:center}
 .notification-bell .ui-icon{width:20px;height:20px}
 .notification-dot{position:absolute;top:7px;inset-inline-start:7px;width:8px;height:8px;border-radius:50%;background:#dc2626;box-shadow:0 0 0 2px var(--surface)}
-.inline-edit-btn{width:36px;height:36px;border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--surface);color:var(--blue);display:inline-grid;place-items:center;padding:0}
+.inline-edit-btn{width:44px;height:44px;border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--surface);color:var(--blue);display:inline-grid;place-items:center;padding:0}
 .inline-edit-btn:hover{background:#edf3fc;border-color:var(--line-2)}
 .inline-edit-btn .ui-icon{width:15px;height:15px}

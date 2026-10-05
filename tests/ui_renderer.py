@@ -15,7 +15,7 @@ else:
     server=ThreadingHTTPServer(('127.0.0.1',0),functools.partial(Quiet,directory=args.source))
     threading.Thread(target=server.serve_forever,daemon=True).start()
     base=f'http://127.0.0.1:{server.server_port}'
-PERMS=['view_all','act_all','create','change_priority','change_responsible','close','reopen','set_due_date','ceo_view','delete_hard','raise_manager','assign_department','assign_sector','assign_cross_sector','add_supporting','raise_assistant','transfer_assistant','decide_assistant_transfer','raise_ceo']
+PERMS=['view_all','act_all','create','edit_subject','change_responsible_unit','change_priority','change_responsible','close','reopen','set_due_date','ceo_view','delete_hard','raise_manager','assign_department','assign_sector','assign_cross_sector','add_supporting','raise_assistant','transfer_assistant','decide_assistant_transfer','raise_ceo']
 perms=['transactions.'+x for x in PERMS]+['profiles.admin_edit_name']
 user={'canonical_key':'ui-fixture-user','user_id':'fixture-auth','display_name':'مستخدم اختبار الواجهة','login_name':'ui-fixture','role':'ceo_office_manager','org_name':'قطاع الاختبار','dept_name':'إدارة الاختبار','dept_names':['إدارة الاختبار']}
 users=[user,dict(user,canonical_key='ui-fixture-assistant',display_name='مساعد الاختبار',login_name='assistant-fixture',role='assistant'),dict(user,canonical_key='ui-fixture-employee',display_name='موظف الاختبار',login_name='employee-fixture',role='employee')]

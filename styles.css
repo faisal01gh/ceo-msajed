@@ -431,3 +431,11 @@ body.modal-open{overflow:hidden}
 }
 @media(max-width:360px){.login-card,.password-card{padding:24px 18px}.list-actions .btn{font-size:11px}.toolbar{grid-template-columns:1fr}.filter-field{grid-column:1!important}}
 @media print{.glass-sidebar,.list-toolbar,.filter-disclosure,.modal-foot,.modal-close{display:none}.workspace{display:block;padding:0}.card{box-shadow:none}.table-wrap{overflow:visible}table{min-width:0}}
+
+.notification-bell{position:relative;width:44px;min-width:44px;height:44px;padding:0;display:grid;place-items:center}
+.notification-bell .ui-icon{width:20px;height:20px}
+.notification-dot{position:absolute;top:7px;inset-inline-start:7px;width:8px;height:8px;border-radius:50%;background:#dc2626;box-shadow:0 0 0 2px var(--surface)}
+.workspace-subject.clickable{cursor:pointer;padding:12px;border-radius:var(--radius-sm);transition:background .18s var(--ease),box-shadow .18s var(--ease)}
+.workspace-subject.clickable:hover{background:#edf3fc}
+.workspace-subject.clickable:focus-within{box-shadow:0 0 0 3px rgba(41,106,177,.12)}
+.workspace-subject.clickable .section-title .ui-icon{width:14px;height:14px;color:var(--blue)}

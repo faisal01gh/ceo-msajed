@@ -64,7 +64,7 @@ paths.update(subprocess.check_output(['git','ls-files','--others','--exclude-sta
 
 for name in ['index.html','service-worker.js']:
     current=(repo/name).read_text(encoding='utf-8').replace('\r\n','\n')
-    assert '20261005-4' in current, f'{name} does not reference current asset version'
+    assert '20261005-5' in current, f'{name} does not reference current asset version'
 
 restricted=[x for x in ['urgkbbconlxeagfgyjee','msajed-tasks','sb_secret_','service_role','setInterval(']
             if x in source+(repo/'index.html').read_text(encoding='utf-8')]

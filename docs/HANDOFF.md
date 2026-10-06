@@ -1,6 +1,13 @@
 # Handoff — استلام المشروع في أي محادثة جديدة
 
-آخر تحديث: 2026-10-06
+آخر تحديث: 2026-10-07
+
+## تطبيق الخلفية المثبت — لا إعادة تطبيق
+
+- المصدر e51fc516a65282f4a7ab0ba7ea481ecbbc4087d1. الترحيلان موجودان فعلًا في الجديد: transaction_custody_read_state / ledger20261006201402، وtransaction_assistant_reply / ledger20261006201405؛ أسماء source filenames في FEEDBACK. لا db push عمياني بسبب اختلاف timestamp.
+- transactions-api v36 ACTIVE، sourceSHA256 63cd13be55960880fe210f27aa53329c4faab34fc928b0b84e1e25cef7520fee مطابق للـGit. الجداول/ACL/منح الأدوار المقصودة قُرئت فعليًا؛ protected-data fingerprints بقيت مطابقة.
+- الواجهة/canonical Pages والكاش تحتاج قبولًا منفصلًا؛ لا تعِد الحسابات8 أو password/Auth/core المقبول ولا تخلط Native Auth E2E بالدليل المحلي. لا تعِد استعمال responder تلقائي لتجاوز confirmation، ولا تعد PTY موافقة إضافية.
+
 
 ## أولوية الاستلام الحالية — تصحيحات تجربة المعاملات
 

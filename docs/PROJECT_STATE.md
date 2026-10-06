@@ -1,6 +1,13 @@
 # حالة المشروع الحالية
 
-آخر تحديث مرجعي: 2026-10-07
+آخر تحديث مرجعي: 2026-10-06
+
+## الواجهة منشورة ومقروءة فعليًا
+
+- canonical Cloudflare Production للـpublication e473949a04ae27e6af901e81f16291fec6304b2c ناجح، وكذلك GitHub run37532478878. الأصول index/app/styles/service-worker مطابقة لملفات Git والكاش20261006-1 active.
+- public login44 وdeployed renderer517checks/102surfaces ناجحان. فحص Native READ للأدوار والحيازة حافظ على بيانات المعاملة الحالية دون تحويلها.
+- تفاصيل الإثبات والـAuth/E2E المتبقي docs/transactions/DELIVERY_2026-10-06.md. النشر لا يقفل تجهيز الموظفين الحقيقيين أو اختبار رفع/رد signed-in جديد.
+
 
 ## قراءة التطبيق الحي المثبتة
 

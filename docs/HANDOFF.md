@@ -1,6 +1,13 @@
 # Handoff — استلام المشروع في أي محادثة جديدة
 
-آخر تحديث: 2026-10-07
+آخر تحديث: 2026-10-06
+
+## قبول نشر الواجهة المثبت
+
+- نُشرت الواجهة على canonical Production، لا Preview، مع source publication e473949a04ae27e6af901e81f16291fec6304b2c. GitHub run37532478878 وCloudflare deployment761a8c92-8244-489a-8f9c-c9983fb4157a ناجحان.
+- الأصول الأربعة مطابقة لملفات Git immutable، والكاش20261006-1 activated؛ public login44 وrenderer المنشور517 ناجحان دون أخطاء. زر الإجراء «الرد» وسجل «رد المساعد».
+- تقرير النطاق والحدود docs/transactions/DELIVERY_2026-10-06.md. لا تعِد نشر Runtime أو الترحيلين لمجرد هذا التوثيق. Signed-in E2E جديد للرفع/الرد غير منفذ لعدم credentials اختبار حالية محفوظة، ولا reset/provision/grant/session مصطنعة لتجاوز ذلك.
+
 
 ## تطبيق الخلفية المثبت — لا إعادة تطبيق
 

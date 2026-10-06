@@ -83,7 +83,7 @@ allowed={
     'tests/transaction_safe_url.py','tests/ui_regressions.py'
 }
 allowed.update({
-    'docs/transactions/FEEDBACK_2026-10-06.md',
+    'docs/transactions/FEEDBACK_2026-10-06.md','docs/transactions/DELIVERY_2026-10-06.md',
     'supabase/migrations/20261006193000_transaction_custody_read_state.sql',
     'supabase/migrations/20261006194500_transaction_assistant_reply.sql',
     'tests/transaction_feedback_sql.mjs','tests/transaction_feedback_sql_fixture.mjs',

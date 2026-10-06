@@ -18,6 +18,7 @@ type Who={
   dept_name:string;
   dept_names:string[];
   user_id:string|null;
+  session_id?:string;
   permissions:string[];
 };
 
@@ -41,6 +42,7 @@ function out(req:Request,data:unknown,status=200){
 }
 function arr(v:any){return Array.isArray(v)?v:[]}
 function clean(v:any){return String(v??"").trim()}
+function validUuid(v:any){return typeof v==="string"&&/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v)}
 function safeHttpUrl(v:any){
   const value=clean(v);
   if(!value)return null;
@@ -151,6 +153,7 @@ async function identity(app:string,token:string):Promise<Who|null>{
     user_id:auth.data.user.id,
     permissions:[]
   };
+  Object.defineProperty(who,"session_id",{value:sid,enumerable:false});
   who.permissions=await effectivePermissions(who);
 
   return who;
@@ -262,6 +265,7 @@ function late(tx:any){
   return activeDays(tx)>=6;
 }
 function canAct(who:Who,tx:any,flags:any){
+  if(tx.status!=="open"||!flags.visible)return false;
   if(hasPerm(who,"transactions.act_all")&&flags.visible)return true;
   if(flags.incoming)return true;
   if(who.role==="manager"&&flags.scope&&["employee","manager"].includes(tx.current_level||""))return true;
@@ -316,6 +320,8 @@ function closeRequestTarget(who:Who,access:any){
   return "ceo";
 }
 function canRaiseCeo(who:Who,access:any){
+  if(!access?.tx||access.tx.status!=="open"||access.tx.current_level==="ceo"||!access.flags?.visible)return false;
+  if(!canAct(who,access.tx,access.flags))return false;
   if(hasPerm(who,"transactions.raise_ceo"))return true;
   const directTarget=arr(access.assigns).some((a:any)=>{
     if(a.assignment_type!=="direct"||a.status!=="active")return false;
@@ -328,11 +334,18 @@ function canRaiseCeo(who:Who,access:any){
   );
   return directTarget&&fromExec;
 }
+async function ownedUnreadCount(who:Who){
+  const {count,error}=await db.from("notifications").select("id",{count:"exact",head:true})
+    .eq("target_login_name",who.login_name).or("user_id.is.null,user_id.eq."+who.user_id).is("read_at",null);
+  if(error)throw error;return Number(count||0);
+}
 async function notify(login:string|undefined|null,name:string|undefined|null,txId:string,event:string,title:string,body:string|null=null){
   if(!login)return;
-  await db.from("notifications").insert({
-    user_id:null,target_login_name:login,target_name:name||login,transaction_id:txId,event_type:event,title,body
+  const recipient=await account(login);if(!recipient)throw new Error("notification_recipient_not_found");
+  const {error}=await db.from("notifications").insert({
+    user_id:recipient.user_id||null,target_login_name:login,target_name:recipient.display_name||name||login,transaction_id:txId,event_type:event,title,body
   });
+  if(error)throw error;
 }
 async function notifyExec(txId:string,event:string,title:string,body:string|null=null){
   const d=await directory();
@@ -381,13 +394,15 @@ async function addRoute(txId:string,type:string,who:Who,to:any,fields:any={}){
   return data;
 }
 async function history(txId:string,event:string,who:Who,detail:string,meta:any={}){
-  await db.from("transaction_history").insert({
-    transaction_id:txId,event_type:event,actor_name:who.display_name,detail,meta
+  const {error:historyError}=await db.from("transaction_history").insert({
+    transaction_id:txId,event_type:event,actor_id:who.user_id,actor_name:who.display_name,detail,meta
   });
-  await db.from("audit_log").insert({
-    actor_id:null,event_type:event,entity_type:"transaction",entity_id:txId,detail,
+  if(historyError)throw historyError;
+  const {error:auditError}=await db.from("audit_log").insert({
+    actor_id:who.user_id,event_type:event,entity_type:"transaction",entity_id:txId,detail,
     meta:{...meta,actor_login:who.login_name,actor_name:who.display_name,actor_role:who.role}
   });
+  if(auditError)throw auditError;
 }
 async function txRow(id:string){
   const {data}=await db.from("transactions").select("*").eq("id",id).maybeSingle();
@@ -401,15 +416,31 @@ async function scopeCheck(who:Who,unitId:string|null){
 async function account(login:string){
   const d=await directory();return d.find((u:any)=>u.login_name===login)||null;
 }
-async function assistantForOrg(org:string){
+async function responsibleTarget(login:string){
+  const rows=await directory(),candidates=rows.filter((u:any)=>u.login_name===login);
+  if(candidates.length!==1||!validUuid(candidates[0].user_id))return null;
+  const target=candidates[0];
+  if(rows.filter((u:any)=>u.user_id===target.user_id).length!==1)return null;
+  const {data:profile,error}=await db.from("profiles").select("id,login_name,active").eq("id",target.user_id).maybeSingle();
+  if(error)throw error;
+  return profile&&profile.id===target.user_id&&profile.active===true&&profile.login_name===target.login_name?target:null;
+}
+async function assistantForOrg(org:string,who?:Who){
   const d=await directory();
-  return d.find((u:any)=>u.role==="assistant"&&u.org_name===org&&u.legacy_role==="asst")||
-         d.find((u:any)=>u.role==="assistant"&&u.org_name===org)||null;
+  const manual=/^test_(admin|tech)_(assistant|manager|employee|secretary)$/.test(who?.login_name||"");
+  const candidates=d.filter((u:any)=>u.role==="assistant"&&u.org_name===org&&
+    /^test_(admin|tech)_(assistant|manager|employee|secretary)$/.test(u.canonical_key||"")===manual);
+  if(candidates.length!==1)return null;
+  return candidates[0];
 }
 async function managerFor(who:Who){
   const d=await directory();
   const deps=unique([who.dept_name,...who.dept_names].filter(Boolean));
-  return d.find((u:any)=>u.role==="manager"&&u.org_name===who.org_name&&u.dept_names.some((x:string)=>deps.includes(x)))||null;
+  const manual=/^test_(admin|tech)_(assistant|manager|employee|secretary)$/.test(who.login_name);
+  const candidates=d.filter((u:any)=>u.role==="manager"&&u.org_name===who.org_name&&u.dept_names.some((x:string)=>deps.includes(x))&&
+    /^test_(admin|tech)_(assistant|manager|employee|secretary)$/.test(u.canonical_key||"")===manual);
+  if(candidates.length!==1)return null;
+  return candidates[0];
 }
 async function txAccess(who:Who,id:string){
   const [txr,ar,rr,ur]=await Promise.all([
@@ -427,7 +458,11 @@ async function txAccess(who:Who,id:string){
   const scope=scopeOf(who,allUnits);const unitMap=new Map(allUnits.map((u:any)=>[u.id,u]));
   const responsibleUnit=tx.responsible_unit_id?unitMap.get(tx.responsible_unit_id):null;
   tx.responsible_unit_name=responsibleUnit?.name||tx.legacy_department_name||null;
-  const flags=flagsFor(who,tx,assigns,targetsByAssignment,routes,scope,unitMap);
+  const flagResult=await db.rpc("transaction_feedback_flags_internal",{p_user:who.user_id,p_tx:id});
+  if(flagResult.error)throw flagResult.error;
+  const flags=flagResult.data;
+  if(!flags||typeof flags.visible!=="boolean")throw new Error("invalid_transaction_flags_contract");
+  tx.current_assignees=arr(flags.current_assignees);
   return {tx,assigns,routes,targetsByAssignment,flags,scope,unitMap,units:allUnits};
 }
 async function closeTx(who:Who,tx:any,reason:string){
@@ -460,7 +495,7 @@ async function createRequest(who:Who,tx:any,type:string,reason:string,extra:any=
   const targetRole=clean(meta.target_role);
   if(targetRole==="ceo")await notifyExec(tx.id,"request",tx.title,reason);
   else if(targetRole==="assistant"){
-    const a=await assistantForOrg(who.org_name);
+    const a=await assistantForOrg(who.org_name,who);
     if(a)await notify(a.login_name,a.display_name,tx.id,"request",tx.title,reason);
     else await notifyExec(tx.id,"request",tx.title,reason);
   }else if(targetRole==="manager"){
@@ -563,9 +598,40 @@ Deno.serve(async(req:Request)=>{
         db.from("transaction_links").select("*").eq("transaction_id",id).order("created_at"),
         db.from("transaction_assignments").select("*,transaction_assignment_targets(*)").eq("transaction_id",id).order("created_at")
       ]);
+      const latestMovement=access.routes.filter((r:any)=>r.route_type!=="ceo_view"&&["completed","accepted"].includes(r.status))
+        .sort((a:any,b:any)=>new Date(a.created_at).getTime()-new Date(b.created_at).getTime()||String(a.id).localeCompare(String(b.id))).at(-1);
+      const replySource=who.role==="assistant"&&hasPerm(who,"transactions.reply_raise")&&access.tx.status==="open"&&
+        access.tx.current_level==="assistant"&&access.flags.incoming&&latestMovement?.route_type==="raise"&&
+        (latestMovement.to_user_id===who.user_id||(!latestMovement.to_user_id&&latestMovement.to_login_name===who.login_name))&&
+        !access.routes.some((r:any)=>r.route_type==="assistant_transfer"&&r.status==="pending")?latestMovement:null;
+      const senderCandidates=replySource?(await directory()).filter((u:any)=>replySource.from_user_id!=null?
+        u.user_id===replySource.from_user_id:u.login_name===replySource.from_login_name):[];
+      const replyTarget=senderCandidates.length===1?await responsibleTarget(senderCandidates[0].login_name):null;
       return out(req,{ok:true,transaction:access.tx,flags:access.flags,can_act:canAct(who,access.tx,access.flags),
+        current_assignees:arr(access.flags.current_assignees),can_reply_raise:!!replySource&&!!replyTarget,
+        reply_route_id:replyTarget?replySource.id:null,reply_target_user_id:replyTarget?.user_id||null,
+        reply_target_login_name:replyTarget?.login_name||null,reply_target_name:replyTarget?.display_name||null,
         can_close:canClose(who,access),close_authority:effectiveCloseAuthority(access),cross_sector:isCrossSector(access),can_raise_ceo:canRaiseCeo(who,access),actions:actions||[],action_versions:versions||[],action_notes:actionNotes||[],routes:routes||[],
         requests:requests||[],history:historyRows||[],periods:periods||[],links:links||[],assignments:assignments||[]});
+    }
+
+    if(action==="reply_raise"){
+      if(who.role!=="assistant"||!hasPerm(who,"transactions.reply_raise"))return out(req,{error:"forbidden"},403);
+      const id=clean(b.transaction_id),routeId=clean(b.route_id),operationId=clean(b.operation_id),response=clean(b.response);
+      const validId=(s:string)=>/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
+      if(!validId(id)||!validId(routeId)||!validId(operationId)||!response||Array.from(response).length>10000)return out(req,{error:"invalid_reply"},400);
+      const {data,error}=await db.rpc("transaction_reply_raise_internal",{
+        p_actor:who.user_id,p_session:who.session_id,p_tx:id,p_route:routeId,p_response:response,p_operation_id:operationId
+      });
+      if(error){
+        if(error.code==="42501")return out(req,{error:"reply_custody_or_permission_changed"},403);
+        if(error.code==="22023"||error.code==="23505")return out(req,{error:"reply_candidate_or_state_conflict"},409);
+        throw error;
+      }
+      if(!data||data.ok!==true||data.transaction_id!==id||data.source_route_id!==routeId||
+        data.operation_id!==operationId||data.actor_user_id!==who.user_id||
+        !validUuid(data.reply_route_id)||!validUuid(data.target_user_id))throw new Error("invalid_reply_receipt");
+      return out(req,data);
     }
 
     if(action==="create"){
@@ -573,12 +639,26 @@ Deno.serve(async(req:Request)=>{
       const attachment=safeHttpUrl(b.attachment_url);
       if(clean(b.attachment_url)&&!attachment)return out(req,{error:"invalid_attachment_url"},400);
       if(!hasPerm(who,"transactions.create"))return out(req,{error:"forbidden"},403);
+      const {data:memberships,error:membershipError}=await db.from("user_memberships")
+        .select("unit_id,membership_role").eq("user_id",who.user_id).eq("active",true);
+      if(membershipError)throw membershipError;
+      const allUnits=await units(),memberIds=new Set((memberships||[]).map((m:any)=>m.unit_id));
+      const ownUnits=allUnits.filter((u:any)=>memberIds.has(u.id));
+      const departments=ownUnits.filter((u:any)=>["department","independent","branch"].includes(u.unit_type));
+      let responsibleUnit=clean(b.responsible_unit_id);
+      if(responsibleUnit&&!ownUnits.some((u:any)=>u.id===responsibleUnit))return out(req,{error:"forbidden_scope"},403);
+      if(!responsibleUnit){
+        if(departments.length===1)responsibleUnit=departments[0].id;
+        else if(["employee","manager"].includes(who.role))return out(req,{error:departments.length?"responsible_unit_required":"responsible_unit_unavailable"},409);
+        else if(ownUnits.length===1)responsibleUnit=ownUnits[0].id;
+      }
       const {data:num,error:numErr}=await db.rpc("next_transaction_number");if(numErr)throw numErr;
       const lvl=level(who.role);
       const {data:tx,error}=await db.from("transactions").insert({
         number:num,origin:"new",title,subject:clean(b.subject)||null,attachment_url:attachment,
         priority:["عاجل جدًا","عاجل","عادي"].includes(clean(b.priority))?clean(b.priority):"عادي",
         status:"open",responsible_login_name:who.login_name,responsible_name:who.display_name,
+        responsible_user_id:who.user_id,responsible_unit_id:responsibleUnit||null,created_by:who.user_id,
         current_level:lvl,close_level:lvl==="employee"?"manager":lvl,created_by_name:who.display_name
       }).select("*").single();
       if(error)throw error;
@@ -704,8 +784,8 @@ Deno.serve(async(req:Request)=>{
       if(!hasPerm(who,"transactions.raise_assistant"))return out(req,{error:"forbidden"},403);
       const id=clean(b.transaction_id),reason=clean(b.raise_reason),proposed=clean(b.proposed_decision);
       if(!id||!reason||!proposed)return out(req,{error:"missing"},400);
-      const a=await txAccess(who,id);if(!a||!a.flags.visible)return out(req,{error:"forbidden"},403);
-      const asst=await assistantForOrg(who.org_name);if(!asst)return out(req,{error:"assistant_not_found"},409);
+      const a=await txAccess(who,id);if(!a||!canAct(who,a.tx,a.flags))return out(req,{error:"forbidden"},403);
+      const asst=await assistantForOrg(who.org_name,who);if(!asst)return out(req,{error:"assistant_not_found"},409);
       await completeActive(id);
       await addRoute(id,"raise",who,asst,{raise_reason:reason,proposed_decision:proposed});
       await db.from("transactions").update({current_level:"assistant",close_level:higherLevel(a.tx.close_level,"assistant"),workflow_started:true,migration_status:"ready",updated_at:new Date().toISOString(),last_activity_at:new Date().toISOString()}).eq("id",id);
@@ -862,14 +942,14 @@ Deno.serve(async(req:Request)=>{
       if(!a||!a.flags.visible||!hasPerm(who,"transactions.change_responsible_unit"))return out(req,{error:"forbidden"},403);
       if(!hasPerm(who,"transactions.act_all")&&!(await scopeCheck(who,unitId)))return out(req,{error:"forbidden_scope"},403);
       const unit=a.units.find((u:any)=>u.id===unitId);
-      const target=await account(toLogin);
+      const target=await responsibleTarget(toLogin);
       if(!unit||!target)return out(req,{error:"invalid_target"},400);
       if(!arr(target.dept_names).includes(unit.name)&&!isExec(target.role)&&target.role!=="assistant")return out(req,{error:"target_unit_mismatch"},409);
       const oldUnit=a.tx.responsible_unit_name||"";
       const oldResponsible=a.tx.responsible_name||a.tx.responsible_login_name||"";
       const now=new Date().toISOString();
       await db.from("transactions").update({
-        responsible_unit_id:unitId,responsible_login_name:target.login_name,responsible_name:target.display_name,
+        responsible_unit_id:unitId,responsible_user_id:target.user_id,responsible_login_name:target.login_name,responsible_name:target.display_name,
         updated_at:now,last_activity_at:now
       }).eq("id",id);
       await history(id,"responsible_unit_changed",who,"تم تغيير الإدارة المسؤولة",{
@@ -905,7 +985,7 @@ Deno.serve(async(req:Request)=>{
       const id=clean(b.transaction_id),reason=clean(b.reason),due=clean(b.requested_due_at);
       if(!reason||!due)return out(req,{error:"missing"},400);
       const d=new Date(due);if(Number.isNaN(d.getTime()))return out(req,{error:"bad_date"},400);
-      const a=await txAccess(who,id);if(!a||!a.flags.visible)return out(req,{error:"forbidden"},403);
+      const a=await txAccess(who,id);if(!a||!a.flags.visible||(who.role==="assistant_secretary"&&(!canAct(who,a.tx,a.flags)||!hasPerm(who,"transactions.set_due_date"))))return out(req,{error:"forbidden"},403);
       const row=await createRequest(who,a.tx,"extension",reason,{requested_due_at:d.toISOString()});
       return out(req,{ok:true,row});
     }
@@ -913,8 +993,8 @@ Deno.serve(async(req:Request)=>{
     if(action==="change_responsible"){
       const id=clean(b.transaction_id),toLogin=clean(b.to_login),reason=clean(b.reason);
       if(!id||!toLogin||!reason)return out(req,{error:"missing"},400);
-      const a=await txAccess(who,id);if(!a||!a.flags.visible)return out(req,{error:"forbidden"},403);
-      const target=await account(toLogin);if(!target)return out(req,{error:"invalid_target"},400);
+      const a=await txAccess(who,id);if(!a||!a.flags.visible||(who.role==="assistant_secretary"&&!canAct(who,a.tx,a.flags)&&!hasPerm(who,"transactions.change_responsible")))return out(req,{error:"forbidden"},403);
+      const target=await responsibleTarget(toLogin);if(!target)return out(req,{error:"invalid_target"},400);
       let direct=hasPerm(who,"transactions.change_responsible")&&hasPerm(who,"transactions.act_all");
       if(hasPerm(who,"transactions.change_responsible")&&who.role==="manager"&&["employee","manager"].includes(a.tx.current_level||"")&&target.dept_names.some((x:string)=>who.dept_names.includes(x)||x===who.dept_name))direct=true;
       if(hasPerm(who,"transactions.change_responsible")&&who.role==="assistant"&&a.tx.current_level!=="ceo"&&target.org_name===who.org_name)direct=true;
@@ -923,7 +1003,7 @@ Deno.serve(async(req:Request)=>{
         return out(req,{ok:true,requested:true,row});
       }
       const old=a.tx.responsible_name||a.tx.responsible_login_name||"";
-      await db.from("transactions").update({responsible_login_name:target.login_name,responsible_name:target.display_name,updated_at:new Date().toISOString(),last_activity_at:new Date().toISOString()}).eq("id",id);
+      await db.from("transactions").update({responsible_user_id:target.user_id,responsible_login_name:target.login_name,responsible_name:target.display_name,updated_at:new Date().toISOString(),last_activity_at:new Date().toISOString()}).eq("id",id);
       await history(id,"responsible_changed",who,"تم تغيير مسؤول المعاملة",{old_responsible:old,new_responsible:target.display_name,reason});
       await notify(target.login_name,target.display_name,id,"responsible_changed",a.tx.title,reason);
       return out(req,{ok:true});
@@ -936,7 +1016,8 @@ Deno.serve(async(req:Request)=>{
     }
     if(action==="request_close"){
       const id=clean(b.transaction_id),reason=clean(b.reason);if(!reason)return out(req,{error:"reason_required"},400);
-      const a=await txAccess(who,id);if(!a||!a.flags.visible)return out(req,{error:"forbidden"},403);
+      const a=await txAccess(who,id);if(!a||!a.flags.visible||
+        (who.role==="assistant_secretary"&&!canAct(who,a.tx,a.flags)&&!hasPerm(who,"transactions.close")))return out(req,{error:"forbidden"},403);
       const targetRole=closeRequestTarget(who,a);
       const row=await createRequest(who,a.tx,"close",reason,{meta:{target_role:targetRole,cross_sector:isCrossSector(a)}});
       return out(req,{ok:true,row,target_role:targetRole});
@@ -960,7 +1041,7 @@ Deno.serve(async(req:Request)=>{
     }
     if(action==="request_reopen"){
       const id=clean(b.transaction_id),reason=clean(b.reason);if(!reason)return out(req,{error:"reason_required"},400);
-      const a=await txAccess(who,id);if(!a||!a.flags.visible)return out(req,{error:"forbidden"},403);
+      const a=await txAccess(who,id);if(!a||!a.flags.visible||(who.role==="assistant_secretary"&&!canAct(who,a.tx,a.flags)&&!hasPerm(who,"transactions.reopen")))return out(req,{error:"forbidden"},403);
       const meta:any={};
       if(a.tx.origin==="legacy"&&(!a.tx.responsible_unit_id||!a.tx.responsible_login_name)){
         const unitId=clean(b.responsible_unit_id),login=clean(b.responsible_login_name);
@@ -973,7 +1054,7 @@ Deno.serve(async(req:Request)=>{
 
     if(action==="request_cancel"){
       const id=clean(b.transaction_id),reason=clean(b.reason);if(!reason)return out(req,{error:"reason_required"},400);
-      const a=await txAccess(who,id);if(!a||!a.flags.visible)return out(req,{error:"forbidden"},403);
+      const a=await txAccess(who,id);if(!a||!a.flags.visible||(who.role==="assistant_secretary"&&!canAct(who,a.tx,a.flags)&&!hasPerm(who,"transactions.act_all")))return out(req,{error:"forbidden"},403);
       if(hasPerm(who,"transactions.act_all")){
         await completeActive(id);
         await db.from("transactions").update({status:"cancelled",cancelled_at:new Date().toISOString(),cancelled_reason:reason,updated_at:new Date().toISOString()}).eq("id",id);
@@ -1030,10 +1111,10 @@ Deno.serve(async(req:Request)=>{
           await db.from("transactions").update({due_at:r.requested_due_at,updated_at:now}).eq("id",a.tx.id);
           await history(a.tx.id,"extension_approved",who,r.reason,{due_at:r.requested_due_at});
         }else if(r.request_type==="change_responsible"){
-          const toLogin=clean(r.meta?.to_login),target=await account(toLogin);
+          const toLogin=clean(r.meta?.to_login),target=await responsibleTarget(toLogin);
           if(!target)return out(req,{error:"invalid_target"},409);
           const oldResponsible=a.tx.responsible_name||a.tx.responsible_login_name||"";
-          await db.from("transactions").update({responsible_login_name:toLogin,responsible_name:target.display_name,updated_at:now,last_activity_at:now}).eq("id",a.tx.id);
+          await db.from("transactions").update({responsible_user_id:target.user_id,responsible_login_name:target.login_name,responsible_name:target.display_name,updated_at:now,last_activity_at:now}).eq("id",a.tx.id);
           await history(a.tx.id,"responsible_changed",who,"تم تغيير مسؤول المعاملة",{old_responsible:oldResponsible,new_responsible:target.display_name,reason:r.reason});
         }
       }
@@ -1064,13 +1145,20 @@ Deno.serve(async(req:Request)=>{
     }
 
     if(action==="notifications"){
-      const {data,error}=await db.from("notifications").select("*").eq("target_login_name",who.login_name).order("created_at",{ascending:false}).limit(100);
-      if(error)throw error;return out(req,{ok:true,rows:data||[]});
+      const {data,error}=await db.from("notifications").select("id,transaction_id,event_type,title,body,read_at,created_at")
+        .eq("target_login_name",who.login_name).or("user_id.is.null,user_id.eq."+who.user_id)
+        .is("read_at",null).order("created_at",{ascending:false}).limit(100);
+      if(error)throw error;
+      return out(req,{ok:true,rows:data||[],unread_count:await ownedUnreadCount(who)});
     }
     if(action==="notification_read"){
       const id=clean(b.notification_id);
-      await db.from("notifications").update({read_at:new Date().toISOString()}).eq("id",id).eq("target_login_name",who.login_name);
-      return out(req,{ok:true});
+      if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id))return out(req,{error:"invalid_notification"},400);
+      const {data:row,error}=await db.from("notifications").update({read_at:new Date().toISOString()})
+        .eq("id",id).eq("target_login_name",who.login_name).or("user_id.is.null,user_id.eq."+who.user_id)
+        .select("id").maybeSingle();
+      if(error)throw error;if(!row)return out(req,{error:"not_found"},404);
+      return out(req,{ok:true,notification_id:row.id,unread_count:await ownedUnreadCount(who)});
     }
 
     return out(req,{error:"unknown_action"},400);

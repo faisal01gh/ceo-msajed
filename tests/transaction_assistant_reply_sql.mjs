@@ -1,0 +1,32 @@
+// Actual PostgreSQL reply command in local PGlite; never calls provider APIs.
+// Reuse the custody suite's synthetic predecessor fixture, not its assertions.
+import assert from 'node:assert/strict';import fs from 'node:fs';import path from 'node:path';import {pathToFileURL} from 'node:url';
+import {createTransactionFeedbackFixture} from './transaction_feedback_sql_fixture.mjs';
+const {db,scalar,id,actors,unit,tx,claims,dir}=await createTransactionFeedbackFixture();
+let passed=0;async function test(name,fn){await fn();console.log(`PASS ${++passed} ${name}`)}
+try{
+ const migration=path.join(dir,'20261006194500_transaction_assistant_reply.sql');if(fs.existsSync(migration))await db.exec(fs.readFileSync(migration,'utf8'));
+ await test('explicit atomic assistant reply operation exists',async()=>assert.equal(await scalar("select exists(select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='transaction_reply_raise_internal')"),true,'Missing reply-and-return operation'));
+ const source=id(301),op=id(401);await db.query(`update public.transactions set created_by=$2,responsible_user_id=$2,responsible_login_name='manager',responsible_name='manager display',created_by_name='manager display',current_level='assistant',close_level='assistant',workflow_started=true where id=$1`,[tx,actors.manager]);
+ await db.query(`insert into public.transaction_routes(id,transaction_id,route_type,from_user_id,from_role,from_login_name,from_name,to_user_id,to_login_name,to_name,raise_reason,proposed_decision,status) values($1,$2,'raise',$3,'manager','manager','manager display',$4,'assistant','assistant display','سبب اختبار','المطلوب اختبار','completed')`,[source,tx,actors.manager,actors.assistant]);
+ const snap=()=>scalar(`select jsonb_build_object('tx',to_jsonb(t),'routes',(select jsonb_agg(to_jsonb(r) order by id) from public.transaction_routes r where transaction_id=$1),'history',(select jsonb_agg(to_jsonb(h) order by id) from public.transaction_history h where transaction_id=$1),'notifications',(select jsonb_agg(to_jsonb(n) order by id) from public.notifications n where transaction_id=$1)) from public.transactions t where id=$1`,[tx]);
+ const reply=(actor,response='موافق، أكمل العمل',operation=op,route=source)=>scalar('select public.transaction_reply_raise_internal($1,$2,$3,$4,$5,$6)',[actor,id(1000+Number(actor.slice(-12))),tx,route,response,operation]);
+ const before=await snap();
+ await test('wrong assistant and read-only secretary cannot reply or move custody',async()=>{await assert.rejects(reply(actors.otherAssistant),/forbidden|custody/);await assert.rejects(reply(actors.secretary),/forbidden/);assert.deepEqual(await snap(),before)});
+ await test('explicit denial overrides assistant reply default',async()=>{await db.query("insert into public.user_permissions(user_id,permission_code,effect) values($1,'transactions.reply_raise','deny')",[actors.assistant]);await assert.rejects(reply(actors.assistant),/forbidden/);assert.deepEqual(await snap(),before);await db.query("delete from public.user_permissions where user_id=$1 and permission_code='transactions.reply_raise'",[actors.assistant]);});
+ let result;
+ await test('reply returns to exact original sender without referral label or changed responsibility/closing authority',async()=>{
+  result=await reply(actors.assistant);assert.equal(result.ok,true);assert.equal(result.target_user_id,actors.manager);assert.equal(result.target_login_name,'fixture_manager');
+  const t=await scalar('select to_jsonb(t) from public.transactions t where id=$1',[tx]);assert.equal(t.current_level,'manager');assert.equal(t.responsible_user_id,actors.manager);assert.equal(t.close_level,'assistant');assert.equal(t.status,'open');
+  const r=await scalar("select to_jsonb(r) from public.transaction_routes r where id=$1",[result.reply_route_id]);assert.equal(r.route_type,'reply');assert.equal(r.to_user_id,actors.manager);assert.equal(r.meta.reply_to_route_id,source);assert.equal(r.meta.response,'موافق، أكمل العمل');
+  const history=await scalar("select to_jsonb(h) from public.transaction_history h where transaction_id=$1 and event_type='assistant_reply'",[tx]);assert.equal(history.actor_id,actors.assistant);assert.equal(history.meta.reply_route_id,result.reply_route_id);assert.equal(history.meta.to_user_id,actors.manager);
+  const notification=await scalar("select to_jsonb(n) from public.notifications n where transaction_id=$1 and event_type='assistant_reply'",[tx]);assert.equal(notification.user_id,actors.manager);assert.equal(notification.read_at,null);
+  const af=await scalar('select public.transaction_feedback_flags_internal($1,$2)',[actors.assistant,tx]);const mf=await scalar('select public.transaction_feedback_flags_internal($1,$2)',[actors.manager,tx]);assert.equal(af.incoming,false);assert.equal(mf.incoming,true);assert.deepEqual(mf.current_assignees,['manager display']);
+ });
+ const after=await snap();
+ await test('same operation replay returns original receipt without second response/event/notification',async()=>{const again=await reply(actors.assistant);assert.equal(again.reply_route_id,result.reply_route_id);assert.equal(again.replayed,true);assert.deepEqual(await snap(),after)});
+ await test('changed response or wrong operation owner cannot replay',async()=>{await assert.rejects(reply(actors.assistant,'نص آخر'),/candidate|mismatch/);await assert.rejects(reply(actors.manager),/forbidden/);assert.deepEqual(await snap(),after)});
+ await test('new operation cannot answer a consumed raise a second time',async()=>{await assert.rejects(reply(actors.assistant,'موافق، أكمل العمل',id(402)),/custody|answered|stale/);assert.deepEqual(await snap(),after)});
+ await test('explicit-actor reply RPC is not executable by authenticated or anon',async()=>{assert.equal(await scalar("select has_function_privilege('authenticated','public.transaction_reply_raise_internal(uuid,uuid,uuid,uuid,text,uuid)','EXECUTE')"),false);assert.equal(await scalar("select has_function_privilege('anon','public.transaction_reply_raise_internal(uuid,uuid,uuid,uuid,text,uuid)','EXECUTE')"),false);assert.equal(await scalar("select has_function_privilege('service_role','public.transaction_reply_raise_internal(uuid,uuid,uuid,uuid,text,uuid)','EXECUTE')"),true)});
+ console.log(JSON.stringify({passed,network:'none',evidence:'local real PostgreSQL command only; not deployed acceptance'}));
+}finally{await db.close()}

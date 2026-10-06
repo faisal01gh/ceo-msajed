@@ -80,6 +80,9 @@ select.field{padding-inline-end:28px;max-width:100%}
 .btn-gold:hover:not(:disabled){background:#f5ead3}
 .btn-white{background:var(--surface);color:var(--ink-2);border-color:var(--line)}
 .btn-white:hover:not(:disabled){background:var(--surface-2);border-color:var(--line-2)}
+.tx-read-marker{display:flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:var(--muted);margin-top:6px}
+.tx-read-marker .ui-icon{width:14px;height:14px}
+.tx-read-marker[data-read-state=unread],.tx-read-marker[data-read-state=updated]{color:var(--blue)}
 .row-btn{padding:7px 13px;min-width:58px}
 
 /* Executive shell: navigation stays quiet; work takes precedence. */
@@ -203,15 +206,14 @@ body.modal-open{overflow:hidden}
 .detail.clickable{cursor:pointer;position:relative;padding-inline-end:32px;transition:background .18s var(--ease)}
 .detail.clickable .ui-icon{width:14px;height:14px;position:absolute;inset-inline-end:10px;bottom:15px;color:var(--blue)}
 .detail.clickable:hover{background:#edf3fc}
-.workspace-tabs{display:flex;gap:2px;overflow:auto;position:sticky;top:0;z-index:2;padding:0 22px;background:var(--surface);border-bottom:1px solid var(--line)}
-.workspace-tab{flex:none;min-height:50px;display:flex;align-items:center;gap:7px;padding:10px 13px;background:transparent;color:var(--muted);font-family:inherit;font-size:13px;font-weight:600;line-height:1.5;border:0;border-bottom:2px solid transparent;white-space:nowrap}
-.workspace-tab:hover{background:var(--surface-2);color:var(--navy)}
-.workspace-tab[aria-selected=true]{border-bottom-color:var(--blue);color:var(--blue)}
-.workspace-tab .tab-count{color:inherit;font-size:11px;font-variant-numeric:tabular-nums}
-.workspace-panel{padding:22px 24px 26px}
-.workspace-panel:focus-visible{outline-offset:-4px}
+.transaction-log{padding:22px 24px 26px}
+.transaction-log>.section-title{margin-top:0}
+.log-entry{padding:16px 0;border-bottom:1px solid var(--line);min-width:0;overflow-wrap:anywhere}
+.log-entry:last-child{border-bottom:0}
+.log-type{display:inline-block;font-size:12px;font-weight:700;color:var(--navy);margin-bottom:8px}
+.log-entry .action-item{padding:0;border:0}
 .section-title{font-size:15px;font-weight:700;color:var(--navy);margin:24px 0 12px;display:flex;align-items:center;gap:10px}
-.workspace-panel>.section-title:first-child{margin-top:0}
+
 .action-item{padding:16px 0;margin:0;border-bottom:1px solid var(--line);background:var(--surface)}
 .action-item:first-child{padding-top:0}
 .action-item:last-child{border-bottom:0}
@@ -401,9 +403,7 @@ body.modal-open{overflow:hidden}
   .detail{padding:12px 8px;min-height:74px}
   .detail:nth-child(3){padding-top:12px}
   .detail-v{font-size:13px}
-  .workspace-tabs{padding-inline:8px}
-  .workspace-tab{padding:10px 11px;min-height:48px}
-  .workspace-panel{padding:18px 16px 22px}
+  .transaction-log{padding:18px 16px 22px}
   .transaction-workspace .modal-foot{padding:12px 16px;max-height:26dvh;gap:8px}
   .detail-primary-actions,.detail-secondary-actions,.detail-danger-actions{width:100%;gap:6px}
   .transaction-workspace .modal-foot .btn{font-size:12px;padding:8px 10px;flex:1;white-space:nowrap}

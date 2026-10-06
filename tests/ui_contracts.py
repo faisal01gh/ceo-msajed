@@ -5,7 +5,7 @@ import tree_sitter_javascript
 
 repo=Path(__file__).resolve().parents[1]
 p=Parser(Language(tree_sitter_javascript.language()))
-baseline='b1dcc08091a7f4a482e2be10dc442bb6bc0b46ec'
+baseline='a44167a764b4ab3ccff47cf3ea34618153ebb663'
 before=subprocess.check_output(['git','show',baseline+':app.js'],cwd=repo)
 after=(repo/'app.js').read_bytes()
 
@@ -22,13 +22,23 @@ b=functions(before);a=functions(after)
 # Preserve unchanged transport/session/navigation and transaction-scope primitives.
 # The approved password command, bootstrap recovery and reset UI are tested separately.
 preserve=[
-    'passwordPolicy','passwordStrong','tabsFor','defaultTab','hasTxPerm','isExec',
+    'passwordPolicy','passwordStrong','defaultTab','hasTxPerm','isExec',
     'canManagePermissions','hasAnyRoutePerm','baseBody','apiUrl','fetchJson','rpc',
     'post','refreshAuthSession','signInNew','saveSession','loadSession','clearSession',
     'myDeptNames','managerUnits','sectorUnits','employeesForUnit','safeUrl','esc',
     'xmlCell','download'
 ]
 results={k:b.get(k)==a.get(k) for k in preserve}
+
+# Only tabsFor is deliberately revised. Execute the actual extracted function:
+# role defaults stay intact and the secretary gains the canonical SQL queue key.
+tab_probe='const vm=require("node:vm");const c={hasTxPerm:()=>false};vm.createContext(c);vm.runInContext('+json.dumps(a['tabsFor'])+'+";globalThis.tabs=tabsFor",c);console.log(JSON.stringify(Object.fromEntries('+json.dumps(['employee','manager','assistant','assistant_secretary','ceo','ceo_office_manager','ceo_secretary'])+'.map(r=>[r,c.tabs(r).map(t=>t[0])]))));'
+role_tabs=json.loads(subprocess.check_output(['node','-e',tab_probe],cwd=repo,text=True))
+assert role_tabs['employee']==['incoming','shared','closed']
+assert role_tabs['manager']==role_tabs['assistant']==['incoming','shared','scope','closed']
+assert role_tabs['assistant_secretary']==['incoming','secretary_queue','shared','closed']
+assert role_tabs['ceo']==['incoming','ceo_view','shared','closed']
+assert role_tabs['ceo_office_manager']==role_tabs['ceo_secretary']==['incoming','ceo','shared','closed']
 
 expected_added={
     'fmtDateTime','periodDays','requestTypeLabel','requestStatusLabel',
@@ -72,12 +82,25 @@ allowed={
     'tests/password_transaction_gate.py','tests/password_transport.py',
     'tests/transaction_safe_url.py','tests/ui_regressions.py'
 }
+allowed.update({
+    'docs/transactions/FEEDBACK_2026-10-06.md',
+    'supabase/migrations/20261006193000_transaction_custody_read_state.sql',
+    'supabase/migrations/20261006194500_transaction_assistant_reply.sql',
+    'tests/transaction_feedback_sql.mjs','tests/transaction_feedback_sql_fixture.mjs',
+    'tests/transaction_feedback_ui.py','tests/transaction_feedback_edge_test.ts',
+    'tests/transaction_feedback_guards.mjs','tests/transaction_feedback_notify.mjs',
+    'tests/transaction_feedback_cohort.mjs','tests/transaction_feedback_cross_layer.mjs',
+    'tests/transaction_feedback_ownership_bridge.mjs','tests/transaction_feedback_receipt_bridge.py',
+    'tests/transaction_assistant_reply_sql.mjs','tests/transaction_assistant_reply_regressions.mjs',
+    # Existing local, non-credential account tooling is outside this commit slice.
+    'scratch/manual-test-accounts.mjs','scratch/manual-test-accounts.test.mjs'
+})
 paths=set(subprocess.check_output(['git','diff','--name-only',baseline],cwd=repo,text=True).splitlines())
 paths.update(subprocess.check_output(['git','ls-files','--others','--exclude-standard'],cwd=repo,text=True).splitlines())
 
 for name in ['index.html','service-worker.js']:
     current=(repo/name).read_text(encoding='utf-8').replace('\r\n','\n')
-    assert '20261005-7' in current, f'{name} does not reference current asset version'
+    assert '20261006-1' in current, f'{name} does not reference current asset version'
 
 restricted=[x for x in ['urgkbbconlxeagfgyjee','msajed-tasks','sb_secret_','service_role','setInterval(']
             if x in source+(repo/'index.html').read_text(encoding='utf-8')]
@@ -86,6 +109,7 @@ tree=p.parse(after)
 report={
     'baseline':baseline,
     'preserved_functions':results,
+    'approved_role_tabs':role_tabs,
     'missing_expected_functions':missing_added,
     'missing_frontend_markers':missing_markers,
     'changed_paths':sorted(paths),

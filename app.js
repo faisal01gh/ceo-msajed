@@ -75,6 +75,7 @@ function historyText(h){
   const m=h?.meta||{},actor=h?.actor_name||"—",detail=String(h?.detail||"").trim();
   const splitArrow=()=>detail.includes("→")?detail.split("→").map(x=>x.trim()):["",""];
   if(h.event_type==="created")return "تم إنشاء المعاملة بواسطة «"+actor+"»";
+  if(h.event_type==="assistant_reply")return "رد المساعد «"+actor+"»"+((m.target_name||m.to_name||m.to)?" إلى «"+(m.target_name||m.to_name||m.to)+"»":"")+": «"+(m.response||detail||"—")+"»";
   if(h.event_type==="action")return "تمت إضافة إجراء عمل بواسطة «"+actor+"»: «"+detail+"»";
   if(h.event_type==="action_revised")return "تم تعديل إجراء عمل بواسطة «"+actor+"»: «"+detail+"»";
   if(h.event_type==="action_note")return "تمت إضافة ملاحظة على إجراء العمل بواسطة «"+actor+"»: «"+detail+"»";
@@ -124,7 +125,7 @@ function historyText(h){
   if(h.event_type==="request_approved")return "تم اعتماد الطلب من قبل «"+actor+"»"+(detail?" — "+detail:"");
   if(h.event_type==="request_rejected")return "تم رفض الطلب من قبل «"+actor+"»"+(detail?" بسبب «"+detail+"»":"");
   if(h.event_type==="legacy_context_resolved")return "تم تهيئة بيانات المعاملة القديمة بواسطة «"+actor+"»";
-  return detail||h?.event_type||"—";
+  return (detail||"تم تحديث المعاملة")+" بواسطة «"+actor+"»";
 }
 function apiUrl(fn){return CONFIG.supabaseUrl+"/functions/v1/"+fn}
 async function fetchJson(url,options={},timeoutMs=15000){
@@ -208,6 +209,7 @@ function tabsFor(role){
   if(role==="ceo")tabs=[["incoming","وارد إليّ"],["ceo_view","معاملات للاطلاع"],["shared","معاملات مشتركة"],["closed","المعاملات المغلقة"]];
   else if(role==="ceo_office_manager"||role==="ceo_secretary")tabs=[["incoming","وارد إليّ"],["ceo","معاملات الرئيس التنفيذي"],["shared","معاملات مشتركة"],["closed","المعاملات المغلقة"]];
   else if(role==="assistant"||role==="manager")tabs=[["incoming","وارد إليّ"],["shared","معاملات مشتركة"],["scope","معاملات نطاقي"],["closed","المعاملات المغلقة"]];
+  else if(role==="assistant_secretary")tabs=[["incoming","وارد إليّ"],["secretary_queue","المعاملات لدى المساعد"],["shared","معاملات مشتركة"],["closed","المعاملات المغلقة"]];
   else tabs=[["incoming","وارد إليّ"],["shared","معاملات مشتركة"],["closed","المعاملات المغلقة"]];
   if(hasTxPerm("transactions.view_all")){
     const i=tabs.findIndex(x=>x[0]==="closed");
@@ -443,9 +445,15 @@ async function login(e){
 }
 async function boot(){
   if(!session){loginView();return}
+  const owner=session;
   root.innerHTML='<section class="loading" role="status" aria-live="polite"><h1>جارٍ تحميل المعاملات</h1><p>نجهّز مساحة العمل.</p><div class="skeleton-lines" aria-hidden="true"><div class="skeleton-line"></div><div class="skeleton-line"></div><div class="skeleton-line"></div></div></section>';
   try{
     const gateProfile=await rpc("my_profile");
+    if(session!==owner)return;
+    if(gateProfile?.ok!==true||typeof gateProfile.user_id!=="string"||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(gateProfile.user_id))throw new Error("profile_identity_unavailable");
+    owner.user_id=gateProfile.user_id;
+    saveSession();
     if(gateProfile?.must_change_password===true){
       passwordChangeView({auth:{access_token:session.token,refresh_token:session.refresh_token||null}});
       return;
@@ -461,6 +469,7 @@ async function boot(){
       rpc("list_my_transactions",listArgs),
       rpc("my_permissions")
     ]);
+    if(session!==owner)return;
     directoryData=dir;
     listData=list;
     sessionPermissions=Array.isArray(perms)?perms:[];
@@ -475,11 +484,14 @@ async function boot(){
       const wanted=defaultTab(session.role);
       if(!tabsFor(session.role).some(x=>x[0]===currentTab)){
         currentTab=wanted;
-        await loadList();
+        const correctedList=await rpc("list_my_transactions",{...listArgs,p_tab:currentTab});
+        if(session!==owner)return;
+        listData=correctedList;
       }
     }
     renderApp();
   }catch(err){
+    if(session!==owner)return;
     if(err.status===401||err.status===403){clearSession();loginView();return}
     root.innerHTML='<section class="loading"><h1>تعذّر تحميل المعاملات</h1><p role="alert">تحقق من الاتصال ثم أعد المحاولة. لم تتغير بياناتك.</p><button class="btn btn-blue" id="retryBoot">إعادة المحاولة</button></section>';
     document.getElementById("retryBoot").onclick=boot;
@@ -924,6 +936,20 @@ function statusBadge(r){
   if(Number(r.days||0)<=2)return ["جديدة","st-new"];
   return ["قيد الإجراء","st-progress"];
 }
+function transactionReadMarker(row){
+  const known=session&&transactionSeenReceipts.get(session)?.get(row.id);
+  if(known&&Number.isSafeInteger(row.activity_revision)){
+    known.activity=Math.max(known.activity,row.activity_revision);
+    row.activity_revision=known.activity;
+    row.has_unread_updates=known.seen<known.activity;
+    row.read_state=row.has_unread_updates?"updated":"read";
+  }
+  const state=row.read_state;
+  const labels={unread:"غير مقروءة",updated:"تحديث جديد",read:"مقروءة"};
+  if(!labels[state])return "";
+  const shape=state==="read"?'<path d="m5 12 4 4 10-10"/>':state==="updated"?'<path d="M12 4v10M12 19h.01"/><path d="M5 4h14v16H5Z"/>':'<circle cx="12" cy="12" r="7"/>';
+  return '<span class="tx-read-marker" data-read-state="'+state+'"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true">'+shape+'</svg>'+labels[state]+'</span>';
+}
 function renderTable(){
   const host=document.getElementById("tableHost"),rows=listData.rows||[];
   if(!rows.length){host.innerHTML=emptyState("لا توجد معاملات",searchText||activeFilterCount()?"جرّب تعديل البحث أو مسح الفلاتر.":"ستظهر هنا المعاملات المتاحة ضمن صلاحياتك.");return}
@@ -941,7 +967,7 @@ function renderTable(){
         const [st,sc]=statusBadge(r);
         return `<tr>
           <td class="tx-number" data-label="رقم المعاملة"><span class="number-value">${esc(r.number)}</span></td>
-          <td class="tx-title" data-label="عنوان المعاملة">${esc(r.title)}</td>
+          <td class="tx-title" data-label="عنوان المعاملة">${esc(r.title)}${transactionReadMarker(r)}</td>
           <td data-label="الإدارة المسؤولة">${esc(r.responsible_unit_name||"—")}</td>
           <td data-label="الإدارات المساندة">${Number(r.supporting_count||0)}</td>
           <td data-label="مسؤول المعاملة">${esc(r.responsible_name||"—")}</td>
@@ -1084,6 +1110,8 @@ function sectorUnits(){
   return all.filter(u=>ids.has(u.id)&&u.unit_type==="department");
 }
 async function openCreate(){
+  const needsDepartment=["manager","employee"].includes(session.role),ownUnits=managerUnits();
+  const departmentPart=needsDepartment?'<div class="wide"><label>الإدارة المسؤولة</label><select class="field" name="responsible_unit_id" required>'+(ownUnits.length!==1?'<option value="">'+(ownUnits.length?"اختر الإدارة المسؤولة":"لا توجد إدارة ضمن عضويتك الحالية")+'</option>':"")+ownUnits.map(u=>'<option value="'+esc(u.id)+'">'+esc(u.name)+'</option>').join("")+'</select></div>':"";
   let rolePart="";
   if(session.role==="manager"){
     const modes=['<option value="none">حفظ بدون إحالة</option>'];
@@ -1106,6 +1134,7 @@ async function openCreate(){
       <div class="wide"><label>موضوع المعاملة</label><textarea class="field" name="subject"></textarea></div>
       <div><label>الأولوية</label><select class="field" name="priority"><option>عادي</option><option>عاجل</option><option>عاجل جدًا</option></select></div>
       <div><label>رابط المرفقات</label><input class="field" name="attachment_url" type="url"></div>
+      ${departmentPart}
       ${rolePart}
     </div></form>
   `,`<button class="btn btn-green" id="saveCreate">حفظ</button><button class="btn btn-soft" data-exit>خروج</button>`);
@@ -1114,48 +1143,70 @@ async function openCreate(){
     const mode=w.querySelector("#createMode"),host=w.querySelector("#createRouteFields");
     const draw=()=>{
       host.innerHTML=mode.value==="assign"?`
-        <label>الإدارة</label><select class="field" name="unit_id">${managerUnits().map(u=>'<option value="'+u.id+'">'+esc(u.name)+'</option>').join("")}</select>
-        <label>الموظفون</label><select class="field multi" name="targets" multiple>${userOptions(u=>u.role==="employee"&&u.dept_names.some(d=>myDeptNames().includes(d)))}</select>
-        <label>التوجيه</label><textarea class="field" name="directive"></textarea>`
+        <label>الإدارة</label><select class="field" name="unit_id" required>${managerUnits().map(u=>'<option value="'+u.id+'">'+esc(u.name)+'</option>').join("")}</select>
+        <label>الموظفون</label><select class="field multi" name="targets" multiple required>${userOptions(u=>u.role==="employee"&&u.dept_names.some(d=>myDeptNames().includes(d)))}</select>
+        <label>التوجيه</label><textarea class="field" name="directive" required></textarea>`
       :mode.value==="raise"?`
-        <label>سبب الرفع</label><textarea class="field" name="raise_reason"></textarea>
-        <label>المطلوب</label><textarea class="field" name="proposed_decision"></textarea>`
+        <label>سبب الرفع</label><textarea class="field" name="raise_reason" required></textarea>
+        <label>المطلوب</label><textarea class="field" name="proposed_decision" required></textarea>`
       :"";
     };
     mode.onchange=draw;draw();
   }
+  let createdId=null,createdInput=null,saving=false,uncertainRoute=false;
   w.querySelector("#saveCreate").onclick=async()=>{
+    if(saving||uncertainRoute)return;
     const form=w.querySelector("#createForm");
     if(!form.reportValidity())return;
     const fd=new FormData(form);
-    const title=String(fd.get("title")||"").trim();if(!title)return;
-    const btn=w.querySelector("#saveCreate");btn.disabled=true;
+    const title=createdInput?.title||String(fd.get("title")||"").trim();if(!title)return;
+    const selectedUnit=createdInput?.responsible_unit_id||String(fd.get("responsible_unit_id")||"");
+    if(needsDepartment&&!ownUnits.some(u=>u.id===selectedUnit)){showRequestError(w,"اختر إدارة مسؤولة ضمن عضويتك الحالية.");return}
+    const mode=w.querySelector("#createMode")?.value||"none";
+    const directive=String(fd.get("directive")||"").trim(),targets=fd.getAll("targets");
+    if((mode==="raise"&&(!String(fd.get("raise_reason")||"").trim()||!String(fd.get("proposed_decision")||"").trim()))||
+       (mode==="assign"&&(!ownUnits.some(u=>u.id===fd.get("unit_id"))||!targets.length||!directive||targets.some(login=>!employeesForUnit(fd.get("unit_id")).some(u=>u.role==="employee"&&u.login_name===login))))||
+       (fd.get("assistant")&&(!directive||!(directoryData.users||[]).some(u=>u.role==="assistant"&&u.login_name===fd.get("assistant"))))){
+      showRequestError(w,"أكمل بيانات الإحالة المطلوبة قبل حفظ المعاملة.");return;
+    }
+    const btn=w.querySelector("#saveCreate");btn.disabled=true;saving=true;
     try{
-      const created=await post(CONFIG.txFn,baseBody("create",{
-        title,subject:fd.get("subject"),priority:fd.get("priority"),attachment_url:fd.get("attachment_url")
-      }));
-      if(session.role==="manager"){
-        const mode=w.querySelector("#createMode")?.value||"none";
-        if(mode==="assign"){
-          const targets=[...w.querySelector('[name="targets"]').selectedOptions].map(o=>o.value);
-          await post(CONFIG.txFn,baseBody("route_manager_employees",{
-            transaction_id:created.row.id,unit_id:fd.get("unit_id"),targets,directive:fd.get("directive")
-          }));
-        }else if(mode==="raise"){
-          await post(CONFIG.txFn,baseBody("route_manager_assistant",{
-            transaction_id:created.row.id,raise_reason:fd.get("raise_reason"),proposed_decision:fd.get("proposed_decision")
-          }));
-        }
+      if(!createdId){
+        const input={title,subject:fd.get("subject"),priority:fd.get("priority"),attachment_url:fd.get("attachment_url"),
+          ...(needsDepartment?{responsible_unit_id:selectedUnit}: {})};
+        const created=await post(CONFIG.txFn,baseBody("create",input));
+        if(!created?.row?.id)throw new Error("missing_created_id");
+        createdId=created.row.id;createdInput=input;
+        form.querySelectorAll('[name="title"],[name="subject"],[name="priority"],[name="attachment_url"],[name="responsible_unit_id"],#createMode').forEach(el=>{el.disabled=true});
+      }
+      if(mode==="assign"){
+        await post(CONFIG.txFn,baseBody("route_manager_employees",{transaction_id:createdId,unit_id:fd.get("unit_id"),targets,directive}));
+      }else if(mode==="raise"){
+        await post(CONFIG.txFn,baseBody("route_manager_assistant",{transaction_id:createdId,raise_reason:fd.get("raise_reason"),proposed_decision:fd.get("proposed_decision")}));
       }else if(isExec()&&fd.get("assistant")){
-        await post(CONFIG.txFn,baseBody("route_exec_assistant",{
-          transaction_id:created.row.id,to_login:fd.get("assistant"),directive:fd.get("directive")
-        }));
+        await post(CONFIG.txFn,baseBody("route_exec_assistant",{transaction_id:createdId,to_login:fd.get("assistant"),directive}));
       }
       w.remove();await refresh();
-    }catch(e){btn.disabled=false;showRequestError(w)}
+    }catch(e){
+      if(createdId){
+        const rejected=[400,403,422].includes(e.status);
+        uncertainRoute=!rejected;
+        showRequestError(w,rejected?"تم إنشاء المعاملة، لكن تعذرت الإحالة. صحح بياناتها ثم أعد محاولة الإحالة فقط، أو افتح المعاملة المحفوظة.":"تم إنشاء المعاملة، لكن تعذر التحقق من نتيجة الإحالة. لن نكرر الإحالة تلقائيًا؛ افتح المعاملة للتحقق من سجلها الحالي.");
+        btn.textContent="إعادة محاولة الإحالة";
+        if(uncertainRoute){
+          form.querySelectorAll('input,select,textarea').forEach(el=>{el.disabled=true});
+          const locked=btn.cloneNode(true);locked.disabled=true;btn.replaceWith(locked);
+        }
+        if(!w.querySelector('#openCreatedTransaction')){
+          const open=document.createElement('button');open.type='button';open.id='openCreatedTransaction';open.className='btn btn-soft';open.textContent='فتح المعاملة المحفوظة';
+          w.querySelector('.modal-foot').prepend(open);
+          open.onclick=async()=>{await openDetails(createdId,open,{readOnly:true});w.remove()};
+        }
+      }else showRequestError(w);
+    }finally{saving=false;if(btn.isConnected)btn.disabled=false}
   };
 }
-async function openReferral(id){
+async function openReferral(id,authority=null){
   const choices=[];
   if(hasTxPerm("transactions.raise_manager"))choices.push(["raise-manager","رفع للمدير"]);
   if(hasTxPerm("transactions.assign_department"))choices.push(["assign-department","إسناد داخل الإدارة"]);
@@ -1163,6 +1214,10 @@ async function openReferral(id){
   if(hasTxPerm("transactions.assign_cross_sector"))choices.push(["assign-cross-sector","إسناد إلى قطاع آخر"]);
   if(hasTxPerm("transactions.raise_assistant"))choices.push(["raise-assistant","إحالة / رفع للمساعد"]);
   if(hasTxPerm("transactions.transfer_assistant"))choices.push(["transfer-assistant","تحويل لمساعد آخر"]);
+  if(hasTxPerm("transactions.raise_ceo")){
+    const details=authority||await post(CONFIG.txFn,baseBody("details",{transaction_id:id}));
+    if(details.can_raise_ceo===true)choices.push(["raise-ceo","رفع للرئيس التنفيذي"]);
+  }
   if(!choices.length)return;
   const w=modal("إحالة",`<div class="choice-grid">${choices.map(([k,n])=>'<button class="choice-btn" data-choice="'+k+'">'+n+'</button>').join("")}</div>`,
     '<button class="btn btn-soft" data-exit>خروج</button>');
@@ -1175,6 +1230,7 @@ async function openReferral(id){
     if(c==="assign-cross-sector")childExecDirect(id);
     if(c==="raise-assistant")(isExec()?childExecAssistant(id):childManagerRaise(id));
     if(c==="transfer-assistant")childAssistantTransfer(id);
+    if(c==="raise-ceo")childAssistantCeo(id);
   });
 }
 function backFooter(parentFn){return '<button class="btn btn-soft" data-back>رجوع</button>'}
@@ -1341,64 +1397,94 @@ function detailField(label,value,editable=false,id=""){
   const tag=editable?"button":"div";
   return '<'+tag+' class="detail '+(editable?"clickable":"")+'"'+(editable?' type="button" id="'+esc(id)+'"':"")+'><span class="detail-k">'+esc(label)+'</span><span class="detail-v">'+value+'</span>'+(editable?uiIcon("edit"):"")+'</'+tag+'>';
 }
-let workspaceSerial=0;
-function workspaceSections(sections){
-  const prefix='tx-'+(++workspaceSerial)+'-';
-  const tabs=sections.map(([key,title,body,count],i)=>'<button class="workspace-tab" type="button" role="tab" id="'+prefix+'tab-'+key+'" aria-controls="'+prefix+'panel-'+key+'" aria-selected="'+(i===0)+'" tabindex="'+(i===0?"0":"-1")+'" data-workspace-tab="'+key+'">'+esc(title)+(count===undefined?"":'<span class="tab-count">'+count+'</span>')+'</button>').join("");
-  const panels=sections.map(([key,title,body],i)=>'<section class="workspace-panel" role="tabpanel" id="'+prefix+'panel-'+key+'" aria-labelledby="'+prefix+'tab-'+key+'" tabindex="0" '+(i===0?"":"hidden")+'>'+body+'</section>').join("");
-  return '<div class="workspace-tabs" role="tablist" aria-label="تفاصيل المعاملة">'+tabs+'</div>'+panels;
+const transactionSeenReceipts=new WeakMap();
+async function acknowledgeTransactionSeen(id,revision,w){
+  if(!Number.isSafeInteger(revision)||revision<0)return;
+  const owner=session;
+  try{
+    const ack=await rpc("mark_my_transaction_seen",{p_transaction_id:id,p_revision:revision});
+    if(session!==owner)return;
+    if(ack?.ok!==true||ack.transaction_id!==id||!Number.isSafeInteger(ack.seen_revision)||ack.seen_revision<revision||
+      !Number.isSafeInteger(ack.activity_revision)||ack.activity_revision<ack.seen_revision||
+      !["read","updated"].includes(ack.read_state)||ack.has_unread_updates!==(ack.seen_revision<ack.activity_revision)||
+      ack.read_state!==(ack.has_unread_updates?"updated":"read"))throw new Error("transaction_seen_receipt_unconfirmed");
+    if(!transactionSeenReceipts.has(owner))transactionSeenReceipts.set(owner,new Map());
+    const receipts=transactionSeenReceipts.get(owner),known=receipts.get(id);
+    receipts.set(id,{seen:Math.max(known?.seen??0,ack.seen_revision),activity:Math.max(known?.activity??0,ack.activity_revision)});
+    const row=(listData.rows||[]).find(r=>r.id===id);
+    if(row&&Number.isSafeInteger(row.activity_revision)){
+      const html=transactionReadMarker(row);
+      const button=[...root.querySelectorAll('[data-act="open"]')].find(b=>b.dataset.id===id);
+      const marker=button?.closest('tr')?.querySelector('.tx-read-marker');
+      if(marker)marker.outerHTML=html;
+    }
+  }catch{
+    if(session===owner)showRequestError(w,"تعذر تثبيت حالة القراءة. بقيت علامة التحديث؛ أعد فتح المعاملة للمحاولة مجددًا.");
+  }
 }
-function wireWorkspaceTabs(w){
-  const tabs=[...w.querySelectorAll('[data-workspace-tab]')];
-  const select=tab=>{
-    tabs.forEach(t=>{
-      const active=t===tab;t.setAttribute('aria-selected',String(active));t.tabIndex=active?0:-1;
-      w.querySelector('#'+t.getAttribute('aria-controls')).hidden=!active;
-    });
+function requestDetailsHtml(r){
+  const meta=r.meta||{},parts=[];
+  const roles={employee:"الموظف",manager:"مدير الإدارة",assistant:"المساعد",ceo:"الرئيس التنفيذي",ceo_office_manager:"مدير مكتب الرئيس",ceo_secretary:"سكرتير الرئيس",assistant_secretary:"سكرتير المساعد"};
+  const labels={requester_role:"دور مقدم الطلب",target_role:"مستوى القرار",requested_login:"المسؤول المقترح",new_responsible:"المسؤول المقترح",requested_name:"اسم المسؤول المقترح",target_name:"الموجه إليه",requested_due_at:"التاريخ المقترح",target_role_history:"مسار الاعتماد",approved_by:"المعتمدون"};
+  const text=value=>value&&typeof value==="object"?Object.values(value).map(text).filter(Boolean).join("، "):String(value??"");
+  if(r.requested_due_at)parts.push("التاريخ المقترح: "+fmtDate(r.requested_due_at));
+  for(const [key,value] of Object.entries(meta)){
+    const body=["requester_role","target_role"].includes(key)?roles[value]||requestTargetLabel(value)||text(value):key==="requested_due_at"?fmtDate(value):text(value);
+    if(body)parts.push((labels[key]||"تفاصيل إضافية")+": "+body);
+  }
+  return parts.length?'<br>'+parts.map(esc).join('<br>'):"";
+}
+function transactionLogHtml(entries){
+  const labels={action:"إجراء عمل",route:"إحالة",reply:"رد المساعد",request:"طلب",decision:"قرار",assignment:"إسناد",cycle:"دورة عمل",history:"حدث في السجل"};
+  return '<section class="transaction-log" aria-label="سجل المعاملة"><h3 class="section-title">سجل المعاملة</h3>'+(entries.sort((a,b)=>a.time-b.time||(a.key<b.key?-1:a.key>b.key?1:0)).map(e=>'<article class="log-entry" data-log-type="'+e.type+'" data-log-key="'+esc(e.key)+'"><span class="log-type">'+labels[e.type]+'</span>'+e.html+'</article>').join("")||'<p class="muted">لا توجد أحداث مسجلة.</p>')+'</section>';
+}
+async function openDetails(id,invoker=document.activeElement,{readOnly=false}={}){
+  const owner=session;
+  let d;
+  try{d=await post(CONFIG.txFn,baseBody("details",{transaction_id:id}))}catch(err){if(session!==owner)return;throw err}
+  if(session!==owner)return;
+  const t=d.transaction;
+  const logEntries=[];
+  const record=(type,row,html,date=row.created_at)=>{
+    const stamp=new Date(date||"").getTime();
+    logEntries.push({type,key:type+":"+String(row.id??row.cycle_no??logEntries.length),time:Number.isFinite(stamp)?stamp:0,html});return "";
   };
-  tabs.forEach((tab,i)=>{
-    tab.onclick=()=>select(tab);
-    tab.onkeydown=e=>{
-      let next;
-      if(e.key==='ArrowLeft')next=(i+1)%tabs.length;
-      else if(e.key==='ArrowRight')next=(i-1+tabs.length)%tabs.length;
-      else if(e.key==='Home')next=0;
-      else if(e.key==='End')next=tabs.length-1;
-      else return;
-      e.preventDefault();select(tabs[next]);tabs[next].focus();
-    };
-  });
-}
-async function openDetails(id,invoker=document.activeElement){
-  const d=await post(CONFIG.txFn,baseBody("details",{transaction_id:id})),t=d.transaction;
-  const assignments=(d.assignments||[]).map(a=>{
+  (d.assignments||[]).forEach(a=>{
     const names=(a.transaction_assignment_targets||[]).map(x=>x.display_name).join("، ");
     const unitName=(directoryData.units||[]).find(u=>u.id===a.unit_id)?.name||"—";
     const kind=a.assignment_type==="supporting"?"إدارة مساندة":a.assignment_type==="direct"?"إسناد مباشر":"إدارة مسؤولة";
-    return '<div class="action-item"><div class="action-top"><span>'+esc(kind)+'</span><span>'+esc(fmtDateTime(a.created_at))+'</span></div><div class="action-text">الإدارة: '+esc(unitName)+(names?'<br>المكلفون: '+esc(names):"")+(a.directive?'<br>المطلوب: '+esc(a.directive):"")+'</div></div>';
-  }).join("")||'<div class="muted">لا توجد إسنادات مسجلة.</div>';
+    return record("assignment",a,'<div class="action-item"><div class="action-top"><span>'+esc(kind)+'</span><span>'+esc(fmtDateTime(a.created_at))+'</span></div><div class="action-text">الإدارة: '+esc(unitName)+(names?'<br>المكلفون: '+esc(names):"")+(a.directive?'<br>المطلوب: '+esc(a.directive):"")+'</div></div>');
+  });
 
   const versionsByAction=new Map();
   for(const v of d.action_versions||[]){if(!versionsByAction.has(v.action_id))versionsByAction.set(v.action_id,[]);versionsByAction.get(v.action_id).push(v)}
   const notesByAction=new Map();
   for(const n of d.action_notes||[]){if(!notesByAction.has(n.action_id))notesByAction.set(n.action_id,[]);notesByAction.get(n.action_id).push(n)}
-  const canTryNote=hasTxPerm("transactions.act_all")||["manager","assistant","ceo","ceo_office_manager","ceo_secretary"].includes(session.role);
+  const canTryNote=!readOnly&&(hasTxPerm("transactions.act_all")||["manager","assistant","ceo","ceo_office_manager","ceo_secretary"].includes(session.role));
 
-  const actions=(d.actions||[]).map(a=>{
+  (d.actions||[]).forEach(a=>{
     const vs=versionsByAction.get(a.id)||[];
     const ns=notesByAction.get(a.id)||[];
-    const history=vs.length>1?'<div class="version-list">'+vs.map(v=>'<div>نسخة '+esc(v.version_no)+': '+esc(v.body)+'</div>').join("")+'</div>':"";
+    const history=vs.length?'<div class="version-list">'+vs.map(v=>'<div>نسخة '+esc(v.version_no)+': '+esc(v.body)+'</div>').join("")+'</div>':"";
     const notes=ns.length?'<div class="action-notes">'+ns.map(n=>'<div class="action-note"><b>'+esc(n.actor_name||"—")+' · '+esc(fmtDate(n.created_at))+'</b>'+esc(n.note||"")+'</div>').join("")+'</div>':"";
-    const revise=[session.display_name,session.login_name,session.username].includes(a.actor_name)
-      ?'<button class="row-btn btn-soft" data-action-revise="'+a.id+'">تعديل الإجراء</button>':"";
-    const noteBtn=canTryNote?'<button class="row-btn btn-soft" data-action-note="'+a.id+'">ملاحظة</button>':"";
-    return '<div class="action-item"><div class="action-top"><span>'+esc(a.actor_name||"—")+'</span><span>'+esc(fmtDate(a.created_at))+'</span></div><div class="action-text">'+esc(a.action_text||"")+'</div><div class="badge pri-n">مسجل</div><div class="action-controls">'+revise+noteBtn+'</div>'+notes+history+'</div>';
-  }).join("")||'<div class="muted">—</div>';
+    const revise=!readOnly&&[session.display_name,session.login_name,session.username].includes(a.actor_name)
+      ?'<button class="row-btn btn-soft" data-action-revise="'+esc(a.id)+'">تعديل الإجراء</button>':"";
+    const noteBtn=canTryNote?'<button class="row-btn btn-soft" data-action-note="'+esc(a.id)+'">ملاحظة</button>':"";
+    return record("action",a,'<div class="action-item"><div class="action-top"><span>'+esc(a.actor_name||"—")+'</span><span>'+esc(fmtDate(a.created_at))+'</span></div><div class="action-text">'+esc(a.action_text||"")+'</div><div class="badge pri-n">مسجل</div><div class="action-controls">'+revise+noteBtn+'</div>'+notes+history+'</div>');
+  });
 
-  const periods=(d.periods||[]).map(p=>{const days=periodDays(p);return '<div class="action-item"><div class="action-top"><span>الدورة '+esc(p.cycle_no)+'</span><span>'+esc(p.ended_at?days+" يوم":"مستمرة · "+days+" يوم")+'</span></div><div class="action-text">من '+esc(fmtDate(p.started_at))+(p.ended_at?" إلى "+esc(fmtDate(p.ended_at)):" وحتى الآن")+'</div></div>'}).join("");
-  const routes=(d.routes||[]).map(r=>'<div class="action-item"><div class="action-top"><span>'+esc(r.from_name||"—")+' → '+esc(r.to_name||"—")+'</span><span>'+esc(fmtDate(r.created_at))+'</span></div><div class="action-text">'+esc(r.directive||r.raise_reason||r.transfer_reason||"")+(r.proposed_decision?'<br>المطلوب: '+esc(r.proposed_decision):"")+(r.rejection_reason?'<br>سبب الرفض: '+esc(r.rejection_reason):"")+'</div></div>').join("")||'<div class="muted">—</div>';
+  (d.periods||[]).forEach(p=>{const days=periodDays(p);return record("cycle",p,'<div class="action-item"><div class="action-top"><span>الدورة '+esc(p.cycle_no)+'</span><span>'+esc(p.ended_at?days+" يوم":"مستمرة · "+days+" يوم")+'</span></div><div class="action-text">من '+esc(fmtDate(p.started_at))+(p.ended_at?" إلى "+esc(fmtDate(p.ended_at)):" وحتى الآن")+'</div></div>',p.started_at)});
+  const replyEntityIds=new Set((d.routes||[]).filter(r=>r.route_type==="reply").map(r=>r.id));
+  (d.routes||[]).forEach(r=>{
+    if(r.route_type==="reply"){
+      record("reply",r,'<div class="action-item"><div class="action-top"><span>'+esc(r.from_name||"—")+'</span><span>'+esc(fmtDateTime(r.created_at))+'</span></div><div class="action-text">الرد إلى: '+esc(r.to_name||"—")+'<br>'+esc(r.meta?.response||r.directive||"—")+'</div></div>');return;
+    }
+    record("route",r,'<div class="action-item"><div class="action-top"><span>'+'من '+esc(r.from_name||"—")+' إلى '+esc(r.to_name||"—")+'</span><span>'+esc(fmtDate(r.created_at))+'</span></div><div class="action-text">'+[(r.directive?"التوجيه: "+r.directive:""),(r.raise_reason?"سبب الرفع: "+r.raise_reason:""),(r.transfer_reason?"سبب التحويل: "+r.transfer_reason:"")].filter(Boolean).map(esc).join("<br>")+(r.proposed_decision?'<br>المطلوب: '+esc(r.proposed_decision):"")+(r.rejection_reason?'<br>سبب الرفض: '+esc(r.rejection_reason):"")+'</div></div>');
+    if(r.route_type==="assistant_transfer"&&["accepted","rejected"].includes(r.status))record("decision",{...r,id:"route:"+r.id},'<div class="action-item"><div class="action-top"><span>'+(r.status==="accepted"?"قبول التحويل":"رفض التحويل")+'</span><span>'+esc(fmtDateTime(r.decided_at))+'</span></div><div class="action-text">صاحب القرار: '+esc(r.decided_by_name||r.decided_by_login_name||"—")+(r.rejection_reason?'<br>السبب: '+esc(r.rejection_reason):"")+'</div></div>',r.decided_at||r.created_at);
+  });
 
   const canDecideRequest=r=>{
+    if(readOnly)return false;
     const requesterRole=String(r?.meta?.requester_role||""),targetRole=String(r?.meta?.target_role||"");
     if(targetRole==="ceo")return isExec()&&hasTxPerm("transactions.act_all");
     if(targetRole==="assistant")return session.role==="assistant"&&!!d.flags?.scope;
@@ -1408,12 +1494,16 @@ async function openDetails(id,invoker=document.activeElement){
     if(session.role==="manager")return !!d.flags?.scope&&requesterRole==="employee";
     return false;
   };
-  const requestHelp='<div class="workspace-help">تظهر هنا الطلبات التي تحتاج موافقة مستوى أعلى، مثل الإغلاق والاسترجاع والتمديد وتغيير المسؤول.</div>';
-  const requests=requestHelp+(d.requests||[]).map(r=>{
+
+  (d.requests||[]).forEach(r=>{
     const target=requestTargetLabel(r?.meta?.target_role);
-    return '<div class="action-item"><div class="action-top"><span>'+esc(requestTypeLabel(r.request_type))+'</span><span>'+esc(fmtDateTime(r.created_at))+'</span></div><div class="action-text">مقدم الطلب: '+esc(r.requested_by_name||"—")+(target?'<br>موجّه إلى: '+esc(target):"")+'<br>السبب: '+esc(r.reason||"—")+'</div>'+(r.status==="pending"&&canDecideRequest(r)?'<div class="request-actions"><button class="row-btn btn-green" data-request-approve="'+r.id+'">اعتماد</button><button class="row-btn btn-red" data-request-reject="'+r.id+'">رفض</button></div>':'<div class="badge '+(r.status==="approved"?"st-open":r.status==="rejected"?"pri-vh":"pri-n")+'">'+esc(requestStatusLabel(r.status))+'</div>')+'</div>';
-  }).join("");
-  const hist=(d.history||[]).map(h=>'<div class="action-item"><div class="action-top"><span>سجل المعاملة</span><span>'+esc(fmtDateTime(h.created_at))+'</span></div><div class="action-text">'+esc(historyText(h))+'</div></div>').join("")||'<div class="muted">—</div>';
+    record("request",r,'<div class="action-item"><div class="action-top"><span>'+esc(requestTypeLabel(r.request_type))+'</span><span>'+esc(fmtDateTime(r.created_at))+'</span></div><div class="action-text">مقدم الطلب: '+esc(r.requested_by_name||"—")+(target?'<br>موجّه إلى: '+esc(target):"")+'<br>السبب: '+esc(r.reason||"—")+requestDetailsHtml(r)+'</div>'+(r.status==="pending"&&canDecideRequest(r)?'<div class="request-actions"><button class="row-btn btn-green" data-request-approve="'+esc(r.id)+'">اعتماد</button><button class="row-btn btn-red" data-request-reject="'+esc(r.id)+'">رفض</button></div>':'<div class="badge '+(r.status==="approved"?"st-open":r.status==="rejected"?"pri-vh":"pri-n")+'">'+esc(requestStatusLabel(r.status))+'</div>')+'</div>');
+    if(["approved","rejected"].includes(r.status))record("decision",r,'<div class="action-item"><div class="action-top"><span>'+esc(requestTypeLabel(r.request_type))+' · '+esc(requestStatusLabel(r.status))+'</span><span>'+esc(fmtDateTime(r.decided_at))+'</span></div><div class="action-text">صاحب القرار: '+esc(r.decided_by_name||r.decided_by_login_name||"—")+'<br>سبب القرار: '+esc(r.decision_reason||"—")+'</div></div>',r.decided_at||r.created_at);
+  });
+  (d.history||[]).forEach(h=>{
+    if(h.event_type==="assistant_reply"&&h.meta?.reply_route_id&&replyEntityIds.has(h.meta.reply_route_id))return;
+    record(h.event_type==="assistant_reply"?"reply":["request_approved","request_rejected","extension_approved","assistant_transfer_accepted","assistant_transfer_rejected"].includes(h.event_type)?"decision":"history",{...h,id:"history:"+(h.id??logEntries.length)},'<div class="action-item"><div class="action-top"><span>سجل المعاملة</span><span>'+esc(fmtDateTime(h.created_at))+'</span></div><div class="action-text">'+esc(historyText(h))+'</div></div>');
+  });
   const pendingTransfer=(d.routes||[]).find(r=>r.route_type==="assistant_transfer"&&r.status==="pending"&&r.to_login_name===session.login_name);
   const directClose=!!d.can_close&&hasTxPerm("transactions.close");
   const directReopen=!!d.can_close&&hasTxPerm("transactions.reopen");
@@ -1432,16 +1522,16 @@ async function openDetails(id,invoker=document.activeElement){
       </button>
     </div>`;
 
-  const subjectClickable=t.status==="open"&&hasTxPerm("transactions.edit_subject");
-  const unitClickable=t.status==="open"&&hasTxPerm("transactions.change_responsible_unit");
-  const priorityClickable=t.status==="open"&&hasTxPerm("transactions.change_priority");
-  const dueClickable=t.status==="open"&&hasTxPerm("transactions.set_due_date");
-  const responsibleClickable=t.status==="open"&&hasTxPerm("transactions.change_responsible");
+  const subjectClickable=!readOnly&&t.status==="open"&&hasTxPerm("transactions.edit_subject");
+  const unitClickable=!readOnly&&t.status==="open"&&hasTxPerm("transactions.change_responsible_unit");
+  const priorityClickable=!readOnly&&t.status==="open"&&hasTxPerm("transactions.change_priority");
+  const dueClickable=!readOnly&&t.status==="open"&&hasTxPerm("transactions.set_due_date");
+  const responsibleClickable=!readOnly&&t.status==="open"&&hasTxPerm("transactions.change_responsible");
 
   const reviewBanner=t.status==="open"&&t.migration_status==="needs_review"
     ?'<div class="review-banner">هذه معاملة قديمة ينقصها سياق المسؤولية. اختر الإدارة والمسؤول لتكمل على المسار الجديد دون اختلاق بيانات.</div>':"";
 
-  const footer=`
+  const footer=readOnly?"":`
     <div class="detail-primary-actions">
       ${pendingTransfer&&hasTxPerm("transactions.decide_assistant_transfer")?'<button class="btn btn-green" id="acceptTransferBtn">قبول التحويل</button><button class="btn btn-red" id="rejectTransferBtn">رفض التحويل</button>':""}
       ${t.status==="open"&&d.can_act?'<button class="btn btn-blue" id="actionBtn">إجراء عمل</button>':""}
@@ -1449,26 +1539,20 @@ async function openDetails(id,invoker=document.activeElement){
     </div>
     <div class="detail-secondary-actions">
       ${t.status==="open"&&d.can_raise_ceo?'<button class="btn btn-gold" id="raiseCeoBtn">رفع للرئيس</button>':""}
-      ${t.status==="open"&&t.due_at?'<button class="btn btn-soft" id="extensionBtn">طلب تمديد</button>':""}
+      ${t.status==="open"&&replyRaiseBinding(id,d,owner)?'<button class="btn btn-blue" id="replyRaiseBtn">الرد</button>':""}
+      ${d.can_act&&t.status==="open"&&t.due_at?'<button class="btn btn-soft" id="extensionBtn">طلب تمديد</button>':""}
       ${t.status==="open"&&hasTxPerm("transactions.ceo_view")?'<button class="btn btn-soft" id="ceoViewBtn">إطلاع الرئيس</button>':""}
       ${t.status==="closed"?'<button class="btn btn-soft" id="reopenBtn">'+(directReopen?"استرجاع المعاملة":"طلب استرجاع")+'</button>':""}
       ${t.status==="open"&&t.migration_status==="needs_review"&&hasTxPerm("transactions.act_all")&&hasTxPerm("transactions.change_responsible")?'<button class="btn btn-gold" id="resolveLegacyBtn">تهيئة المعاملة القديمة</button>':""}
-      ${t.status==="open"?'<button class="btn btn-soft" id="closeBtn">إغلاق المعاملة</button>':""}
+      ${d.can_act&&t.status==="open"?'<button class="btn btn-soft" id="closeBtn">إغلاق المعاملة</button>':""}
     </div>
     <div class="detail-danger-actions">
-      ${t.status==="open"?'<button class="btn btn-red" id="cancelBtn">إلغاء المعاملة</button>':""}
+      ${d.can_act&&t.status==="open"?'<button class="btn btn-red" id="cancelBtn">إلغاء المعاملة</button>':""}
       ${t.status==="open"&&hasTxPerm("transactions.delete_hard")&&!t.workflow_started?'<button class="btn btn-red" id="deleteBtn">حذف نهائي</button>':""}
     </div>
   `;
 
-  const overview='<h3 class="section-title">الإسناد والإدارات</h3>'+assignments+(periods?'<h3 class="section-title">المدة ودورات العمل</h3>'+periods:"");
-  const sections=workspaceSections([
-    ["overview","نظرة عامة",overview],
-    ["actions","إجراءات العمل",actions,(d.actions||[]).length],
-    ["routes","الإحالات",routes,(d.routes||[]).length],
-    ["requests","الطلبات والاعتمادات",requests,(d.requests||[]).length],
-    ["history","السجل",hist,(d.history||[]).length]
-  ]);
+  const sections=transactionLogHtml(logEntries);
   const w=modal(t.title,toolbar+reviewBanner+`
     <div class="workspace-context">
       <div class="workspace-subject"><h3 class="section-title">موضوع المعاملة ${subjectClickable?'<button class="inline-edit-btn" type="button" id="subjectField" aria-label="تعديل موضوع المعاملة">'+uiIcon("edit")+'</button>':""}</h3><div class="action-text">${esc(t.subject||"—")}</div>
@@ -1482,11 +1566,12 @@ async function openDetails(id,invoker=document.activeElement){
         ${detailField("الأولوية",'<span class="badge '+priorityClass(t.priority)+'">'+esc(t.priority)+'</span>',priorityClickable,"priorityField")}
         ${detailField("تاريخ الإنشاء",esc(fmtDate(t.created_at)))}
         ${detailField("تاريخ الاستحقاق",esc(fmtDate(t.due_at)),dueClickable,"dueField")}
+        ${detailField("المحال إليه حاليًا",esc((d.current_assignees??t.current_assignees??(d.assignments||[]).filter(a=>a.status==="active").flatMap(a=>(a.transaction_assignment_targets||[]).filter(x=>!x.status||x.status==="active").map(x=>x.display_name))).join("، ")||"—"))}
       </div>
     </div>${sections}
   `,footer,invoker);
   w.querySelector('.modal').classList.add('transaction-workspace');
-  wireWorkspaceTabs(w);
+
 
   w.querySelectorAll("[data-action-revise]").forEach(b=>b.onclick=()=>reviseAction(b.dataset.actionRevise,w,id));
   w.querySelectorAll("[data-action-note]").forEach(b=>b.onclick=()=>addActionNote(b.dataset.actionNote,w,id));
@@ -1498,8 +1583,9 @@ async function openDetails(id,invoker=document.activeElement){
   if(w.querySelector("#dueField"))w.querySelector("#dueField").onclick=()=>openDueDate(id,w,t.due_at);
   if(w.querySelector("#responsibleField"))w.querySelector("#responsibleField").onclick=()=>openResponsible(id,w);
   if(w.querySelector("#actionBtn"))w.querySelector("#actionBtn").onclick=()=>{w.remove();openAction(id)};
-  if(w.querySelector("#referralBtn"))w.querySelector("#referralBtn").onclick=()=>{w.remove();openReferral(id)};
+  if(w.querySelector("#referralBtn"))w.querySelector("#referralBtn").onclick=async()=>{w.remove();await openReferral(id,d)};
   if(w.querySelector("#raiseCeoBtn"))w.querySelector("#raiseCeoBtn").onclick=()=>openRaiseCeo(id,w);
+  if(w.querySelector("#replyRaiseBtn"))w.querySelector("#replyRaiseBtn").onclick=()=>openReplyRaise(id,w,d,owner);
   if(w.querySelector("#extensionBtn"))w.querySelector("#extensionBtn").onclick=()=>openExtension(id,w,t.due_at);
   if(w.querySelector("#ceoViewBtn"))w.querySelector("#ceoViewBtn").onclick=async()=>{await post(CONFIG.txFn,baseBody("mark_ceo_view",{transaction_id:id}));w.remove();await refresh()};
   if(w.querySelector("#cancelBtn"))w.querySelector("#cancelBtn").onclick=()=>{w.remove();openReason("request_cancel",id,"إلغاء المعاملة")};
@@ -1516,6 +1602,9 @@ async function openDetails(id,invoker=document.activeElement){
   w.querySelector("#waBtn").onclick=()=>copyWhatsApp(d);
   w.querySelector("#excelBtn").onclick=()=>exportTransactionExcel(d);
   w.querySelector("#pdfBtn").onclick=()=>printTransaction(d);
+  await Promise.resolve();
+  if(session===owner&&w.isConnected)void acknowledgeTransactionSeen(id,t.activity_revision,w);
+  return w;
 }
 function addActionNote(actionId,parent,txId){
   const w=modal("ملاحظة على الإجراء",'<label>الملاحظة</label><textarea class="field" id="actionNoteText"></textarea>',
@@ -1526,6 +1615,52 @@ function addActionNote(actionId,parent,txId){
     await post(CONFIG.txFn,baseBody("add_action_note",{action_id:actionId,note}));
     w.remove();parent.remove();await refresh();
   };
+}
+function replyRaiseBinding(id,d,owner){
+  const uuid=value=>typeof value==="string"&&/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+  if(session!==owner||d.transaction?.id!==id||d.transaction?.status!=="open"||d.can_reply_raise!==true||
+    !uuid(d.reply_route_id)||!uuid(d.reply_target_user_id)||!uuid(owner?.user_id)||
+    typeof d.reply_target_login_name!=="string"||!d.reply_target_login_name.trim()||!d.reply_target_name)return null;
+  return Object.freeze({source_route_id:d.reply_route_id,actor_user_id:owner.user_id,target_user_id:d.reply_target_user_id,target_login_name:d.reply_target_login_name});
+}
+function openReplyRaise(id,parent,d,owner=session){
+  const binding=replyRaiseBinding(id,d,owner);
+  if(!binding)return;
+  const operationId=crypto.randomUUID();
+  const w=modal("رد على الطلب",'<div class="detail"><span class="detail-k">الرد إلى</span><strong class="detail-v">'+esc(d.reply_target_name)+'</strong></div><label for="replyResponse">الرد</label><textarea class="field" id="replyResponse" required></textarea>',
+    '<button class="btn btn-blue" id="sendReplyRaise">إرسال الرد</button><button class="btn btn-soft" data-exit>خروج</button>');
+  const field=w.querySelector('#replyResponse'),send=w.querySelector('#sendReplyRaise');
+  let candidate=null,pending=false;
+  w.querySelector('[data-exit]').onclick=()=>w.remove();
+  send.onclick=async()=>{
+    if(pending||session!==owner)return;
+    if(!candidate){
+      const response=field.value.trim();
+      if(!response){field.setCustomValidity('اكتب الرد قبل الإرسال.');field.reportValidity();return}
+      candidate=Object.freeze({transaction_id:id,route_id:binding.source_route_id,response,operation_id:operationId});
+    }
+    field.setCustomValidity('');field.readOnly=true;pending=true;
+    try{
+      const result=await post(CONFIG.txFn,baseBody("reply_raise",candidate));
+      if(session!==owner)return;
+      if(result?.ok!==true||typeof result.replayed!=="boolean"||result.transaction_id!==candidate.transaction_id||
+        result.source_route_id!==candidate.route_id||result.operation_id!==candidate.operation_id||
+        result.actor_user_id!==binding.actor_user_id||result.target_user_id!==binding.target_user_id||
+        result.target_login_name!==binding.target_login_name||typeof result.reply_route_id!=="string"||
+        !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(result.reply_route_id))throw new Error("reply_unconfirmed");
+      w.remove();parent.remove();await refresh();
+    }catch{
+      if(session!==owner)return;
+      showRequestError(w,"تعذر التحقق من نتيجة الرد. بقي نص الرد ثابتًا؛ أعد التحقق بنفس الطلب أو حدّث تفاصيل المعاملة. لم نكرر الرد أو نغير مسارها تلقائيًا.");
+      send.textContent="إعادة التحقق من الرد";
+      if(!w.querySelector('#refreshReplyDetails')){
+        const button=document.createElement('button');button.type='button';button.id='refreshReplyDetails';button.className='btn btn-soft';button.textContent='تحديث تفاصيل المعاملة';
+        w.querySelector('.modal-foot').prepend(button);
+        button.onclick=async()=>{if(session!==owner)return;await openDetails(id,button,{readOnly:true});if(session!==owner)return;w.remove();parent.remove()};
+      }
+    }finally{pending=false}
+  };
+  field.oninput=()=>field.setCustomValidity('');
 }
 function openRaiseCeo(id,parent){
   const w=modal("رفع للرئيس التنفيذي",'<label>سبب الرفع</label><textarea class="field" id="raiseCeoReason"></textarea><label>المطلوب</label><textarea class="field" id="raiseCeoProposed"></textarea>',
@@ -1665,17 +1800,41 @@ function openResponsible(id,parent){
   w.querySelector("[data-exit]").onclick=()=>w.remove();
   w.querySelector("#save").onclick=async()=>{const reason=w.querySelector("#respReason").value.trim();if(!reason)return;await post(CONFIG.txFn,baseBody("change_responsible",{transaction_id:id,to_login:w.querySelector("#newResponsible").value,reason}));w.remove();parent.remove();await refresh()};
 }
+function setNotificationCount(count){
+  if(!Number.isSafeInteger(count)||count<0)return;
+  listData.counters={...(listData.counters||{}),notifications:count};
+  const button=document.getElementById("notifBtn");
+  if(button){
+    button.innerHTML=uiIcon("bell")+(count?'<span class="notification-dot" aria-hidden="true"></span>':"");
+    button.setAttribute("aria-label",count?"لديك "+count+" تنبيهات غير مقروءة":"لا توجد تنبيهات غير مقروءة");
+  }
+}
 async function openNotifications(){
+  const owner=session;
   const invoker=document.getElementById("notifBtn")||document.activeElement;
-  const n=await post(CONFIG.txFn,baseBody("notifications"));
-  const rows=(n.rows||[]).filter(x=>!x.read_at);
-  const w=modal("التنبيهات",rows.length?rows.map(x=>'<button class="notification-item" data-notif="'+x.id+'"><span>'+esc(x.title)+'</span><small>'+esc(fmtDateTime(x.created_at))+'</small><b>'+esc(x.body||"")+'</b></button>').join(""):emptyState("لا توجد تنبيهات جديدة","عند وصول تنبيه جديد سيظهر هنا."));
+  let n;
+  try{n=await post(CONFIG.txFn,baseBody("notifications"))}catch(err){if(session!==owner)return;throw err}
+  if(session!==owner)return;
+  const rows=n.rows||[];
+  setNotificationCount(n.unread_count);
+  const w=modal("التنبيهات",rows.length?rows.map(x=>'<button class="notification-item" data-notif="'+esc(x.id)+'"><span>'+esc(x.title)+'</span><small>'+esc(fmtDateTime(x.created_at))+'</small><b>'+esc(x.body||"")+'</b></button>').join(""):emptyState("لا توجد تنبيهات جديدة","عند وصول تنبيه جديد سيظهر هنا."));
   w.querySelectorAll("[data-notif]").forEach((b,i)=>b.onclick=async()=>{
+    if(session!==owner)return;
     const row=rows[i];
-    await post(CONFIG.txFn,baseBody("notification_read",{notification_id:row.id}));
-    listData.counters.notifications=Math.max(0,Number(listData?.counters?.notifications||0)-1);
-    w.remove();renderListOnly();
-    if(row.transaction_id)await openDetails(row.transaction_id,invoker);
+    let details=null;
+    try{
+      if(row.transaction_id){
+        details=await openDetails(row.transaction_id,invoker);
+        if(session!==owner||!details?.isConnected)return;
+      }
+      const result=await post(CONFIG.txFn,baseBody("notification_read",{notification_id:row.id}));
+      if(session!==owner)return;
+      if(result.ok!==true||result.notification_id!==row.id||!Number.isSafeInteger(result.unread_count)||result.unread_count<0)throw new Error("notification_ack_unconfirmed");
+      setNotificationCount(result.unread_count);
+      w.remove();
+    }catch{
+      if(session===owner)showRequestError(details||w,details?"تعذر تثبيت قراءة التنبيه. بقي التنبيه والعداد دون تغيير؛ افتح الجرس للمحاولة مجددًا.":"تعذر فتح المعاملة. بقي التنبيه دون قراءة؛ حاول مرة أخرى.");
+    }
   });
 }
 function copyWhatsApp(d){
@@ -1716,7 +1875,8 @@ function exportTransactionExcel(d){
     ["رقم المعاملة",t.number],["عنوان المعاملة",t.title],["موضوع المعاملة",t.subject||""],["الإدارة المسؤولة",t.responsible_unit_name||t.legacy_department_name||""],["مسؤول المعاملة",t.responsible_name||""],["الأولوية",t.priority],["الحالة",t.status],["تاريخ الإنشاء",fmtDate(t.created_at)],["تاريخ الاستحقاق",fmtDate(t.due_at)],
     ["إجراءات العمل"],["التاريخ","بواسطة","الإجراء"],...(d.actions||[]).map(a=>[fmtDateTime(a.created_at),a.actor_name||"",a.action_text||""]),
     ["الإسناد"],["التاريخ","النوع","التوجيه","الموظفون"],...(d.assignments||[]).map(a=>[fmtDateTime(a.created_at),a.assignment_type,a.directive||"",(a.transaction_assignment_targets||[]).map(x=>x.display_name).join("، ")]),
-    ["الإحالات"],["التاريخ","من","إلى","التوجيه/السبب","المطلوب"],...(d.routes||[]).map(r=>[fmtDateTime(r.created_at),r.from_name||"",r.to_name||"",r.directive||r.raise_reason||r.transfer_reason||"",r.proposed_decision||""]),
+    ["الإحالات"],["التاريخ","من","إلى","التوجيه/السبب","المطلوب"],...(d.routes||[]).filter(r=>r.route_type!=="reply").map(r=>[fmtDateTime(r.created_at),r.from_name||"",r.to_name||"",r.directive||r.raise_reason||r.transfer_reason||"",r.proposed_decision||""]),
+    ["رد المساعد"],["التاريخ","المجيب","الرد إلى","الرد"],...(d.routes||[]).filter(r=>r.route_type==="reply").map(r=>[fmtDateTime(r.created_at),r.from_name||"",r.to_name||"",r.meta?.response||r.directive||""]),
     ["الطلبات والاعتمادات"],["التاريخ","الطالب","النوع","السبب","الحالة"],...(d.requests||[]).map(r=>[fmtDateTime(r.created_at),r.requested_by_name||"",requestTypeLabel(r.request_type),r.reason||"",requestStatusLabel(r.status)]),
     ["سجل المعاملة"],["التاريخ","التفاصيل"],...(d.history||[]).map(h=>[fmtDateTime(h.created_at),historyText(h)])
   ];
@@ -1734,10 +1894,11 @@ function printList(){
 function printTransaction(d){
   const t=d.transaction;
   const acts=(d.actions||[]).map(a=>'<tr><td>'+esc(fmtDateTime(a.created_at))+'</td><td>'+esc(a.actor_name||"")+'</td><td>'+esc(a.action_text||"")+'</td></tr>').join("");
-  const routes=(d.routes||[]).map(r=>'<tr><td>'+esc(fmtDateTime(r.created_at))+'</td><td>'+esc(r.from_name||"")+'</td><td>'+esc(r.to_name||"")+'</td><td>'+esc(r.directive||r.raise_reason||r.transfer_reason||"")+'</td><td>'+esc(r.proposed_decision||"")+'</td></tr>').join("");
+  const routes=(d.routes||[]).filter(r=>r.route_type!=="reply").map(r=>'<tr><td>'+esc(fmtDateTime(r.created_at))+'</td><td>'+esc(r.from_name||"")+'</td><td>'+esc(r.to_name||"")+'</td><td>'+esc(r.directive||r.raise_reason||r.transfer_reason||"")+'</td><td>'+esc(r.proposed_decision||"")+'</td></tr>').join("");
+  const replies=(d.routes||[]).filter(r=>r.route_type==="reply").map(r=>'<tr><td>'+esc(fmtDateTime(r.created_at))+'</td><td>'+esc(r.from_name||"")+'</td><td>'+esc(r.to_name||"")+'</td><td>'+esc(r.meta?.response||r.directive||"")+'</td></tr>').join("");
   const hist=(d.history||[]).map(h=>'<tr><td>'+esc(fmtDateTime(h.created_at))+'</td><td>'+esc(historyText(h))+'</td></tr>').join("");
   const periods=(d.periods||[]).map(p=>'<tr><td>'+esc(p.cycle_no)+'</td><td>'+esc(fmtDate(p.started_at))+'</td><td>'+esc(p.ended_at?fmtDate(p.ended_at):"مستمرة")+'</td><td>'+esc(periodDays(p))+' يوم</td></tr>').join("");
-  printHtml("معاملة "+t.number,'<h1>'+esc(t.title)+'</h1><table><tr><th>رقم المعاملة</th><td>'+esc(t.number)+'</td></tr><tr><th>الموضوع</th><td>'+esc(t.subject||"")+'</td></tr><tr><th>الإدارة المسؤولة</th><td>'+esc(t.responsible_unit_name||t.legacy_department_name||"")+'</td></tr><tr><th>مسؤول المعاملة</th><td>'+esc(t.responsible_name||"")+'</td></tr><tr><th>الأولوية</th><td>'+esc(t.priority)+'</td></tr><tr><th>تاريخ الاستحقاق</th><td>'+esc(fmtDate(t.due_at))+'</td></tr></table><h2 class="sec">دورات العمل</h2><table><tr><th>الدورة</th><th>البداية</th><th>النهاية</th><th>المدة</th></tr>'+periods+'</table><h2 class="sec">إجراءات العمل</h2><table><tr><th>التاريخ</th><th>بواسطة</th><th>الإجراء</th></tr>'+acts+'</table><h2 class="sec">الإحالات والتوجيهات</h2><table><tr><th>التاريخ</th><th>من</th><th>إلى</th><th>السبب/التوجيه</th><th>المطلوب</th></tr>'+routes+'</table><h2 class="sec">سجل المعاملة</h2><table><tr><th>التاريخ</th><th>التفاصيل</th></tr>'+hist+'</table>');
+  printHtml("معاملة "+t.number,'<h1>'+esc(t.title)+'</h1><table><tr><th>رقم المعاملة</th><td>'+esc(t.number)+'</td></tr><tr><th>الموضوع</th><td>'+esc(t.subject||"")+'</td></tr><tr><th>الإدارة المسؤولة</th><td>'+esc(t.responsible_unit_name||t.legacy_department_name||"")+'</td></tr><tr><th>مسؤول المعاملة</th><td>'+esc(t.responsible_name||"")+'</td></tr><tr><th>الأولوية</th><td>'+esc(t.priority)+'</td></tr><tr><th>تاريخ الاستحقاق</th><td>'+esc(fmtDate(t.due_at))+'</td></tr></table><h2 class="sec">دورات العمل</h2><table><tr><th>الدورة</th><th>البداية</th><th>النهاية</th><th>المدة</th></tr>'+periods+'</table><h2 class="sec">إجراءات العمل</h2><table><tr><th>التاريخ</th><th>بواسطة</th><th>الإجراء</th></tr>'+acts+'</table><h2 class="sec">الإحالات والتوجيهات</h2><table><tr><th>التاريخ</th><th>من</th><th>إلى</th><th>السبب/التوجيه</th><th>المطلوب</th></tr>'+routes+'</table><h2 class="sec">رد المساعد</h2><table><tr><th>التاريخ</th><th>المجيب</th><th>الرد إلى</th><th>الرد</th></tr>'+replies+'</table><h2 class="sec">سجل المعاملة</h2><table><tr><th>التاريخ</th><th>التفاصيل</th></tr>'+hist+'</table>');
 }
 async function logout(){
   const token=session?.token;

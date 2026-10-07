@@ -102,6 +102,8 @@ allowed={
 allowed.update({
     'tests/client_session_ownership.mjs','tests/client_clipboard.py',
     'tests/client_bootstrap_interleavings.py',
+    'tests/transaction_request_prevalidation_test.ts',
+    'docs/transactions/LOAD_TEST_2026-10-04.md',
     'docs/transactions/CLIENT_REVIEW_2026-10-07.md',
     # Independently approved and already applied executive-custody slice.
     'supabase/migrations/20261007190000_transaction_executive_custody.sql',

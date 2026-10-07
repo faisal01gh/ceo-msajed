@@ -812,8 +812,7 @@ Deno.serve(async(req:Request)=>{
         const u=directoryUsers.find((x:any)=>x.login_name===login);
         if(!u||!u.dept_names.includes(responsibleUnitRow.name))return out(req,{error:"forbidden_target"},403);
       }
-      await completeActive(id);
-      await addAssignment(id,responsibleUnit,"responsible",directive,responsibleTargets,null,who);
+      const resolvedSupports:{unitId:string,directive:string,targets:string[]}[]=[];
       for(const s of supports){
         const unitId=clean(s.unit_id),supportDirective=clean(s.directive),targets=unique(arr(s.targets).map(String).filter(Boolean));
         if(!unitId||!supportDirective||!targets.length)return out(req,{error:"invalid_supporting"},400);
@@ -824,8 +823,11 @@ Deno.serve(async(req:Request)=>{
           const u=directoryUsers.find((x:any)=>x.login_name===login);
           if(!u||!u.dept_names.includes(unitRow.name))return out(req,{error:"forbidden_target"},403);
         }
-        await addAssignment(id,unitId,"supporting",supportDirective,targets,null,who);
+        resolvedSupports.push({unitId,directive:supportDirective,targets});
       }
+      await completeActive(id);
+      await addAssignment(id,responsibleUnit,"responsible",directive,responsibleTargets,null,who);
+      for(const s of resolvedSupports)await addAssignment(id,s.unitId,"supporting",s.directive,s.targets,null,who);
       await addRoute(id,"directive",who,{unit_id:responsibleUnit,name:""},{directive,meta:{responsible_targets:responsibleTargets,supporting:supports}});
       await db.from("transactions").update({responsible_unit_id:responsibleUnit,current_level:"employee",close_level:higherLevel(a.tx.close_level,"assistant"),workflow_started:true,migration_status:"ready",updated_at:new Date().toISOString(),last_activity_at:new Date().toISOString()}).eq("id",id);
       await history(id,"assistant_scope_route",who,directive,{responsible_targets:responsibleTargets,supporting:supports});
@@ -850,11 +852,15 @@ Deno.serve(async(req:Request)=>{
       const {data:r}=await db.from("transaction_routes").select("*").eq("id",routeId).eq("route_type","assistant_transfer").eq("status","pending").maybeSingle();
       if(!r||r.to_login_name!==who.login_name)return out(req,{error:"forbidden"},403);
       if(!approve&&!reason)return out(req,{error:"reason_required"},400);
+      const suppliedId=clean(b.transaction_id);
+      if(suppliedId&&suppliedId!==r.transaction_id)return out(req,{error:"transaction_mismatch"},400);
+      const a=await txAccess(who,r.transaction_id);if(!a)return out(req,{error:"not_found"},404);
+      if(!a.flags.visible)return out(req,{error:"forbidden"},403);
+      const tx=a.tx;
       const now=new Date().toISOString();
       await db.from("transaction_routes").update({
         status:approve?"accepted":"rejected",rejection_reason:approve?null:reason,decided_at:now,to_name:who.display_name
       }).eq("id",routeId);
-      const tx=await txRow(r.transaction_id);if(!tx)return out(req,{error:"not_found"},404);
       if(approve){
         await completeActive(tx.id);
         await db.from("transactions").update({current_level:"assistant",close_level:"ceo",workflow_started:true,updated_at:now,last_activity_at:now}).eq("id",tx.id);

@@ -4,6 +4,16 @@
 
 قبول مصدر مستقل **APPROVE** بلا findings؛ الإصدار الثابت `20261007-1` جاهز للنشر. نتائج CI وcanonical Production والبايتات والكاش يجب قراءتها بعد دفع هذا commit؛ لا تستنتج من الاختبارات المحلية.
 
+## قبول النشر الفعلي — مصدر runtime a967045
+
+- source publication `a967045070ae7f8823cda61cef7d656931b6d34a` دُفع إلى main والفرع fix/client-review-hardening-20261007؛ remote parity مثبتة.
+- canonical Cloudflare Production `7ebd50c9-5de0-460b-9f5b-da2bfaa75c66` قُرئ من المشروع ومن deployment exact-ID؛ كل المراحل success والمصدر هو SHA أعلاه. GitHub Check باسم Cloudflare Pages completed/success للـSHA نفسه.
+- لا يظهر GitHub Actions run مستقل لهذا SHA عند القراءة؛ total_count=0. لا يُدعى نجاح اختبارات CI مستقلة لم تُنفّذ.
+- page public44checks ناجحة في خمس مقاسات، دون credentials أو fixture؛ الأصول الأربعة تطابق Git blobs بالبايت، cache20261007-1 activated، وصفر page/console/failed requests.
+- renderer على الأصول المنشورة517checks/102surfaces ناجح مع البيانات المصطنعة وحظر backend؛ صفر page errors/طلبات خارجية. ليس signed-in E2E.
+- staged14files و932addedlines قُرئت وفُحصت؛ no secret findings، الخلفية/style بلا تغيير. ملفات أدوات الحسابات غير المتتبعة بقيت خارج الدفع ولم تحذف.
+- هذا توثيق لاحق فقط؛ الأصول لم تتغير منذ publication المذكور. أي canonical commit توثيقي تالٍ يُقرأ مستقلًا، ولا نعيد renderer أو ترحيل SQL لأن التوثيق تغير.
+
 ## النطاق المقبول
 
 - ملكية ردود RPC/POST وتجديد الجلسة للحساب الحالي؛ طلب متأخر لحساب سابق لا يبدّل الواجهة أو يمس جلسة الحساب الجديد.

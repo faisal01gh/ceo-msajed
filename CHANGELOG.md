@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-07 — نشر تصحيح الواجهة وإثباته
+
+- runtime publication a967045070ae7f8823cda61cef7d656931b6d34a، canonicalProduction7ebd50c9-5de0-460b-9f5b-da2bfaa75c66 وCloudflareGitHubChecksuccess. لا Actionsrun مستقل ظهر؛ لا claimCItestsuccess.
+- أربعةأصول=Gitblobs والكاش20261007-1activated؛ public44 وrenderer المنشور517checks/102surfaces نجحا دون أخطاء. renderer مصطنع ليس Auth/E2E/اختبار50.
+- نشرfrontend فقط؛ الخلفية/DDL/حسابات/كلمات/هيكل وبيانات أعمال بلا كتابة. التصحيح التنفيذي مطبق سابقًا ولا إعادة ترحيل.
+
 ## 2026-10-07 — قبول تصحيح تزامن الواجهة قبل النشر
 
 - منع ردود الحساب السابق وتجديده من العبث بالجلسة الحالية؛ فصل prerequisite BOOT عن أحدث قائمة وتسليم النتيجة للجدول الجديد بعد readiness؛ تصحيح التبويب من الصلاحيات الموثقة.

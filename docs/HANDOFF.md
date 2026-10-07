@@ -2,6 +2,13 @@
 
 آخر تحديث: 2026-10-07
 
+## الواجهة المصححة منشورة ومقروءة — 20261007-1
+
+- source publication a967045070ae7f8823cda61cef7d656931b6d34a: canonicalProduction7ebd50c9-5de0-460b-9f5b-da2bfaa75c66 وGitHubCloudflareCheck success؛ لا Actions run مستقل مقروء لهذا SHA، فلا تدع نجاح CI tests غير موجودة.
+- أربعةGitblobs مطابقة للاستجابات العامة؛ cache20261007-1 activated، public44 وdeployed renderer517/102surfaces ناجحان دون page/console errors. renderer fixture لا يعني Auth أو معاملات حقيقية.
+- الملفات14 فقط دُفعت، toolsالحسابات غير المتتبعة بقيت محلية. لا backend/Auth/schema/بيانات أعمال تغيرت مع هذا النشر. QA50native ما زال ينتظر guard/review/live-proof، ولا تعِد sourcefixes المقبولة.
+- التقرير docs/transactions/CLIENT_REVIEW_2026-10-07.md. الجملة «قبل النشر» أدناه تصفcheckpoint المصدر السابق ولا تلغي إثبات النشر أعلاه.
+
 ## تصحيح الحيازة التنفيذي مطبّق فعليًا — لا تعِد الترحيل
 
 - المصدر المقبول `25b3359c588b1a027740784eb2303e6f4a671653` يضم الترحيل والتست فقط؛ الواجهة والأصول وEdge لم تدخل هذا commit ولم تتغير عن النسخة المقبولة السابقة.

@@ -2,6 +2,12 @@
 
 آخر تحديث مرجعي: 2026-10-07
 
+## النشر الفعلي لتصحيح الواجهة
+
+- runtime source a967045070ae7f8823cda61cef7d656931b6d34a وcanonicalProduction7ebd50c9-5de0-460b-9f5b-da2bfaa75c66 مقروءان ومطابقان؛ GitHubCloudflareChecksuccess وليس دعوى Actions tests مستقلة.
+- HTTP fourassets=Gitblobs؛ cache20261007-1activated؛ public44/deployed renderer517 ناجحان. لم تسلّم credentials أو ينفذ Auth/QA50 في هذا النشر.
+- تقرير الإثبات CLIENT_REVIEW_2026-10-07.md؛ الأقسام التالية تحفظ checkpoint قبل النشر. تجهيز عزل QA والاختبارات الحقيقية مستمر دون مساس بالحقيقيين.
+
 ## تصحيح الواجهة والحيازة — checkpoint المصدر
 
 - تصحيح الحيازة التنفيذي25b3359 مطبق ومقروء أصلًا؛ Native READ للمعاملتين778/764 أثبت incoming=false لمدير المكتب مع visible/ceo=true، دون تعديل الصفوف.

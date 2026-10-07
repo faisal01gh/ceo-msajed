@@ -4,6 +4,7 @@ from tree_sitter import Language, Parser
 import tree_sitter_javascript
 
 repo=Path(__file__).resolve().parents[1]
+node='C:/Program Files/nodejs/node.exe'
 p=Parser(Language(tree_sitter_javascript.language()))
 baseline='a44167a764b4ab3ccff47cf3ea34618153ebb663'
 before=subprocess.check_output(['git','show',baseline+':app.js'],cwd=repo)
@@ -30,10 +31,26 @@ preserve=[
 ]
 results={k:b.get(k)==a.get(k) for k in preserve}
 
+# Narrow client-only exception: the three transports now enforce lifecycle
+# ownership. Keep every original invariant; replace only their source equality
+# with actual-source protocol/ownership regressions (nonzero exit fails here).
+client_baseline='f3c145e557aa01537b3161f3147409cf802d8b0d'
+client_before=functions(subprocess.check_output(['git','show',client_baseline+':app.js'],cwd=repo))
+client_allowed={'refreshAuthSession','post','rpc','boot','loadList','refresh','copyWhatsApp'}
+client_changed={name for name in set(client_before)|set(a) if client_before.get(name)!=a.get(name)}
+assert client_changed<=client_allowed, 'Unrelated function changed since authorized baseline'
+# This also retains exact login/logout and all identity/profile producers.
+for name in set(client_before)-client_allowed:
+    assert client_before[name]==a.get(name), 'Unrelated function changed: '+name
+behavior=subprocess.run([node,'tests/client_session_ownership.mjs'],cwd=repo,capture_output=True,text=True)
+assert behavior.returncode==0, behavior.stdout+behavior.stderr
+for name in {'refreshAuthSession','post','rpc'}:
+    results[name]=behavior.returncode==0
+
 # Only tabsFor is deliberately revised. Execute the actual extracted function:
 # role defaults stay intact and the secretary gains the canonical SQL queue key.
 tab_probe='const vm=require("node:vm");const c={hasTxPerm:()=>false};vm.createContext(c);vm.runInContext('+json.dumps(a['tabsFor'])+'+";globalThis.tabs=tabsFor",c);console.log(JSON.stringify(Object.fromEntries('+json.dumps(['employee','manager','assistant','assistant_secretary','ceo','ceo_office_manager','ceo_secretary'])+'.map(r=>[r,c.tabs(r).map(t=>t[0])]))));'
-role_tabs=json.loads(subprocess.check_output(['node','-e',tab_probe],cwd=repo,text=True))
+role_tabs=json.loads(subprocess.check_output([node,'-e',tab_probe],cwd=repo,text=True))
 assert role_tabs['employee']==['incoming','shared','closed']
 assert role_tabs['manager']==role_tabs['assistant']==['incoming','shared','scope','closed']
 assert role_tabs['assistant_secretary']==['incoming','secretary_queue','shared','closed']
@@ -83,6 +100,12 @@ allowed={
     'tests/transaction_safe_url.py','tests/ui_regressions.py'
 }
 allowed.update({
+    'tests/client_session_ownership.mjs','tests/client_clipboard.py',
+    'tests/client_bootstrap_interleavings.py',
+    'docs/transactions/CLIENT_REVIEW_2026-10-07.md',
+    # Independently approved and already applied executive-custody slice.
+    'supabase/migrations/20261007190000_transaction_executive_custody.sql',
+    'tests/transaction_executive_custody.mjs',
     'docs/transactions/FEEDBACK_2026-10-06.md','docs/transactions/DELIVERY_2026-10-06.md',
     'supabase/migrations/20261006193000_transaction_custody_read_state.sql',
     'supabase/migrations/20261006194500_transaction_assistant_reply.sql',
@@ -100,7 +123,7 @@ paths.update(subprocess.check_output(['git','ls-files','--others','--exclude-sta
 
 for name in ['index.html','service-worker.js']:
     current=(repo/name).read_text(encoding='utf-8').replace('\r\n','\n')
-    assert '20261006-1' in current, f'{name} does not reference current asset version'
+    assert '20261007-1' in current, f'{name} does not reference current asset version'
 
 restricted=[x for x in ['urgkbbconlxeagfgyjee','msajed-tasks','sb_secret_','service_role','setInterval(']
             if x in source+(repo/'index.html').read_text(encoding='utf-8')]
@@ -108,6 +131,9 @@ restricted=[x for x in ['urgkbbconlxeagfgyjee','msajed-tasks','sb_secret_','serv
 tree=p.parse(after)
 report={
     'baseline':baseline,
+    'client_baseline':client_baseline,
+    'client_changed_functions':sorted(client_changed),
+    'client_behavior_checks':behavior.stdout.strip().splitlines()[-1],
     'preserved_functions':results,
     'approved_role_tabs':role_tabs,
     'missing_expected_functions':missing_added,

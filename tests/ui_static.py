@@ -37,5 +37,5 @@ report={'css_parse_errors':errors,'unsupported_declarations':unsupported,'declar
 print(json.dumps(report,ensure_ascii=False,indent=2))
 assert not errors and not unsupported
 assert all(p['passed'] for p in contrast)
-assert versions=={'index.html':['20261006-1'],'service-worker.js':['20261006-1']}
+assert versions=={'index.html':['20261007-1'],'service-worker.js':['20261007-1']}
 assert not restricted

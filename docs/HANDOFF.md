@@ -1,6 +1,18 @@
 # Handoff — استلام المشروع في أي محادثة جديدة
 
-آخر تحديث: 2026-10-06
+آخر تحديث: 2026-10-07
+
+## تصحيح الحيازة التنفيذي مطبّق فعليًا — لا تعِد الترحيل
+
+- المصدر المقبول `25b3359c588b1a027740784eb2303e6f4a671653` يضم الترحيل والتست فقط؛ الواجهة والأصول وEdge لم تدخل هذا commit ولم تتغير عن النسخة المقبولة السابقة.
+- طبّق الجديد فقط `transaction_executive_custody`، provider ledger `20261007170206`، source filename `20261007190000_transaction_executive_custody.sql`، source SHA256 `baf72f1102f7d0d5eab1f033ad9adae6fcec270f043f8647b39419485aee4195`. جسم الدالة الفعلي مطابق لملف Git وOID/ACL/owner/security metadata محفوظة.
+- القراءة الأصلية بعد التطبيق للمعاملتين 778 و764: مدير المكتب `incoming=false`، `visible=true` و`ceo=true`. المعاملة778 بقيت shared للمرسل. لم تُعدل المعاملتان أو أي صف تشغيل لتحقيق النتيجة؛ المقارنة قبل/بعد لحسابات/Profiles/Auth/صلاحيات/عضويات/هيكل/Overrides والمعاملات مطابقة، ومنها19Auth/19Profile/788معاملة. account registry الإجمالي66، وليس65eligible؛ لا تفسر الفرق كإنشاء حساب جديد.
+- مراجعة مستقلة APPROVE بلا findings، المحلي48cases/1215assertions و29مجسًا مستقلاً، إضافةregressions21+reply18+queue. هذه ليستNativeAuthرحلة؛ الدليل الحي هنا قراءة SQL الفعلية والنشر، ولا استخدامحسابفيصل.
+- main والفرعfix/client-review-hardening-20261007 قُرئا عند25b3359؛ GitHub run37656119067success، canonical Cloudflare production7d6c5c0c-e8dc-4511-9ec7-b7cad311b154success. Node/curlتحققTLSطبيعيًا، وبايتاتالأصولالأربعة تطابقGit25b؛ PythonurllibفشلTLSفيحزمةهذاالمشغلفقط ولمتعطلverificationلتجاوزه.
+- **تصحيح الواجهة معتمد مصدرًا ومستقلًا APPROVE بلا findings**: أغلقت4P2فيBOOT/list/credentialversion؛ appSHA41ea40b6a29bdd96c444f9dd729a5de35ecd2abbc5ff271da0175a2db3d8670a مطابق للمراجع. الإصدار20261007-1؛ النشر/CI/canonical/cache يجب إثباتها بعد الدفع، ولا تعتبر مكتملة من هذا التوثيق. التقرير docs/transactions/CLIENT_REVIEW_2026-10-07.md.
+- اعتمدفيصل50مستخدمQAمستقلًاوحسابات/معاملاتمؤقتةمعcleanup، ثموافقعلىحاجزعزلخادميلحساباتومعاملاتQA. لمتنشأحسابات/معاملاتQAبعد؛ إعدادالعزل ومراجعتهشرطأوللمنعتوجيه/تنبيهبياناتإلىالحقيقيين. لا original47create/9resetولا تغيير كلمات/هيكل/صلاحياتالحقيقيين،ولا النظامالقديم.
+
+آخر تاريخ للقبول السابق: 2026-10-06
 
 ## قبول نشر الواجهة المثبت
 

@@ -31,6 +31,10 @@ let dateFrom="";
 let dateTo="";
 let page=1;
 let searchTimer=null;
+let bootGeneration=0;
+let listGeneration=0;
+let bootPrerequisites=null;
+let listProjection=null;
 
 function esc(v){return String(v??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m]));}
 function safeUrl(v){
@@ -146,47 +150,87 @@ async function fetchJson(url,options={},timeoutMs=15000){
     clearTimeout(timeoutId);
   }
 }
-async function refreshAuthSession(){
-  if(!session?.refresh_token)return false;
-  const {r,data}=await fetchJson(CONFIG.supabaseUrl+"/auth/v1/token?grant_type=refresh_token",{
-    method:"POST",
-    headers:{"Content-Type":"application/json","apikey":CONFIG.publishableKey},
-    body:JSON.stringify({refresh_token:session.refresh_token})
-  });
-  if(!r.ok||!data.access_token)return false;
-  session.token=data.access_token;
-  session.refresh_token=data.refresh_token||session.refresh_token;
-  saveSession();
-  return true;
+const authRefreshes=new WeakMap();
+async function refreshAuthSession(owner=session,sentToken=owner?.token,sentRefreshToken=owner?.refresh_token){
+  if(!owner||session!==owner)return false;
+  if(owner.token!==sentToken||owner.refresh_token!==sentRefreshToken)return !!owner.token;
+  const existing=authRefreshes.get(owner);
+  if(existing&&existing.token===sentToken&&existing.refreshToken===sentRefreshToken)return existing.promise;
+  if(!sentRefreshToken)return false;
+  const entry={token:sentToken,refreshToken:sentRefreshToken,promise:null};
+  entry.promise=(async()=>{
+    try{
+      const {r,data}=await fetchJson(CONFIG.supabaseUrl+"/auth/v1/token?grant_type=refresh_token",{
+        method:"POST",
+        headers:{"Content-Type":"application/json","apikey":CONFIG.publishableKey},
+        body:JSON.stringify({refresh_token:sentRefreshToken})
+      });
+      if(session!==owner)return false;
+      if(owner.token!==sentToken||owner.refresh_token!==sentRefreshToken)return !!owner.token;
+      if(!r.ok||!data.access_token){
+        if([400,401,403].includes(r.status))return false;
+        const err=new Error("refresh_unavailable");err.status=r.status;throw err;
+      }
+      owner.token=data.access_token;
+      owner.refresh_token=data.refresh_token||sentRefreshToken;
+      saveSession();
+      return true;
+    }catch(err){
+      if(session!==owner)return false;
+      if(owner.token!==sentToken||owner.refresh_token!==sentRefreshToken)return !!owner.token;
+      throw err;
+    }
+  })();
+  authRefreshes.set(owner,entry);
+  try{return await entry.promise}finally{if(authRefreshes.get(owner)===entry)authRefreshes.delete(owner)}
 }
 async function post(fn,body,retry=true){
-  let {r,data}=await fetchJson(apiUrl(fn),{
-    method:"POST",
-    headers:{"Content-Type":"application/json","apikey":CONFIG.publishableKey},
-    body:JSON.stringify(body)
-  });
-  if(r.status===401&&retry&&session&&await refreshAuthSession()){
-    body={...body,token:session.token};
-    ({r,data}=await fetchJson(apiUrl(fn),{
+  const owner=session,sentToken=body?.token,sentRefreshToken=owner?.refresh_token;
+  const canRefresh=owner&&sentToken===owner.token;
+  try{
+    let {r,data}=await fetchJson(apiUrl(fn),{
       method:"POST",
       headers:{"Content-Type":"application/json","apikey":CONFIG.publishableKey},
       body:JSON.stringify(body)
-    }));
-  }
-  if(!r.ok){const e=new Error(data.error||"request_failed");e.status=r.status;e.data=data;throw e}
-  return data;
+    });
+    if(session!==owner)throw new Error("session_changed");
+    if(r.status===401&&retry&&canRefresh){
+      const refreshed=await refreshAuthSession(owner,sentToken,sentRefreshToken);
+      if(session!==owner)throw new Error("session_changed");
+      if(refreshed){
+        body={...body,token:owner.token};
+        ({r,data}=await fetchJson(apiUrl(fn),{
+          method:"POST",
+          headers:{"Content-Type":"application/json","apikey":CONFIG.publishableKey},
+          body:JSON.stringify(body)
+        }));
+        if(session!==owner)throw new Error("session_changed");
+      }
+    }
+    if(!r.ok){const e=new Error(data.error||"request_failed");e.status=r.status;e.data=data;throw e}
+    return data;
+  }catch(err){if(session!==owner)throw new Error("session_changed");throw err}
 }
 async function rpc(name,body={},retry=true){
   if(!session?.token)throw new Error("unauthorized");
+  const owner=session,sentToken=owner.token,sentRefreshToken=owner.refresh_token;
   const url=CONFIG.supabaseUrl+"/rest/v1/rpc/"+name;
-  const headers={"Content-Type":"application/json","apikey":CONFIG.publishableKey,Authorization:"Bearer "+session.token};
-  let {r,data}=await fetchJson(url,{method:"POST",headers,body:JSON.stringify(body)});
-  if(r.status===401&&retry&&session&&await refreshAuthSession()){
-    headers.Authorization="Bearer "+session.token;
-    ({r,data}=await fetchJson(url,{method:"POST",headers,body:JSON.stringify(body)}));
-  }
-  if(!r.ok){const e=new Error(data.message||data.error||"request_failed");e.status=r.status;e.data=data;throw e}
-  return data;
+  const headers={"Content-Type":"application/json","apikey":CONFIG.publishableKey,Authorization:"Bearer "+sentToken};
+  try{
+    let {r,data}=await fetchJson(url,{method:"POST",headers,body:JSON.stringify(body)});
+    if(session!==owner)throw new Error("session_changed");
+    if(r.status===401&&retry&&owner){
+      const refreshed=await refreshAuthSession(owner,sentToken,sentRefreshToken);
+      if(session!==owner)throw new Error("session_changed");
+      if(refreshed){
+        headers.Authorization="Bearer "+owner.token;
+        ({r,data}=await fetchJson(url,{method:"POST",headers,body:JSON.stringify(body)}));
+        if(session!==owner)throw new Error("session_changed");
+      }
+    }
+    if(!r.ok){const e=new Error(data.message||data.error||"request_failed");e.status=r.status;e.data=data;throw e}
+    return data;
+  }catch(err){if(session!==owner)throw new Error("session_changed");throw err}
 }
 function saveSession(){sessionStorage.setItem(SESSION_KEY,JSON.stringify(session))}
 function loadSession(){try{session=JSON.parse(sessionStorage.getItem(SESSION_KEY)||"null");if(session?.app!=="new")session=null}catch{session=null}}
@@ -445,16 +489,19 @@ async function login(e){
 }
 async function boot(){
   if(!session){loginView();return}
-  const owner=session;
+  const owner=session,bootId=++bootGeneration,listId=++listGeneration;
+  let failedListId=null;
+  bootPrerequisites={owner,bootId,ready:false};
   root.innerHTML='<section class="loading" role="status" aria-live="polite"><h1>جارٍ تحميل المعاملات</h1><p>نجهّز مساحة العمل.</p><div class="skeleton-lines" aria-hidden="true"><div class="skeleton-line"></div><div class="skeleton-line"></div><div class="skeleton-line"></div></div></section>';
   try{
     const gateProfile=await rpc("my_profile");
-    if(session!==owner)return;
+    if(session!==owner||bootId!==bootGeneration)return;
     if(gateProfile?.ok!==true||typeof gateProfile.user_id!=="string"||
       !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(gateProfile.user_id))throw new Error("profile_identity_unavailable");
     owner.user_id=gateProfile.user_id;
     saveSession();
     if(gateProfile?.must_change_password===true){
+      ++listGeneration;
       passwordChangeView({auth:{access_token:session.token,refresh_token:session.refresh_token||null}});
       return;
     }
@@ -464,14 +511,13 @@ async function boot(){
       p_department:departmentFilter,p_employee:employeeFilter,p_origin:originFilter,p_late_only:lateOnly,
       p_date_from:dateFrom||null,p_date_to:dateTo||null,p_page:page,p_page_size:50
     };
-    const [dir,list,perms]=await Promise.all([
+    const [dir,listResult,perms]=await Promise.all([
       rpc("transaction_directory_my"),
-      rpc("list_my_transactions",listArgs),
+      rpc("list_my_transactions",listArgs).then(list=>({list}),error=>({error})),
       rpc("my_permissions")
     ]);
-    if(session!==owner)return;
+    if(session!==owner||bootId!==bootGeneration)return;
     directoryData=dir;
-    listData=list;
     sessionPermissions=Array.isArray(perms)?perms:[];
     if(directoryData.me){
       session.role=directoryData.me.role||session.role;
@@ -481,28 +527,42 @@ async function boot(){
       session.dept_names=directoryData.me.dept_names||session.dept_names;
       session.login_name=directoryData.me.login_name||session.username;
       saveSession();
-      const wanted=defaultTab(session.role);
-      if(!tabsFor(session.role).some(x=>x[0]===currentTab)){
-        currentTab=wanted;
-        const correctedList=await rpc("list_my_transactions",{...listArgs,p_tab:currentTab});
-        if(session!==owner)return;
-        listData=correctedList;
-      }
     }
+    if(!tabsFor(session.role).some(x=>x[0]===currentTab)){
+      currentTab=defaultTab(session.role);
+      const corrected=loadList();
+      failedListId=listGeneration;
+      await corrected;
+      if(session!==owner||bootId!==bootGeneration)return;
+      failedListId=null;
+    }else if(listId===listGeneration){
+      if(listResult.error){failedListId=listId;throw listResult.error}
+      listData=listResult.list;
+      listProjection={owner,listId};
+    }
+    if(listProjection?.owner!==owner||listProjection.listId!==listGeneration)listData={rows:[],total:0,page:1,page_size:50,counters:{}};
+    bootPrerequisites.ready=true;
     renderApp();
   }catch(err){
-    if(session!==owner)return;
+    if(session!==owner||bootId!==bootGeneration||(failedListId!==null&&failedListId!==listGeneration))return;
     if(err.status===401||err.status===403){clearSession();loginView();return}
     root.innerHTML='<section class="loading"><h1>تعذّر تحميل المعاملات</h1><p role="alert">تحقق من الاتصال ثم أعد المحاولة. لم تتغير بياناتك.</p><button class="btn btn-blue" id="retryBoot">إعادة المحاولة</button></section>';
     document.getElementById("retryBoot").onclick=boot;
   }
 }
 async function loadList(){
-  listData=await rpc("list_my_transactions",{
-    p_tab:currentTab,p_search:searchText,p_priority:priorityFilter,p_status:statusFilter,
-    p_department:departmentFilter,p_employee:employeeFilter,p_origin:originFilter,p_late_only:lateOnly,
-    p_date_from:dateFrom||null,p_date_to:dateTo||null,p_page:page,p_page_size:50
-  });
+  const owner=session,listId=++listGeneration;
+  try{
+    const list=await rpc("list_my_transactions",{
+      p_tab:currentTab,p_search:searchText,p_priority:priorityFilter,p_status:statusFilter,
+      p_department:departmentFilter,p_employee:employeeFilter,p_origin:originFilter,p_late_only:lateOnly,
+      p_date_from:dateFrom||null,p_date_to:dateTo||null,p_page:page,p_page_size:50
+    });
+    if(session!==owner||listId!==listGeneration)return false;
+    listData=list;
+    listProjection={owner,listId};
+    return true;
+  }catch(err){if(session!==owner||listId!==listGeneration)return false;throw err}
 }
 function sectionSidebar(active){
   return `
@@ -919,14 +979,23 @@ function renderListOnly(){
   renderPager();
 }
 async function refresh(){
+  const owner=session,bootId=bootGeneration;
   const host=document.getElementById("tableHost");host?.setAttribute("aria-busy","true");
-  try{await loadList();if(currentSection==="transactions"&&host?.isConnected)renderListOnly()}
+  const pending=loadList(),listId=listGeneration;
+  try{
+    const committed=await pending;
+    if(!committed||session!==owner||listId!==listGeneration||bootId!==bootGeneration)return;
+    const proven=bootPrerequisites?.owner===owner&&bootPrerequisites.bootId===bootId&&bootPrerequisites.ready;
+    const target=host||((proven&&document.getElementById("tableHost"))||null);
+    if(currentSection==="transactions"&&target?.isConnected&&(!bootPrerequisites||proven))renderListOnly();
+  }
   catch{
+    if(session!==owner||listId!==listGeneration||bootId!==bootGeneration)return;
     showNotice("تعذر تحديث النتائج. النتائج السابقة محفوظة؛ أعد المحاولة.");
     if(!document.getElementById("retryList")&&host){
       const retry=document.createElement("button");retry.className="btn btn-soft";retry.id="retryList";retry.textContent="إعادة المحاولة";retry.onclick=refresh;host.prepend(retry);
     }
-  }finally{host?.setAttribute("aria-busy","false")}
+  }finally{if(session===owner&&listId===listGeneration&&bootId===bootGeneration)host?.setAttribute("aria-busy","false")}
 }
 function priorityClass(p){return p==="عاجل جدًا"?"pri-vh":p==="عاجل"?"pri-h":"pri-n"}
 function statusBadge(r){
@@ -1837,7 +1906,8 @@ async function openNotifications(){
     }
   });
 }
-function copyWhatsApp(d){
+async function copyWhatsApp(d){
+  const owner=session,dialog=modalStack.at(-1);
   const t=d.transaction,requested=transactionRequestedText(d);
   const days=(d.periods||[]).length?periodDays((d.periods||[]).at(-1)):Math.max(1,Math.floor((Date.now()-new Date(t.created_at).getTime())/86400000)+1);
   const text=[
@@ -1847,7 +1917,21 @@ function copyWhatsApp(d){
     'الإدارة المسؤولة: *'+(t.responsible_unit_name||t.legacy_department_name||"—")+'*',
     'المسؤول عن المعاملة: *'+(t.responsible_name||"—")+'*'
   ].join("\n");
-  navigator.clipboard.writeText(text).then(()=>showNotice("تم نسخ ملخص المعاملة لواتساب.",true)).catch(()=>showNotice("تعذر نسخ النص."));
+  const current=()=>session===owner&&modalStack.at(-1)===dialog&&(!dialog||dialog.isConnected);
+  try{
+    if(typeof navigator.clipboard?.writeText!=="function")throw new Error("clipboard_unavailable");
+    await navigator.clipboard.writeText(text);
+    if(current())showNotice("تم نسخ ملخص المعاملة لواتساب.",true);
+  }catch{
+    if(!current())return;
+    const host=dialog||modal("نسخ ملخص المعاملة","");
+    host.querySelector('.manual-copy')?.remove();
+    const label=document.createElement("label");label.className="manual-copy";
+    label.textContent="تعذر النسخ التلقائي. حدد النص وانسخه يدويًا:";
+    const field=document.createElement("textarea");field.readOnly=true;field.rows=7;field.value=text;
+    label.appendChild(field);host.querySelector('.modal-body').appendChild(label);
+    field.focus();field.select();
+  }
 }
 function xmlCell(v){
   const value=String(v??"").replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g,"")

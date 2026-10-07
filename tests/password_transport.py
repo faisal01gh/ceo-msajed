@@ -33,7 +33,7 @@ with sync_playwright() as pw:
  assert p.evaluate('window.__resetBodies.length===2&&window.__resetBodies[0].new_password===window.__resetBodies[1].new_password&&window.__resetBodies[0].operation_id===window.__resetBodies[1].operation_id'),'recovery must preserve candidate and operation identity'
  p.evaluate('''async()=>{document.querySelectorAll('.modal').forEach(e=>e.remove());session={app:'new',token:'synthetic',role:'employee'};saveSession();rpc=async()=>{const e=new Error('account unavailable');e.status=403;throw e};await boot()}''')
  assert p.locator('#loginForm').count()==1 and p.evaluate('session===null'),'credential-readiness rejection must recover to login, not retain an unusable session'
- p.evaluate('''async()=>{session={app:'new',token:'synthetic',role:'employee'};rpc=async()=>({must_change_password:true,can_edit_email:false});await boot()}''')
+ p.evaluate('''async()=>{session={app:'new',token:'synthetic',role:'employee'};rpc=async()=>({ok:true,user_id:'11111111-1111-4111-8111-111111111111',must_change_password:true,can_edit_email:false});await boot()}''')
  assert p.locator('#passwordForm').count()==1 and p.locator('.workspace').count()==0,'narrow forced bootstrap must open change-only view'
  b.close()
 s.shutdown();print(json.dumps({'passed':True,'mode':'isolated actual UI with blocked APIs','checks':16}))

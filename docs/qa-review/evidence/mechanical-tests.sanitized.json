@@ -1,0 +1,60 @@
+{
+  "schema": 1,
+  "scope": "Mechanical tests only for review-only push, NOT the denied independent review",
+  "baseMain": "717375eee1e99d558af80eca91a7ea7e829edd20",
+  "branch": "review/qa-isolation-gate-20261009",
+  "offlineAccountTests": {
+    "tests": 161,
+    "pass": 161,
+    "fail": 0,
+    "cancelled": 0,
+    "skipped": 0,
+    "todo": 0
+  },
+  "edgeCurrent": {
+    "Passed": 108,
+    "Failed": 0,
+    "Skipped": 0,
+    "XFail": 0,
+    "typecheckedEntryPoints": [
+      "account-admin-reset-password",
+      "account-confirm-password",
+      "account-resolve",
+      "session-logout",
+      "transactions-api"
+    ],
+    "typecheckExit": 0
+  },
+  "loadPrepSyntaxOnly": {
+    "files": [
+      "scripts\\qa-load-preparation\\cleanup.mjs",
+      "scripts\\qa-load-preparation\\fixture-server.mjs",
+      "scripts\\qa-load-preparation\\gate.mjs",
+      "scripts\\qa-load-preparation\\local.mjs",
+      "scripts\\qa-load-preparation\\metrics.mjs",
+      "scripts\\qa-load-preparation\\native.mjs",
+      "scripts\\qa-load-preparation\\runner.test.mjs",
+      "scripts\\qa-load-preparation\\transport.mjs",
+      "scripts\\qa-load-preparation\\verify-local.mjs",
+      "scripts\\qa-load-preparation\\offline-network-guard.cjs"
+    ],
+    "passed": 10
+  },
+  "load50x50RunDuringPackaging": false,
+  "earlierLocalFixtureLoadEvidence": "11tests/70rolechecks/2500requests-per-final from previous local-only execution; not rerun for this request and not nativeAuthacceptance",
+  "setupIssue": "First account invocation inherited noTMPDIR in Python subprocess:21setupTypeErrors. Reran unchanged161tests with explicitownedTMPDIR:161pass0fail/skip. Originalfailure retained locally.",
+  "realAccountOrProviderActions": 0,
+  "postEOFWhitespaceRetest": {
+    "offlineAccountTests": {
+      "tests": 161,
+      "pass": 161,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    "EdgeContextPassed": 6,
+    "EdgeContextFailed": 0,
+    "nonEOFBytesUnchanged": true
+  }
+}

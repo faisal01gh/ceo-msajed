@@ -1,9 +1,12 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
+import { actorClient, credentialFetch, nativeClaims, checkedStatements, type WriteOutcome } from "../_shared/qa-context.ts";
 
 const URL=Deno.env.get("SUPABASE_URL")!;
 const KEY=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const db=createClient(URL,KEY,{auth:{persistSession:false,autoRefreshToken:false}});
+Deno.serve(async(req:Request)=>{
+let db=createClient(URL,KEY,{auth:{persistSession:false,autoRefreshToken:false},global:{fetch:credentialFetch()}});
+const writeOutcomes:WriteOutcome[]=[];
 const CACHE_MS=60000;
 let directoryCache:{at:number,data:any[]}={at:0,data:[]};
 let unitsCache:{at:number,data:any[]}={at:0,data:[]};
@@ -133,6 +136,8 @@ async function identity(app:string,token:string):Promise<Who|null>{
   }catch{return null}
   const access=await db.rpc('account_session_check_internal',{p_user:auth.data.user.id,p_session:sid,p_allow_forced:false});
   if(access.error||access.data!==true)return null;
+  const verified=nativeClaims(token,auth.data.user,URL);if(!verified)return null;
+  db=checkedStatements(actorClient(URL,KEY,verified),writeOutcomes);
   const {data:ctx,error}=await db.rpc("user_context_internal",{p_user_id:auth.data.user.id});
   if(error||!ctx||ctx.active!==true||ctx.must_change_password===true)return null;
 
@@ -509,17 +514,16 @@ async function createRequest(who:Who,tx:any,type:string,reason:string,extra:any=
   return data;
 }
 
-Deno.serve(async(req:Request)=>{
+  // All helpers above close over this request-local verified client.
   if(req.method==="GET")return out(req,{ok:true,service:"transactions-api",version:34});
   if(req.method==="OPTIONS")return new Response("ok",{headers:cors(req)});
   if(req.method!=="POST")return out(req,{error:"method_not_allowed"},405);
   let b:any;try{b=await req.json()}catch{return out(req,{error:"bad_request"},400)}
+  try{
   const who=await identity(clean(b.app),clean(b.token));
   if(!who)return out(req,{error:"unauthorized"},401);
   const directoryDataCache=await directory();
   const action=clean(b.action);
-
-  try{
     if(action==="directory"){
       const [users0,units0]=await Promise.all([directory(),units()]);
       let visibleUsers=users0,visibleUnits=units0;
@@ -1169,7 +1173,6 @@ Deno.serve(async(req:Request)=>{
 
     return out(req,{error:"unknown_action"},400);
   }catch(e){
-    console.error(e);
-    return out(req,{error:"server_error"},500);
+    return out(req,{error:"server_error",...(writeOutcomes.length?{write_outcomes:writeOutcomes,partial_commit_possible:true}:{})},500);
   }
 });

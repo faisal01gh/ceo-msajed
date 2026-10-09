@@ -1,0 +1,225 @@
+{
+  "stage": "NativeJourneyPlanOnly",
+  "executed": false,
+  "sourceSHA": "717375eee1e99d558af80eca91a7ea7e829edd20",
+  "roleSources": [
+    "supabase/migrations/20261002_transactions_foundation.sql:284-287",
+    "supabase/migrations/20261004174500_permissions_transactions_section.sql:4-6"
+  ],
+  "preconditions": [
+    "Independent Isolation Gate APPROVED for exact deployed/runtime SHA",
+    "Seven newly owned E2E canaries, separate from load50 and protected legacy8; no staff credentials",
+    "Native UID/SID/creation/official persisted-GET and run-manifest/canonical-alias proof",
+    "Complete nonsecret protected57/faisal/legacy8 authorization and stable Auth snapshots",
+    "Every positive/negative transaction, route, action and notification rooted in exact current-run canary creation receipts",
+    "Real deployed browser UI plus API and native SQL readback; fixture cannot satisfy this plan"
+  ],
+  "sharedActions": [
+    {
+      "action": "login",
+      "native": "frontend login resolver -> /auth/v1/token?grant_type=password; current internal_email/login_username only",
+      "assertions": [
+        "returned native UID matches owned creation receipt",
+        "JWT issuer/role/sub/session_id match native Auth and auth.sessions readback",
+        "no real staff or protected legacy UID"
+      ]
+    },
+    {
+      "action": "forced_change",
+      "native": "frontend mandatory password form -> account-confirm-password official command",
+      "assertions": [
+        "my_profile allows only limited forced-change gate before completion",
+        "business/directory/list denied before successful credential mutation",
+        "eight Unicode code points plus approved ASCII classes",
+        "exact original candidate/operation ID on uncertain recovery; never blind retry",
+        "new native session and cleared forced flags after official proof; stale SID rejected",
+        "logout exactly own sessions in finally"
+      ]
+    },
+    {
+      "action": "permissions",
+      "native": "my_profile / transactions-api directory and current effective permission/custody context",
+      "assertions": [
+        "active primary role equals planned role",
+        "role grants plus account/user overrides match readback; explicit deny wins",
+        "hidden controls are not backend authorization proof"
+      ]
+    },
+    {
+      "action": "visibility",
+      "native": "transactions-api list/details and exact seeded-owned transactions",
+      "assertions": [
+        "positive owned current-run transaction and all expected rows",
+        "foreign QA cohort and protected real rows inaccessible under isolation",
+        "actual executive-role broad business permission must not override QA isolation",
+        "row sets independently derived from catalogued own fixtures; not from flags under test"
+      ]
+    },
+    {
+      "action": "allowed",
+      "native": "read list/details and add_action on an own transaction with independently proven native canAct=true",
+      "assertions": [
+        "permitted 2xx and exact action/history/version rows read back",
+        "only exact current-run data changes",
+        "assistant_secretary requires explicit custody rather than pretending the assistant role"
+      ]
+    },
+    {
+      "action": "denied",
+      "native": "add_action with current-run foreign-owner/cross-cohort target; role permission-negative case selected from current effective grants",
+      "assertions": [
+        "403/error contract expected, not counted as positive success",
+        "complete transaction/assignment/notification/audit/action snapshots and zero-write-intent proof unchanged",
+        "do not execute a native negative if known source prevalidation could partially write; prove safe actual handler first"
+      ]
+    },
+    {
+      "action": "notifications",
+      "native": "transactions-api notifications and notification_read only for exact owned created notification",
+      "assertions": [
+        "recipient native UID/login belongs to current run",
+        "unread read_at is null; read uses native non-null timestamp",
+        "foreign/protected notification mutation denied and unchanged"
+      ]
+    },
+    {
+      "action": "session",
+      "native": "native resume/rotation/logout with official own UID/SID receipts",
+      "assertions": [
+        "one original session cannot manufacture distinct users",
+        "cross-owner, stale, expired and disposed session rejected",
+        "finally logout exact owned sessions; per-session provider/native SQL readback absent",
+        "zero unresolved operations or mutating IO before cleanup"
+      ]
+    }
+  ],
+  "roles": [
+    {
+      "role": "employee",
+      "status": "PENDING_NATIVE",
+      "requiredSharedActions": [
+        "login",
+        "forced_change",
+        "permissions",
+        "visibility",
+        "allowed",
+        "denied",
+        "notifications",
+        "session"
+      ],
+      "fixtureActionsAreNotNative": true,
+      "specialChecks": [
+        "reset command denied by actual role, even with an unrelated allow override; no temporary permission writes on real staff"
+      ]
+    },
+    {
+      "role": "manager",
+      "status": "PENDING_NATIVE",
+      "requiredSharedActions": [
+        "login",
+        "forced_change",
+        "permissions",
+        "visibility",
+        "allowed",
+        "denied",
+        "notifications",
+        "session"
+      ],
+      "fixtureActionsAreNotNative": true,
+      "specialChecks": [
+        "reset command denied by actual role, even with an unrelated allow override; no temporary permission writes on real staff"
+      ]
+    },
+    {
+      "role": "assistant",
+      "status": "PENDING_NATIVE",
+      "requiredSharedActions": [
+        "login",
+        "forced_change",
+        "permissions",
+        "visibility",
+        "allowed",
+        "denied",
+        "notifications",
+        "session"
+      ],
+      "fixtureActionsAreNotNative": true,
+      "specialChecks": [
+        "reset command denied by actual role, even with an unrelated allow override; no temporary permission writes on real staff"
+      ]
+    },
+    {
+      "role": "assistant_secretary",
+      "status": "PENDING_NATIVE",
+      "requiredSharedActions": [
+        "login",
+        "forced_change",
+        "permissions",
+        "visibility",
+        "allowed",
+        "denied",
+        "notifications",
+        "session"
+      ],
+      "fixtureActionsAreNotNative": true,
+      "specialChecks": [
+        "reset command denied by actual role, even with an unrelated allow override; no temporary permission writes on real staff"
+      ]
+    },
+    {
+      "role": "ceo",
+      "status": "PENDING_NATIVE",
+      "requiredSharedActions": [
+        "login",
+        "forced_change",
+        "permissions",
+        "visibility",
+        "allowed",
+        "denied",
+        "notifications",
+        "session"
+      ],
+      "fixtureActionsAreNotNative": true,
+      "specialChecks": [
+        "reset command denied by actual role, even with an unrelated allow override; no temporary permission writes on real staff"
+      ]
+    },
+    {
+      "role": "ceo_office_manager",
+      "status": "PENDING_NATIVE",
+      "requiredSharedActions": [
+        "login",
+        "forced_change",
+        "permissions",
+        "visibility",
+        "allowed",
+        "denied",
+        "notifications",
+        "session"
+      ],
+      "fixtureActionsAreNotNative": true,
+      "specialChecks": [
+        "owned QA office-manager reset command on an owned different canary; protected faisal never reset",
+        "only office-manager actual role + profiles.admin_reset_password + explicit deny respected"
+      ]
+    },
+    {
+      "role": "ceo_secretary",
+      "status": "PENDING_NATIVE",
+      "requiredSharedActions": [
+        "login",
+        "forced_change",
+        "permissions",
+        "visibility",
+        "allowed",
+        "denied",
+        "notifications",
+        "session"
+      ],
+      "fixtureActionsAreNotNative": true,
+      "specialChecks": [
+        "reset command denied by actual role, even with an unrelated allow override; no temporary permission writes on real staff"
+      ]
+    }
+  ]
+}

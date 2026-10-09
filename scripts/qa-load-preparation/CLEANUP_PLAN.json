@@ -1,0 +1,55 @@
+{
+  "stage": "NativeCleanupPlanOnly",
+  "executed": false,
+  "mutationExecutorPresent": false,
+  "preserve": {
+    "realStaff": 57,
+    "faisalPassword": "unchanged",
+    "faisalMustChangePassword": false,
+    "legacyManualQA": 8
+  },
+  "populations": [
+    "own-load50",
+    "own-e2e7 (plus explicitly receipted reset-target canary if needed)",
+    "protected-real57",
+    "protected-legacy8"
+  ],
+  "receiptPerResource": [
+    "exact schema/table/API surface",
+    "complete immutable primary-key tuple (composite keys supported by serialized tuple)",
+    "run UUID and owner Auth UUID",
+    "successful CREATE operation receipt, never queued intent",
+    "official persisted GET/exact-key readback digest",
+    "native run/manifest canonical-key ownership proof",
+    "full direct/indirect FK and non-FK dependency inventory",
+    "foreign-reference count exactly zero",
+    "no protected UID/key and no unresolved mutating IO"
+  ],
+  "surfacesToDiscoverNotHardcodedDeleteAllowlist": [
+    "auth.users (official Admin exact UID only)",
+    "auth.sessions / auth.refresh_tokens (logout owned exact sessions via approved provider mechanism; no global logout)",
+    "public.profiles / user_roles / user_memberships / user_permissions",
+    "public.account_migration_users / account_permission_overrides (canonical-key rooted proof mandatory even if unlinked)",
+    "public.transactions / transaction_actions / transaction_action_versions / transaction_action_notes / transaction_routes / transaction_requests / transaction_assignments / transaction_assignment_users / transaction_participants / transaction_history / notifications / audit_log",
+    "app_private.qa_runs / qa_account_manifest / qa_run_members / qa_transaction_manifest / qa_sql_operation_context",
+    "app_private.account_password_operations / account_credential_state and all catalogued operation/support rows"
+  ],
+  "sequence": [
+    "Reconcile exact owned inventory; reject any unproven/mixed partial setup",
+    "Complete real catalog foreign-key mappings and indirect reference closure; parse names as JSON arrays",
+    "Read-only mechanics test of generated lookup/readback queries on proven-nonexistent UUID; not deletion/identity proof",
+    "Freeze signed inventory receipt and prove drain plus zero unresolved operations",
+    "Parent approved cleanup runner deletes only receipted exact keys in dependency order, preserving complete protected records; no cascade assumptions or prefixes",
+    "Read back every exact owned surface, including canonical-key rows and sessions; require explicit empty arrays/zero, never infer missing fields",
+    "Read back protected stable Auth/profile/roles/memberships/overrides and faisal flags; compare stable protected digest",
+    "Leave external unrelated concurrent activity alone; do not restore business snapshots or rewind shared sequences"
+  ],
+  "readbackContract": {
+    "remainingKeys": "every inventory surface explicitly present, arrays of matching exact keys",
+    "pendingOperations": 0,
+    "openSessions": 0,
+    "protectedSnapshotDigest": "must equal immutable pre-cleanup protected baseline",
+    "orphanClosure": "zero own catalogued direct/indirect references; unknown schemas fail closed"
+  },
+  "implementation": "cleanup.mjs pure planCleanup + verifyCleanupReadback; these functions do not establish live ownership by themselves"
+}

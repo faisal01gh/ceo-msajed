@@ -1,0 +1,33 @@
+{
+  "schema": 1,
+  "scope": "LOCAL_SQL_CLOSED_ALL_NINE_IDS_NO_PROVIDER_OR_ACTIVATION_APPROVAL",
+  "independentReviewer": true,
+  "reviewBatch": "deleg_e908aecf",
+  "localSQLGate": "APPROVED",
+  "perID": {
+    "G1": "CLOSED",
+    "G2": "CLOSED",
+    "G3": "CLOSED",
+    "G4": "CLOSED",
+    "G5": "CLOSED",
+    "P1": "CLOSED",
+    "P2": "CLOSED",
+    "P3": "CLOSED",
+    "P4": "CLOSED"
+  },
+  "remainingFix": null,
+  "sourceHashes": {
+    "supabase/migrations/20261008010000_qa_isolation_prerequisites.sql": "08bef568d9ecb8357b96e714affa0dc47ac276521ad993d8231ec6871dfbefe2",
+    "supabase/migrations/20261008015000_qa_password_transport.sql": "6a8504146c21ff2e82354752d1f4fd6bf1bf908b182b1084ddd5d5a5591cf946",
+    "supabase/migrations/20261008018000_qa_rest_provenance.sql": "ecb8aba27108fa51c64f8e85c1d8d805075b671555a5135773e105f647a47e46",
+    "supabase/migrations/20261008018500_qa_core_rest_admission.sql": "cfa169e716fc799df5cb314eb382106976a85b7b7ade7817d1aeb53c5bce7ed7",
+    "supabase/migrations/20261008019000_qa_typed_producer_references.sql": "6f6c8e273c2d8e1be42da2c884e179ac095e8dc5be5477a1a4e63328f0eec4e5",
+    "supabase/migrations/20261008019500_qa_delete_completion.sql": "c2aca08ae966f4d7c63f79303d36499913a5c88c3d87d7099bd4e51d9ab6803d",
+    "supabase/migrations/20261008020000_qa_isolation_enforcement.sql": "1b6a5813ccbd6fa7aac2f0525558853351dac75c0a8645dbfd4203c36ec8de72",
+    "supabase/migrations/20261008020500_qa_password_frame_composition.sql": "8af524f378899316c1e74dbe5843695cfb0c7b886ed475e7a74439908b948261"
+  },
+  "originalReviewSha256": "09c0be9459ce7f80c9321493b46f9133e315c3df24d6c4305388def35a9439dd",
+  "protectedClausesRetained": true,
+  "notProviderActivationApproval": true,
+  "realProviderOperations": 0
+}

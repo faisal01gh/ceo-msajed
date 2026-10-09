@@ -1,0 +1,6 @@
+REPORT.json
+MEASUREMENTS.json
+SOURCE_HASHES.json
+verification.txt
+*.log
+*.receipt.json

@@ -1,0 +1,58 @@
+[
+  {
+    "id": 1,
+    "url": "https://supabase.com/docs/guides/auth/rate-limits",
+    "status": 200,
+    "file": "provider-source-1.txt",
+    "retrievedAt": "2026-10-08T22:45:19.222106+00:00",
+    "textChars": 7692
+  },
+  {
+    "id": 2,
+    "url": "https://supabase.com/docs/guides/functions/limits",
+    "status": 200,
+    "file": "provider-source-2.txt",
+    "retrievedAt": "2026-10-08T22:45:19.911979+00:00",
+    "textChars": 3799
+  },
+  {
+    "id": 3,
+    "url": "https://developers.cloudflare.com/workers/platform/limits/",
+    "status": 200,
+    "file": "provider-source-3.txt",
+    "retrievedAt": "2026-10-08T22:45:47.826515+00:00",
+    "retrieval": "curl TLS verified after urllib certificate failure"
+  },
+  {
+    "id": 4,
+    "url": "https://developers.cloudflare.com/pages/platform/limits/",
+    "status": 200,
+    "file": "provider-source-4.txt",
+    "retrievedAt": "2026-10-08T22:45:47.921150+00:00",
+    "retrieval": "curl TLS verified after urllib certificate failure"
+  },
+  {
+    "id": 5,
+    "url": "https://docs.postgrest.org/en/stable/references/errors.html",
+    "status": 200,
+    "file": "provider-source-5.txt",
+    "retrievedAt": "2026-10-08T22:45:47.956564+00:00",
+    "retrieval": "curl TLS verified after urllib certificate failure"
+  },
+  {
+    "id": 6,
+    "url": "https://docs.postgrest.org/en/stable/references/configuration.html",
+    "status": 200,
+    "file": "provider-source-6.txt",
+    "retrievedAt": "2026-10-08T22:45:48.003550+00:00",
+    "retrieval": "curl TLS verified after urllib certificate failure"
+  },
+  {
+    "id": 7,
+    "url": "https://supabase.com/docs/guides/platform/compute-and-disk",
+    "status": 200,
+    "file": "provider-source-7.txt",
+    "retrievedAt": "2026-10-08T22:45:21.094889+00:00",
+    "textChars": 12642
+  }
+]

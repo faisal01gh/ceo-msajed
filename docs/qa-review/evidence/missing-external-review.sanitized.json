@@ -1,0 +1,18 @@
+{
+  "schema": 1,
+  "scope": "External independent review of account provisioning/linking and native E2E/load readiness",
+  "verdict": "NOT_AVAILABLE_PROVIDER_BLOCKED",
+  "providerError": "content_policy_blocked",
+  "blockedBatch": "deleg_23d1bdb4",
+  "blockedTask": 3,
+  "sameReviewRetried": false,
+  "localImplementerTestsAreNotIndependentApproval": true,
+  "partialArtifactsRetainedLocallyNotPublished": true,
+  "requiredDisposition": "Independent external APPROVED or explicit remaining findings bound to this branch source",
+  "overallLiveTransition": "BLOCKED",
+  "full200ActivationBarrierRetained": true,
+  "liveTargetCatalogAttestation": "NOT_PERFORMED",
+  "realAuthCreates": 0,
+  "realPasswordResets": 0,
+  "realE2EOrLoad": false
+}

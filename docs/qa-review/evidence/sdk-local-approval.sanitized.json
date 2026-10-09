@@ -1,0 +1,40 @@
+{
+  "schema": 1,
+  "scope": "Local ordinary password/session SDK-response settlement and logging privacy only. Not provider/native Auth, accounts executor/load, deployment or production acceptance.",
+  "independentReviewer": true,
+  "reviewBatch": "deleg_46e6ad87",
+  "verdict": "APPROVED",
+  "blockers": [],
+  "findings": {
+    "B1": "RESOLVED_RETAINED",
+    "B2_LOCAL_LOGOUT_BODY": "CLOSED",
+    "SDK_RAW_ERROR_LOG_SECRET": "CLOSED"
+  },
+  "finalCases": 346,
+  "failed": 0,
+  "skipped": 0,
+  "filtered": 0,
+  "xfail": 0,
+  "catalogAssertions": 22,
+  "typecheckedEntryPoints": [
+    "supabase/functions/account-admin-reset-password/index.ts",
+    "supabase/functions/account-confirm-password/index.ts",
+    "supabase/functions/account-resolve/index.ts",
+    "supabase/functions/session-logout/index.ts",
+    "supabase/functions/transactions-api/index.ts"
+  ],
+  "sourceHashes": {
+    "supabase/functions/_shared/qa-context.ts": "ca8e4fee3ad98acb53c07b82bbaa3f6a09b5cff284836bc3b223b24a9c96cd7b",
+    "supabase/functions/_shared/password-port.ts": "2600371ad9240712562921f0c6c05bcc99077e137781e35ecababf8b6fd9fab0",
+    "supabase/functions/session-logout/index.ts": "fc6951692623d0a5adcbd0a92feac07bc52c42be78f6450bb6c469d158cd71a0",
+    "supabase/functions/transactions-api/index.ts": "88e9153d2bedf7250d52dbd8d7cc9c5448364ac59ea24d145373a1be0e32ce55",
+    "supabase/functions/account-resolve/index.ts": "127c4becdf747ff5b8dd4afc9787b2a452d05587b191b52f81fe700fc0f1c6f8",
+    "supabase/migrations/20261008015000_qa_password_transport.sql": "6a8504146c21ff2e82354752d1f4fd6bf1bf908b182b1084ddd5d5a5591cf946"
+  },
+  "originalReviewSha256": "c59c6cc23328c7d2661b72f765b741a36b46d0a6c1ce1da48edcbc54ed696a89",
+  "pendingRuntimeLimits": {
+    "waitUntil": "runtime-lifetime-limited",
+    "noRepeat": "worker-local-not-durable-cross-isolate"
+  },
+  "realProviderOperations": 0
+}

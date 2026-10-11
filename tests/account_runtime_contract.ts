@@ -1,0 +1,21 @@
+// Compile-only account seam contract. Never executed; no target read/write.
+import {createAccountRuntimeAuthority,createNativeOfficialAccountResetAdapter,isAccountRuntimeAuthority,isNativeOfficialAccountResetAdapter} from '../scripts/accounts-official-reset.mjs';
+import {createOriginalStaffExecutor,createOriginalStaffReceiptJournal} from '../scripts/accounts-create-originals.mjs';
+import type {SupabaseClient} from 'npm:@supabase/supabase-js@2.57.4';
+type Scope='account-create'|'account-link'|'account-reset'|'account-receipt';
+type Authority=Readonly<{assertCurrent(args:{scope:Scope;operationId:string}):Promise<unknown>}>;
+type Identity={canonical_key:string;target_user_id:string;operation_id:string};
+type Candidate=Identity&{password:string};
+type Reset=Readonly<{assertAvailable(scope:Identity):Promise<void>;reset(candidate:Candidate,deadline?:{admitBefore:number}):Promise<unknown>;reconcile(candidate:Candidate,deadline?:{admitBefore:number}):Promise<unknown>}>;
+type NativeResetConfig={runtimeAuthority:Authority;serviceRoleKey:string;accessToken:string;operationId:string;canonicalKeys:string[];signedQaResetReceipt:{payload:string;signature:string};trustedReviewerPublicKey:unknown};
+const authorityFactory:(config:{runtimeReaderConfig:unknown;readApproval:(scope:{scope:Scope;operationId:string})=>Promise<unknown>})=>Authority=createAccountRuntimeAuthority;
+const resetFactory:(config:NativeResetConfig)=>Promise<Reset>=createNativeOfficialAccountResetAdapter;
+const authorityBrand:(value:unknown)=>boolean=isAccountRuntimeAuthority;
+const resetBrand:(value:unknown)=>boolean=isNativeOfficialAccountResetAdapter;
+const journalFactory:(config:{directory:string;canonicalKeys:string[];executionMode:'real-apply';runtimeAuthority:Authority})=>(receipt:unknown)=>Promise<unknown>=createOriginalStaffReceiptJournal;
+const executorFactory=createOriginalStaffExecutor;
+type PinnedInvoke=SupabaseClient['functions']['invoke'];
+type PinnedGetUser=SupabaseClient['auth']['getUser'];
+const compileOnly=[authorityFactory,resetFactory,authorityBrand,resetBrand,journalFactory,executorFactory] as const;
+export type {Authority,Reset,PinnedInvoke,PinnedGetUser};
+export {compileOnly};

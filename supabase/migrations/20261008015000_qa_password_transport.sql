@@ -176,7 +176,7 @@ REVOKE ALL ON FUNCTION app_private.qa_pw_audit_catalog_closed() FROM PUBLIC,anon
 
 CREATE FUNCTION app_private.qa_pw_effect(p_table oid,p_patch jsonb,p_insert boolean DEFAULT false) RETURNS jsonb
 LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path='' AS $$
-DECLARE f app_private.qa_password_frames%rowtype;oldrow jsonb;newrow jsonb;result jsonb;cols text;vals text;assigns text;pk text;pkval text;n integer;expected oid;expectedop text;changed text[];auditid bigint;
+DECLARE f app_private.qa_password_frames%rowtype;oldrow jsonb;newrow jsonb;result jsonb;cols text;vals text;assigns text;pk text;pkval text;n integer;expected oid;expectedop text;changed text[];auditid bigint;fence_oid oid;native_digest text;expected_digest text;
 BEGIN
  SELECT * INTO STRICT f FROM app_private.qa_password_frames WHERE backend_pid=pg_backend_pid() AND sql_xid=pg_current_xact_id() FOR UPDATE;
  IF f.state NOT IN ('admitted','consumed') THEN RAISE EXCEPTION 'qa password effect state' USING ERRCODE='42501';END IF;
@@ -189,10 +189,44 @@ BEGIN
  IF expected IS NULL OR p_table<>expected OR p_insert IS DISTINCT FROM (expectedop='INSERT') OR jsonb_typeof(p_patch)<>'object'
  THEN RAISE EXCEPTION 'qa password phase effect sequence' USING ERRCODE='42501';END IF;
  PERFORM app_private.qa_pw_revalidate();
+ -- Runtime-only dependency: historical password installation precedes Fence.
+ -- Once Fence exists, its exact installed callback source/security/catalog and
+ -- the two explicitly declared standalone password attachments are mandatory.
+ fence_oid:=to_regprocedure('app_private.qa_owned_fence_before_row()');
+ IF fence_oid IS NOT NULL THEN
+  IF NOT EXISTS(SELECT 1 FROM pg_proc p WHERE p.oid=fence_oid
+   AND p.pronamespace='app_private'::regnamespace AND p.proowner='postgres'::regrole
+   AND p.prosecdef AND p.provolatile='v' AND p.prorettype='trigger'::regtype
+   AND p.proconfig=ARRAY['search_path=""']::text[]
+   AND NOT EXISTS(SELECT 1 FROM aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) a
+    WHERE a.grantee<>p.proowner OR a.grantor<>p.proowner OR a.privilege_type<>'EXECUTE' OR a.is_grantable))
+   OR to_regclass('app_private.qa_owned_native_anchor') IS NULL
+   OR to_regprocedure('app_private.qa_owned_native_catalog_digest()') IS NULL
+  THEN RAISE EXCEPTION 'qa password exact fence function contract drift' USING ERRCODE='55000';END IF;
+  -- The private installer anchor includes native callback OID/body/owner/ACL/
+  -- config and full trigger definitions. Caller-supplied hashes are not authority.
+  EXECUTE 'SELECT catalog_digest FROM app_private.qa_owned_native_anchor WHERE id=1' INTO expected_digest;
+  EXECUTE 'SELECT app_private.qa_owned_native_catalog_digest()' INTO native_digest;
+  IF expected_digest IS NULL OR native_digest IS DISTINCT FROM expected_digest
+  THEN RAISE EXCEPTION 'qa password exact fence source/catalog drift' USING ERRCODE='55000';END IF;
+  IF p_table IN ('app_private.account_credential_state'::regclass,'app_private.account_password_operations'::regclass)
+   AND (SELECT count(*) FROM pg_trigger t WHERE t.tgrelid=p_table AND t.tgfoid=fence_oid
+    AND t.tgname='qa_owned_deletion_fence' AND NOT t.tgisinternal AND t.tgenabled='O'
+    AND t.tgtype=31 AND NOT t.tgdeferrable AND NOT t.tginitdeferred
+    AND t.tgqual IS NULL AND t.tgnargs=0 AND t.tgattr=''::int2vector)<>1
+  THEN RAISE EXCEPTION 'qa password exact required fence attachment absent' USING ERRCODE='55000';END IF;
+ END IF;
  -- Plain, non-partitioned, rule-free surfaces; no later row writer/suppressor.
  IF current_setting('session_replication_role')<>'origin' OR EXISTS(SELECT 1 FROM pg_class WHERE oid=p_table AND (relkind<>'r' OR relispartition))
  OR EXISTS(SELECT 1 FROM pg_rewrite WHERE ev_class=p_table) OR EXISTS(SELECT 1 FROM pg_inherits WHERE inhrelid=p_table OR inhparent=p_table)
- OR EXISTS(SELECT 1 FROM pg_trigger WHERE tgrelid=p_table AND (tgenabled<>'O' OR (NOT tgisinternal AND tgfoid<>coalesce(to_regprocedure('app_private.qa_reference_guard_before_row()')::oid,0))))
+ OR EXISTS(SELECT 1 FROM pg_trigger t WHERE t.tgrelid=p_table AND (t.tgenabled<>'O' OR (NOT t.tgisinternal AND NOT (
+  (p_table IN ('public.profiles'::regclass,'public.account_migration_users'::regclass,'public.audit_log'::regclass)
+   AND t.tgfoid=coalesce(to_regprocedure('app_private.qa_reference_guard_before_row()')::oid,0)
+   AND t.tgtype=31 AND NOT t.tgdeferrable AND t.tgqual IS NULL AND t.tgnargs=0 AND t.tgattr=''::int2vector)
+  OR (fence_oid IS NOT NULL AND p_table IN ('app_private.account_credential_state'::regclass,'app_private.account_password_operations'::regclass)
+   AND t.tgfoid=fence_oid AND t.tgname='qa_owned_deletion_fence' AND t.tgtype=31
+   AND NOT t.tgdeferrable AND NOT t.tginitdeferred AND t.tgqual IS NULL AND t.tgnargs=0 AND t.tgattr=''::int2vector)
+ ))))
  THEN RAISE EXCEPTION 'qa password effect catalog unsupported' USING ERRCODE='55000';END IF;
  IF p_table IN ('public.profiles'::regclass,'public.account_migration_users'::regclass,'public.audit_log'::regclass) AND NOT EXISTS(SELECT 1 FROM pg_trigger WHERE tgrelid=p_table AND NOT tgisinternal AND tgfoid='app_private.qa_reference_guard_before_row()'::regprocedure AND tgtype=31 AND tgenabled='O' AND tgqual IS NULL)
  THEN RAISE EXCEPTION 'qa password final guard absent' USING ERRCODE='55000';END IF;
@@ -340,6 +374,16 @@ begin
  if not exists(select 1 from auth.users u where u.id=p.id and u.email=a.internal_email) then
   raise exception 'identity conflict';
  end if;
+  -- Validate final native callback composition before even the idempotent
+ -- credential INSERT: BEFORE triggers fire on ON CONFLICT DO NOTHING too.
+ -- Runtime lookup preserves the earlier historical migration order.
+ IF to_regprocedure('app_private.qa_owned_fence_before_row()') IS NOT NULL THEN
+   IF to_regprocedure('app_private.qa_owned_native_gateway()') IS NULL OR to_regprocedure('app_private.qa_owned_fence_catalog_closed()') IS NULL THEN
+    RAISE EXCEPTION 'qa password final fence attestation absent' USING ERRCODE='55000';
+   END IF;
+   EXECUTE 'SELECT app_private.qa_owned_native_gateway()';
+   EXECUTE 'SELECT app_private.qa_owned_fence_catalog_closed()';
+  END IF;
  insert into app_private.account_credential_state(user_id) values(p.id) on conflict do nothing;
  select * into c from app_private.account_credential_state where user_id=p.id for update;
  select * into o from app_private.account_password_operations where operation_id=p_operation_id for update;
@@ -425,6 +469,14 @@ declare v_key text; o app_private.account_password_operations%rowtype; actor rec
 begin
  select * into actor from app_private.qa_request_actor_read();
  if not found or actor.request_role<>'service_role' or actor.actor_user is distinct from p_actor or actor.actor_session is distinct from p_session then raise exception 'qa forbidden' using errcode='42501';end if;
+ -- Reject native callback drift before session helpers can seed credentials.
+ IF to_regprocedure('app_private.qa_owned_fence_before_row()') IS NOT NULL THEN
+  IF to_regprocedure('app_private.qa_owned_native_gateway()') IS NULL OR to_regprocedure('app_private.qa_owned_fence_catalog_closed()') IS NULL THEN
+   RAISE EXCEPTION 'qa password final fence attestation absent' USING ERRCODE='55000';
+  END IF;
+  EXECUTE 'SELECT app_private.qa_owned_native_gateway()';
+  EXECUTE 'SELECT app_private.qa_owned_fence_catalog_closed()';
+ END IF;
  -- Recovery is an observation of the SAME original verified-session operation.
  -- It bypasses only the cutoff/open-op check, never expiry, identity, or normal access.
  select * into o from app_private.account_password_operations where operation_id=p_operation_id;

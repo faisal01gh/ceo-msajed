@@ -1,0 +1,374 @@
+{
+  "schema": 1,
+  "scope": "LOCAL FINAL COMPOSED VERIFICATION ONLY",
+  "status": "LOCAL_VERIFICATION_BLOCKED_PENDING_FINAL_SECRET_AND_INDEPENDENT_REVIEW",
+  "baseCommit": "49d437173692ce658bf58bc62efbb9332c900f10",
+  "fullMigration200SHA256": "1b6a5813ccbd6fa7aac2f0525558853351dac75c0a8645dbfd4203c36ec8de72",
+  "localSectionSHA256": "a73edaeb0919ca741049e440053622839fd8b68dbd833013038d15d62d75c80c",
+  "barrierSHA256": "c5d54586f5fbaf23b70c55289adf074d207ed0bc80afe6ed60193225bf4e86ce",
+  "fullApplyStatus": "blocked_by_activation_guard",
+  "localSectionStatus": "applied_for_local_test",
+  "productionActivation": "NOT_AUTHORIZED",
+  "manifest": [
+    {
+      "name": "20261008010000_qa_isolation_prerequisites.sql",
+      "kind": "full",
+      "status": "applied",
+      "source_sha256": "08bef568d9ecb8357b96e714affa0dc47ac276521ad993d8231ec6871dfbefe2",
+      "apply_order": 1
+    },
+    {
+      "name": "20261008015000_qa_password_transport.sql",
+      "kind": "full",
+      "status": "applied",
+      "source_sha256": "e2454e55dd12ad86e2d29568ce3509cd3f73877d2746139815a9007606c781f6",
+      "apply_order": 2
+    },
+    {
+      "name": "20261008018000_qa_rest_provenance.sql",
+      "kind": "full",
+      "status": "applied",
+      "source_sha256": "ecb8aba27108fa51c64f8e85c1d8d805075b671555a5135773e105f647a47e46",
+      "apply_order": 3
+    },
+    {
+      "name": "20261008018500_qa_core_rest_admission.sql",
+      "kind": "full",
+      "status": "applied",
+      "source_sha256": "cfa169e716fc799df5cb314eb382106976a85b7b7ade7817d1aeb53c5bce7ed7",
+      "apply_order": 4
+    },
+    {
+      "name": "20261008019000_qa_typed_producer_references.sql",
+      "kind": "full",
+      "status": "applied",
+      "source_sha256": "6f6c8e273c2d8e1be42da2c884e179ac095e8dc5be5477a1a4e63328f0eec4e5",
+      "apply_order": 5
+    },
+    {
+      "name": "20261008019500_qa_delete_completion.sql",
+      "kind": "full",
+      "status": "applied",
+      "source_sha256": "c2aca08ae966f4d7c63f79303d36499913a5c88c3d87d7099bd4e51d9ab6803d",
+      "apply_order": 6
+    },
+    {
+      "name": "20261008020000_qa_isolation_enforcement.sql",
+      "kind": "full",
+      "status": "blocked_by_activation_guard",
+      "source_sha256": "1b6a5813ccbd6fa7aac2f0525558853351dac75c0a8645dbfd4203c36ec8de72",
+      "apply_order": 7
+    },
+    {
+      "name": "20261008020000_qa_isolation_enforcement.sql",
+      "kind": "local_section",
+      "status": "applied_for_local_test",
+      "source_sha256": "1b6a5813ccbd6fa7aac2f0525558853351dac75c0a8645dbfd4203c36ec8de72",
+      "apply_order": 8
+    },
+    {
+      "name": "20261008020500_qa_password_frame_composition.sql",
+      "kind": "full",
+      "status": "applied",
+      "source_sha256": "8af524f378899316c1e74dbe5843695cfb0c7b886ed475e7a74439908b948261",
+      "apply_order": 9
+    },
+    {
+      "name": "20261008021000_qa_owned_fence_composition.sql",
+      "kind": "full",
+      "status": "applied",
+      "source_sha256": "9a35584dc6aff806df982fb8ef130471f924a378012a1f76f1e048c5d07de4a4",
+      "apply_order": 10
+    }
+  ],
+  "tests": {
+    "composition": 26,
+    "nativeOwnReset": 29,
+    "frames": 24,
+    "integration": 27,
+    "transportAssertions": 54,
+    "edgeOriginalNamedCases": 108,
+    "sdkSemanticModes": 11,
+    "step1": 7,
+    "typed": 22,
+    "guard": 6,
+    "durable": {
+      "passed": 14,
+      "failed": 0,
+      "skipped": 0,
+      "xfail": 0
+    },
+    "lifecycle57": {
+      "created": 57,
+      "tested": 57,
+      "cleaned": 57,
+      "failed": 0,
+      "skipped": 0,
+      "xfail": 0
+    },
+    "accounts": {
+      "tests": 226,
+      "pass": 226,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    "provenance": {
+      "tests": 162,
+      "pass": 162,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    }
+  },
+  "cleanup": {
+    "fences": 0,
+    "frames": 0,
+    "pending": 0,
+    "sources": 0,
+    "sessions": 0,
+    "operations": 0,
+    "ownedResources": 0,
+    "passwordOperations": 0
+  },
+  "protectedSnapshot": {
+    "beforeSHA256": "2051f38629bb60270011f66b6e64194ad8a69bbcb8174cca7bd47cc07e828d53",
+    "afterSHA256": "2051f38629bb60270011f66b6e64194ad8a69bbcb8174cca7bd47cc07e828d53",
+    "match": true
+  },
+  "baseRolesMembershipsSequenceACLUnchanged": true,
+  "baseRemainingOwnedSessionsOperationsFramesFencesClients": {
+    "ownedResources": 0,
+    "sessions": 0,
+    "operations": 0,
+    "passwordOperations": 0,
+    "frames": 0,
+    "passwordFrames": 0,
+    "fences": 0,
+    "clients": 0
+  },
+  "exactDisposableFixtureDatabaseCount": 232,
+  "classifications": {
+    "nativeSQL": "actual local WSL PostgreSQL16",
+    "SDK": "pinned2.57.4, actual SDK with intercepted synthetic provider/Edge/F3",
+    "accounts": "network-denied synthetic executor suite, not real account writes",
+    "provenance": "149 top-level+13 native read-only SELECT/catalog mechanics with inert ABI leaves, not product/controller/native Auth acceptance"
+  },
+  "sourceEvidenceSHA256": {
+    "FULL_FINAL_NATIVE_RESULTS.json": "879af7ad7ab6d748251bbf5097a576f448808cc5054978dcb951d5c086236834",
+    "FULL_FINAL_SDK_EDGE_NATIVE_RESULTS.json": "ffb7a5ea4d9f722a04fff81a2a7f6cb80829fd14b6e0b7eb654a3fbdb9244eb2",
+    "durable14-atomic-admission/REPORT.json": "9b08f491b7e7476865835bd694ac263b20e24263b22c423bfc1329ee5b900c79",
+    "lifecycle57-final/LIFECYCLE57.json": "895e414ede9c90b44ebe7f691780a7751425890569740044d0edb43114e0f412",
+    "ACCOUNTS_LINUX_FINAL.json": "4cdcbe7f01c9f6749f1361c9cc76443ff67269060abe52d922b8fdf9ed3a968c",
+    "provenance-final/PROVENANCE_FINAL.json": "b99638f18a81136b03b8bdfe5c03dca6e97b26ecbaa6235b57ee8dd970545083",
+    "ALL_TESTS_FINAL_BASE_READBACK.json": "362d70a20e6d95d54dc4a576e9239d6e82334709deea5c0a6fa2a6f78d8c210f",
+    "FINAL_SECRET_GATE.json": "89467e0d3fb0e13229c98fca7e703dc29a181d9ecebb450d0dd7845a4c6dec51",
+    "WITNESS_NATIVE_RESULTS.json": "a165197e7d67b054781bb9955ca8a100d617dafd25c4abec23a53941a74e5314",
+    "repair-durable14/REPORT.json": "16155f262c2f2b18fa9742d99f2f958f9c54118122b55c5d6033cd0fd3c26698",
+    "repair-lifecycle57-single-600s-call/LIFECYCLE57.json": "55c96cb46b05c2edd7e10d8f4a77cb4ce0cc62797a6800f51a366e020c7410e4",
+    "repair-password-fence-states-current-210/PASSWORD_FENCE_STATES.json": "c073c19d3630bc2b3f900a9566a6f170ca68f4e829f5529aa9edff8a6ee8a231",
+    "FINAL_REPAIRED_BASE_READBACK.json": "031d8c7fec252cdf31314db1fd42fd5e30d4c3962afa5a3a60f64e2521426739",
+    "EXACT_DISPOSABLE_DATABASE_CLEANUP.json": "aeb9ecd3064acd3896dab33488c557c5ffef7c5712c6931155bb7c76cd01e1a7"
+  },
+  "independentFinalReview": {
+    "harness": "APPROVED_EXACT_254_SOURCE_SCOPE",
+    "sql": "BLOCKED_MISSING_DISTINCT_OFFICE_COVERAGE_AT_REVIEW_TIME",
+    "lifecycle": "BLOCKED_GENUINE_COMPLETED_REPLAY",
+    "sourceChangedAfterReview": "TEST_ONLY_OFFICE_COVERAGE17_AND_STOP_DOCUMENTATION_NOT_RE_REVIEWED",
+    "reviewSHA256": {
+      "FINAL_SQL_RE_REVIEW.json": "64cbfe07e774b6706ee830d2678b253bdb251580f4e0b19ee4a943b9e020f7bc",
+      "FINAL_LIFECYCLE_RE_REVIEW.json": "e76bd208d5d160f9cb4f771b7c72a42fb22e8019eac1fff71584bbc0793f9bfe",
+      "FINAL_HARNESS_RE_REVIEW.json": "8e93936aeb51db247f23dd9630515df6f50ce1bb51706377a3ba8e34bc5a6612"
+    }
+  },
+  "externalEffects": {
+    "productionConnection": false,
+    "realAuthCreateReset": false,
+    "liveE2E": false,
+    "liveLoad": false,
+    "providerMigrations": false,
+    "deploy": false,
+    "merge": false
+  },
+  "latestRepairVerification": {
+    "status": "ALL_REQUIRED_TESTS_PASS_REVIEW_PENDING",
+    "initialIndependentScopes": {
+      "SQL": "BLOCKED_TWO_FINDINGS",
+      "LIFECYCLE": "BLOCKED_THREE_FINDINGS",
+      "HARNESS": "APPROVED_ORIGINAL_FROZEN_SCOPE_ONLY"
+    },
+    "resolvedPendingIndependentReReview": [
+      "SQL-FINAL-01",
+      "SQL-FINAL-02",
+      "LQR01",
+      "LQR02",
+      "LQR03"
+    ],
+    "nativeWitnessCases": 15,
+    "nativePasswordFenceChecks": 13,
+    "lifecycleOfflineEntries": 82,
+    "sourceSHA256": {
+      "migration210": "9a35584dc6aff806df982fb8ef130471f924a378012a1f76f1e048c5d07de4a4"
+    },
+    "receiptSHA256": {
+      "WITNESS_NATIVE_RESULTS.json": "a165197e7d67b054781bb9955ca8a100d617dafd25c4abec23a53941a74e5314",
+      "FULL_FINAL_NATIVE_RESULTS.json": "879af7ad7ab6d748251bbf5097a576f448808cc5054978dcb951d5c086236834",
+      "FULL_FINAL_SDK_EDGE_NATIVE_RESULTS.json": "ffb7a5ea4d9f722a04fff81a2a7f6cb80829fd14b6e0b7eb654a3fbdb9244eb2",
+      "repair-durable14/REPORT.json": "16155f262c2f2b18fa9742d99f2f958f9c54118122b55c5d6033cd0fd3c26698",
+      "repair-lifecycle57-single-600s-call/LIFECYCLE57.json": "55c96cb46b05c2edd7e10d8f4a77cb4ce0cc62797a6800f51a366e020c7410e4",
+      "repair-password-fence-states-current-210/PASSWORD_FENCE_STATES.json": "c073c19d3630bc2b3f900a9566a6f170ca68f4e829f5529aa9edff8a6ee8a231",
+      "ACCOUNTS_LINUX_FINAL.json": "4cdcbe7f01c9f6749f1361c9cc76443ff67269060abe52d922b8fdf9ed3a968c",
+      "provenance-final/PROVENANCE_FINAL.json": "b99638f18a81136b03b8bdfe5c03dca6e97b26ecbaa6235b57ee8dd970545083",
+      "FINAL_REPAIRED_BASE_READBACK.json": "031d8c7fec252cdf31314db1fd42fd5e30d4c3962afa5a3a60f64e2521426739"
+    },
+    "fixtureDispositionCount": 146,
+    "fixtureDispositionSHA256": "aeb9ecd3064acd3896dab33488c557c5ffef7c5712c6931155bb7c76cd01e1a7",
+    "genuineF3CompletedRunReauthorization": "DENIED_BY_PRESERVED_INVENTORY_POLICY_NOT_LIVE_ACCEPTANCE",
+    "productionConnection": false,
+    "manifestSourceHashCurrent": true,
+    "officeFenceTargetedNative": {
+      "passed": 17,
+      "failed": 0,
+      "skipped": 0,
+      "xfail": 0,
+      "resourceCycle": {
+        "created": 57,
+        "tested": 57,
+        "cleaned": 57
+      },
+      "receiptSHA256": "a5ad14c7a37ca9ac210f8528c7ec845a2da1d55309d69b888b1dc31441849143",
+      "independentReview": "NOT_RUN_AFTER_THIS_TEST_ONLY_CHANGE"
+    }
+  },
+  "stop": {
+    "decision": "AUTHORIZE_READ_ONLY_COMPLETED_REPLAY_DESIGN_OR_NARROW_ACCEPTANCE",
+    "inventoryMutationPolicyChanged": false,
+    "newCommit": false,
+    "push": false,
+    "productionConnection": false,
+    "nativeBackgroundRunner": false
+  },
+  "historicalCompletedReplayRound": {
+    "sourceGenuineTests": 54,
+    "protocolTests": 45,
+    "mechanicalTests": 9,
+    "mutationPrimitives": 0,
+    "lifecycleOffline": 82,
+    "accounts": 226,
+    "provenanceNativeMechanics": 162,
+    "officeNative": 17,
+    "nativeCurrent57": {
+      "created": 57,
+      "tested": 57,
+      "cleaned": 57
+    },
+    "nativeCompletedReplayPositive": "UNPROVEN_CALLER_ROLE_MISMATCH_BEFORE_REPLAY",
+    "oldWriteValidatorsByteUnchanged": true,
+    "finalReview": "PENDING",
+    "commitPush": false,
+    "productionConnection": false,
+    "artifactSHA256": {
+      "COMPLETED_REPLAY_IMPLEMENTATION.json": "fa0076093f6eab282456de4d3387356d0711438ef36407dc7c1bca82663cdc02",
+      "NATIVE_EXTRA_PROBE_CLASSIFICATION.json": "a1dae63f9d4250220e0a9cd1b5b60248e24fc9197f19482cd237d763d503d593",
+      "FULL_FINAL_NATIVE_RESULTS.json": "161c45cc2d4081d4431f09e9f576ef78cc4042ac88c65c915b2c9a607f82d977",
+      "FULL_FINAL_SDK_EDGE_NATIVE_RESULTS.json": "661d08c46f7d2036cdaf6b67beea0181cd22575413804c7765ff2cce5310326a",
+      "full-durable14/REPORT.json": "06215e62b24562c370c2b50ffc2c005875ca9f2a2ef5b3619df6b49dffd47994",
+      "independent-office17-current/PASSWORD_FENCE_STATES.json": "372269bbeb40503880bc114fb479009e2adce0fc857508302a6379f1228911fa",
+      "provenance-final/PROVENANCE_FINAL.json": "a22428882225ccd8e624f033c4e441ee504ced400a8f2e065c97dd4dbaa4b66e"
+    }
+  },
+  "completedReadApiRound": {
+    "sourceMigration": "20261008021100_qa_completed_cleanup_replay_read.sql",
+    "why211": "Existing official210 preserved; nextunusedtimestamp",
+    "migrationSHA256": "6eb907f1d9ef19e8f0a476907ec88d30e5846901d21a8b9b72dbae6920e1f380",
+    "catalog": "SQL_STABLE_SECURITY_DEFINER_POSTGRES_EMPTY_SEARCH_PATH_FUNCTION_ONLY_ACL",
+    "actualCaller": {
+      "auth_usage": false,
+      "current_user": "supabase_read_only_user",
+      "public_usage": true,
+      "session_user": "postgres",
+      "private_usage": false,
+      "transaction_read_only": "on"
+    },
+    "GenuineF3Composed": "PASS",
+    "firstAndRepeat": [
+      "already_completed",
+      "already_completed"
+    ],
+    "expectedDigestDenials": 13,
+    "requestDriftDenials": 13,
+    "trustedNativeDriftDenials": 18,
+    "readonlyMutationDenials": 15,
+    "terminalCounters": {
+      "fences": 0,
+      "qaRuns": 0,
+      "pending": 0,
+      "sessions": 0,
+      "qaMembers": 0,
+      "coreFrames": 0,
+      "qaAccounts": 0,
+      "targetAuth": 0,
+      "ownedFrames": 0,
+      "closureEmpty": 0,
+      "nativeFrames": 0,
+      "ownedSources": 0,
+      "ownedResources": 0,
+      "passwordFrames": 0,
+      "qaTransactions": 0,
+      "ownedOperations": 0,
+      "passwordOperations": 0,
+      "sqlOperationFrames": 0
+    },
+    "providerMutations": 0,
+    "fullSnapshotsEqual": true,
+    "sourceGenuineTests": 61,
+    "original54Preserved": true,
+    "lifecycleOffline": 82,
+    "independentOfficeNative": 17,
+    "durableNative": 14,
+    "accounts": 226,
+    "provenanceNativeMechanics": 162,
+    "native57": {
+      "created": 57,
+      "tested": 57,
+      "cleaned": 57,
+      "failed": 0,
+      "skipped": 0,
+      "xfail": 0
+    },
+    "fullNativeRegressionNamedChecks": 195,
+    "sdkSemanticModes": 11,
+    "nativeEdgeNamedCases": 13,
+    "transportOnlyCurrentCases": 45,
+    "sourceMechanicalChecks": 95,
+    "oldWriteIncompleteValidatorsByteUnchanged": true,
+    "secretScan": "PENDING_CURRENT_EXACT_COMMIT_SCOPE_SEMANTIC_REPLAY",
+    "freshIndependentFinalReview": "PENDING",
+    "commitPush": false,
+    "productionConnection": false,
+    "evidenceClassification": "Actual synthetic nativePostgreSQL16 role/readAPI/zero lifecycle; Provider/Edge/Deployment/HTTPauthority protocolMODELS ONLY",
+    "baseCurrentZero": {
+      "ownedResources": 0,
+      "sessions": 0,
+      "operations": 0,
+      "passwordOperations": 0,
+      "frames": 0,
+      "passwordFrames": 0,
+      "fences": 0,
+      "clients": 0
+    },
+    "baseRolesMembershipsACLUnchanged": true,
+    "currentReceiptSHA256": {
+      "PARENT_GENUINE_F3_COMPOSED_PASS.json": "f594ac4f7305d1c3d3504a835062e0a6a760a56864ceb0bf4cd41c5ba2317d01",
+      "GENUINE_F3_SOURCE_AFTER_NATIVE.json": "98f2ae9b27c137161646649e4118227db31e4426947411c49bec95429234a655",
+      "LIFECYCLE82_AFTER_NATIVE.json": "33c1277382c6364db636b091b308bf614ee48032afc640ccbcfc89a20686d07e",
+      "FINAL_NATIVE_ALL8_CURRENT.json": "3bde695bfe075adfa2c59d90b20b0ac2adffbf710aef7c7a90d5d9c1d32b7f5e",
+      "FULL_FINAL_SDK_EDGE_NATIVE_RESULTS.json": "9a9731f7193105f73433ea36b9e5a55d2c4b808b387b6f6e167968bdad09a68e",
+      "ACCOUNTS_LINUX_FINAL.json": "4cdcbe7f01c9f6749f1361c9cc76443ff67269060abe52d922b8fdf9ed3a968c",
+      "provenance-final/PROVENANCE_FINAL.json": "2091de59278e666b407695a990b6355007dbf41d76f791e005c964dade2cd4bf",
+      "FINAL_BASE_READBACK.json": "826e650c6838c1e8ff02fb03084b7d1a34ef8136e71ddc515845ffccee358204"
+    }
+  }
+}

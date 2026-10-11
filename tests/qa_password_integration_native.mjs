@@ -1,7 +1,7 @@
 // Real owned PostgreSQL: password reset/QA lifecycle/frame/rollback integration.
 // Synthetic Auth rows are not real Auth candidates or native E2E acceptance.
-import fs from 'node:fs';import path from 'node:path';import assert from 'node:assert/strict';import {createPasswordGuardFixture} from './qa_password_fixture.mjs';
-assert.ok(process.env.QA_LOCAL_PG_MODULE);const O='C:/Users/FAiSAL/AppData/Local/hermes/cache/scratch/qa-autonomous-completion/sql-core-password';const report={local_postgresql:true,synthetic_auth:true,provider_actions:0,remote_actions:0,checks:[]};
+import fs from 'node:fs';import path from 'node:path';import assert from 'node:assert/strict';import {createFinalComposedFixture as createPasswordGuardFixture} from './qa_final_composed_fixture.mjs';
+assert.ok(process.env.QA_LOCAL_PG_MODULE);const O=process.env.QA_PW_REPORT_DIR||'C:/Users/FAiSAL/AppData/Local/hermes/cache/scratch/qa-autonomous-completion/sql-core-password';fs.mkdirSync(O,{recursive:true});const report={local_postgresql:true,synthetic_auth:true,provider_actions:0,remote_actions:0,checks:[]};
 const f=await createPasswordGuardFixture({modulePath:process.env.QA_LOCAL_PG_MODULE,beforeGuards:async f=>{
  const {db,id,actors}=f;await db.query('delete from public.user_roles where user_id=$1',[actors.ceo]);await db.query("insert into public.user_roles(user_id,role_code,is_primary) values($1,'ceo_office_manager',true)",[actors.ceo]);await db.query("update public.account_migration_users set role_code='ceo_office_manager' where migrated_user_id=$1",[actors.ceo]);
  for(const [user,run] of [[actors.secretary,id(99501)],[actors.otherSecretary,id(99502)],[actors.stranger,id(99503)]]){

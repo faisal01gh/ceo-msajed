@@ -1,0 +1,43 @@
+// TEST ONLY. Official source-driven native composition; no manual guard DDL.
+import fs from 'node:fs';import path from 'node:path';import assert from 'node:assert/strict';import {createHash} from 'node:crypto';
+import {createTransactionFeedbackFixture} from './qa_isolation_fixture.mjs';
+const sha=b=>createHash('sha256').update(b).digest('hex');
+const names=['20261008010000_qa_isolation_prerequisites.sql','20261008015000_qa_password_transport.sql','20261008018000_qa_rest_provenance.sql','20261008018500_qa_core_rest_admission.sql','20261008019000_qa_typed_producer_references.sql','20261008019500_qa_delete_completion.sql','20261008020000_qa_isolation_enforcement.sql','20261008020500_qa_password_frame_composition.sql','20261008021000_qa_owned_fence_composition.sql','20261008021100_qa_completed_cleanup_replay_read.sql'];
+export async function createFinalComposedFixture(options={}){
+ const f=await createTransactionFeedbackFixture({...options,modulePath:path.resolve(import.meta.dirname,'qa_postgres_native_fixture.mjs')});const {db,dir}=f;
+ f.passwordBaselineABI=(await db.query("SELECT oid::text,proname,pg_get_function_arguments(oid) args,pg_get_function_result(oid) result,proowner::text,proacl::text,proconfig FROM pg_proc WHERE proname IN ('account_password_begin_internal','account_password_finish_internal','account_password_fail_internal','account_password_unknown_internal') ORDER BY oid")).rows;
+ const identity=(await db.query("SELECT current_database() database,host(inet_server_addr()) host,inet_server_port() port,current_user role,current_setting('data_directory') data_directory,(SELECT count(*) FROM pg_foreign_server) foreign_servers")).rows[0];assert.equal(identity.host,'127.0.0.1');assert.equal(identity.port,51771);assert.equal(identity.role,'postgres');assert.equal(identity.foreign_servers,0);assert.match(identity.database,/^qa_local_composed_/);
+ const pins=Object.fromEntries(names.map(n=>[n,sha(fs.readFileSync(path.join(dir,n)))]));const report={target_identity:identity,source_pins:pins,entries:[]};const output=process.env.QA_LOCAL_MANIFEST;assert(output,'local manifest path required');assert(!fs.existsSync(output),'clean fixture manifest only');const save=()=>fs.writeFileSync(output,JSON.stringify(report,null,2));save();
+ const record=(n,kind,status,extra={})=>{assert(!report.entries.some(x=>x.name===n&&x.kind===kind),'duplicate migration');report.entries.push({name:n,kind,status,source_sha256:pins[n],apply_order:report.entries.length+1,timestamp:new Date().toISOString(),target_identity:identity,...extra});save();};
+ const apply=async n=>{const b=fs.readFileSync(path.join(dir,n));assert.equal(sha(b),pins[n]);await db.exec(b.toString());record(n,'full','applied');};
+ try{
+  // Approved predecessor tables and original missing definitions only, not guards.
+  const adapter=fs.readFileSync(new URL('./qa_isolation_enforcement.mjs',import.meta.url),'utf8');const setup=adapter.slice(adapter.indexOf(' // Empty dependency relations:'),adapter.indexOf(' for(const [cohort,run]'));assert(setup.length>100);
+  const catalog=process.env.QA_FROZEN_PREDECESSOR_CATALOG;assert(catalog&&fs.existsSync(catalog),'original read-only predecessor catalog required');
+  const reader={...fs,readFileSync:(p,...a)=>fs.readFileSync(String(p)==='C:/Users/FAiSAL/AppData/Local/hermes/cache/scratch/msajed-account-work/qa-live-catalog.json'?catalog:p,...a)};
+  // Canonical dependency table setup precedes all official QA migrations.
+  await new (Object.getPrototypeOf(async function(){}).constructor)('db','fs',setup)(db,reader);
+  // Optional synthetic actor/manifest setup occurs after prerequisites, before product guards.
+  await db.exec("ALTER TABLE auth.users ADD COLUMN IF NOT EXISTS raw_user_meta_data jsonb NOT NULL DEFAULT '{}',ADD COLUMN IF NOT EXISTS created_at timestamptz,ADD COLUMN IF NOT EXISTS email_confirmed_at timestamptz,ADD COLUMN IF NOT EXISTS banned_until timestamptz,ADD COLUMN IF NOT EXISTS deleted_at timestamptz;");
+  for(const n of names.slice(0,6))await apply(n);
+  const full=fs.readFileSync(path.join(dir,names[6]));const begin=Buffer.from('-- BEGIN LOCAL VERIFIABLE SECTION'),end=Buffer.from('-- END LOCAL VERIFIABLE SECTION');const count=(b,k)=>{let n=0,p=0;while((p=b.indexOf(k,p))!==-1){n++;p+=k.length;}return n;};assert.equal(count(full,begin),1);assert.equal(count(full,end),1);const i=full.indexOf(begin),j=full.indexOf(end);assert(j>i);const section=full.subarray(full.indexOf(10,i)+1,j);const barrier=/DO \$blocked\$[\s\S]*?END \$blocked\$;/.exec(full.toString())[0];assert(barrier.includes("USING ERRCODE='55000'"));
+  const catalogSnapshot=async()=>JSON.stringify((await db.query("SELECT jsonb_build_object('classes',(SELECT jsonb_agg(jsonb_build_object('oid',oid,'name',relname,'owner',relowner,'acl',relacl,'rls',relrowsecurity) ORDER BY oid) FROM pg_class WHERE relnamespace IN ('public'::regnamespace,'app_private'::regnamespace,'auth'::regnamespace)),'functions',(SELECT jsonb_agg(jsonb_build_object('oid',oid,'body',pg_get_functiondef(oid),'owner',proowner,'acl',proacl,'config',proconfig) ORDER BY oid) FROM pg_proc WHERE pronamespace IN ('public'::regnamespace,'app_private'::regnamespace,'auth'::regnamespace))) value")).rows[0].value);
+  const before=await catalogSnapshot();await assert.rejects(db.exec(full.toString()),e=>e.code==='55000'&&e.message.startsWith('qa_enforcement_not_ready:'));await db.exec('ROLLBACK');assert.equal(await catalogSnapshot(),before);record(names[6],'full','blocked_by_activation_guard',{full_apply_status:'blocked_by_activation_guard',local_verifiable_section_status:'not_applied',section_sha256:sha(section),barrier_sha256:sha(Buffer.from(barrier))});
+  assert.equal(sha(fs.readFileSync(path.join(dir,names[6]))),pins[names[6]]);await db.exec('BEGIN;\n'+section.toString()+'\nCOMMIT;');record(names[6],'local_section','applied_for_local_test',{full_apply_status:'blocked_by_activation_guard',local_verifiable_section_status:'applied_for_local_test',section_sha256:sha(section),barrier_sha256:sha(Buffer.from(barrier))});
+  await apply(names[7]);if(options.beforeGuards)await options.beforeGuards(f);
+  // Bounded Auth fixture prerequisite from lifecycle.fence-final.fixture.mjs.
+  // Full read API requires this exact native surface; no role/schema grants.
+  const refreshPresent=(await db.query("SELECT to_regclass('auth.refresh_tokens') IS NOT NULL present")).rows[0].present;
+  if(!refreshPresent)await db.exec("CREATE TABLE auth.refresh_tokens(id bigint PRIMARY KEY,session_id uuid REFERENCES auth.sessions(id));");
+  report.completedReadAuthPrerequisite={created:!refreshPresent,source:'scripts/qa-load-preparation/lifecycle.fence-final.fixture.mjs'};
+  await apply(names[8]);
+  // Trusted native TEST initialization binds existing approved gateway custody;
+  // no role/property/membership changes and no guard/trigger DDL.
+  const gateway=(await db.query("SELECT oid,rolname FROM pg_roles WHERE rolname='qa_fixture_auth_gateway'")).rows;assert.equal(gateway.length,1,'existing test gateway must be present');
+  const fenceSource=fs.readFileSync(new URL('../scripts/qa-load-preparation/owned-deletion-fence.sql',import.meta.url),'utf8');const expr=fenceSource.split('OR a.gateway_metadata IS NULL OR a.gateway_metadata IS DISTINCT FROM ')[1]?.split('\n')[0];assert(expr?.startsWith("jsonb_build_object('role'"));
+  await db.exec("UPDATE app_private.qa_owned_native_anchor SET gateway_oid='qa_fixture_auth_gateway'::regrole;");await db.exec('UPDATE app_private.qa_owned_native_anchor a SET gateway_metadata='+expr+';UPDATE app_private.qa_owned_native_anchor SET catalog_digest=app_private.qa_owned_native_catalog_digest();SELECT app_private.qa_owned_fence_catalog_closed();');
+  await apply(names[9]);
+  report.gatewayInitialization={existingRoleOid:gateway[0].oid,roleAttributesAndMembershipsMutated:false,source:'scripts/qa-load-preparation/owned-deletion-fence.sql'};
+  const prerequisite=(await db.query("SELECT to_regprocedure('app_private.qa_delete_graph_relations()') IS NOT NULL graph,to_regprocedure('app_private.qa_owned_fence_before_row()') IS NOT NULL fence,to_regprocedure('app_private.qa_reference_guard_before_row()') IS NOT NULL reference,to_regprocedure('app_private.qa_pw_effect(oid,jsonb,boolean)') IS NOT NULL effect")).rows[0];assert(Object.values(prerequisite).every(x=>x===true));report.prerequisites=prerequisite;report.status='COMPOSED_SETUP_PASS';save();return {...f,manifest:report};
+ }catch(e){try{await db.exec('ROLLBACK');}catch{}report.status='SETUP_FAILED';report.error={message:e.message,code:e.code,where:e.where};save();await db.close();throw e;}
+}

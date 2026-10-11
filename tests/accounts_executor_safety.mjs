@@ -40,8 +40,8 @@ async function canonicalFixture(){
  f.approval.isolation_approval={verdict:'APPROVED',independent:true,issuer:'Parent',receipt_id:uuid(888),project_ref:'movzojtnkkmdsjhmlgtq',source_main:inventory.source_main,operation_id:OP,canonical_keys:f.approval.canonical_keys,expires_at:now+60000,baseline_digest,executor_hashes,reservation_domain:persistReceipt.reservationDomain};
  return {...f,directory,persistReceipt,prepared,build:(options={})=>creator.createOriginalStaffExecutor({prepared,approval:f.approval,port:f.port,persistReceipt,deliver:f.callbacks.deliver,executionMode:'real-apply',verifyIsolationReceipt:()=>true,deadlineMs:5000,...options})};
 }
-test('full real-apply gate contract executes ONLY an explicitly synthetic official-API transport',async()=>{
- const f=await canonicalFixture();try{const runner=f.build();assert.equal((await runner.run()).status,'completed');assert.equal(f.calls.filter(x=>x==='createUser').length,1);assert.equal(runner.pendingCount(),0);}finally{await rm(f.directory,{recursive:true,force:true});}
+test('legacy base717 receipt and always-true verifier cannot authorize real apply',async()=>{
+ const f=await canonicalFixture();try{const runner=f.build();const r=await runner.run();assert.equal(r.status,'blocked');assert.equal(r.blocked.code,'runtime_provenance_required');assert.equal(f.calls.length,0);assert.equal(runner.pendingCount(),0);}finally{await rm(f.directory,{recursive:true,force:true});}
 });
 test('current Arabic preferred login is preserved rather than reauthorized from historical seed values',async()=>{
  const f=await canonicalFixture();try{
@@ -49,7 +49,7 @@ test('current Arabic preferred login is preserved rather than reauthorized from 
   f.rows[10].preferred_login+=' الحالي';
   const prepared=await planner.provisionAccounts(f.port,()=>{},{mode:'plan-only',staffInventory:f.approval.staff_inventory});assert.equal(prepared.status,'reviewed');
   const digest=planner.inventoryDigest(prepared.baseline);f.approval.fresh_inventory.baseline_digest=digest;f.approval.isolation_approval.baseline_digest=digest;
-  const result=await f.build({prepared}).run();assert.equal(result.status,'completed');assert.equal(f.rows[10].login_username,currentLogin);assert.equal(f.projections.get(key).profile.login_name,f.rows[10].preferred_login);
+  const result=await f.build({prepared,executionMode:'synthetic',port:{...f.port,transportMode:'synthetic'}}).run();assert.equal(result.status,'completed');assert.equal(f.rows[10].login_username,currentLogin);assert.equal(f.projections.get(key).profile.login_name,f.rows[10].preferred_login);
  }finally{await rm(f.directory,{recursive:true,force:true});}
 });
 
@@ -71,7 +71,7 @@ for(const [label,mutate,options] of [
  ['unofficial adapter marker',f=>f.port.auth={...f.port.auth}],
  ['unverified receipt',()=>{},{verifyIsolationReceipt:()=>false}],
  ['async receipt boolean',()=>{},{verifyIsolationReceipt:()=>Promise.resolve(true)}],
-])test(`real-apply gate denies ${label} before every adapter IO`,async()=>{
+])test(`legacy receipt ${label} cannot replace authentic runtime provenance before adapter IO`,async()=>{
  const f=await canonicalFixture();try{mutate(f);const result=await f.build(options).run();assert.equal(result.status,'blocked');assert.equal(f.calls.length,0);}finally{await rm(f.directory,{recursive:true,force:true});}
 });
 
@@ -162,7 +162,7 @@ test('durable link reservation prevents restart or new-operation linking of an u
 test('real apply requires independent isolation approval before any adapter read',async()=>{
  const f=await fixture();const runner=f.build({executionMode:'real-apply'});
  const r=await runner.run();assert.equal(r.status,'blocked');assert.equal(f.calls.length,0);
- assert.equal(r.blocked.code,'independent_isolation_approval_required');
+ assert.equal(r.blocked.code,'runtime_provenance_required');
 });
 test('canonical source join recovers exactly57 identities without executing historical SQL',()=>{
  assert.equal(typeof planner.buildOriginalStaffInventory,'function');

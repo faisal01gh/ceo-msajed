@@ -1,7 +1,7 @@
 // Offline actual PostgreSQL leaves; no provider/native/network actions.
 import fs from 'node:fs';
 import assert from 'node:assert/strict';
-import {createPasswordGuardFixture} from './qa_password_fixture.mjs';
+import {createFinalComposedFixture as createPasswordGuardFixture} from './qa_final_composed_fixture.mjs';
 const fixture=await createPasswordGuardFixture(process.env.QA_LOCAL_PG_MODULE?{modulePath:process.env.QA_LOCAL_PG_MODULE}:{});
 const {db,scalar,id,actors,preserveSql}=fixture;
 let assertions=0;const eq=(a,b)=>{assert.deepEqual(a,b);assertions++};

@@ -1,12 +1,14 @@
-import {randomBytes,createHash} from 'node:crypto';
+import {randomBytes,createHash,randomUUID} from 'node:crypto';
 import {isDeepStrictEqual as equal} from 'node:util';
-import {planProvision,loadCanonicalStaffInventory,inventoryDigest,isOfficialAuthAdminAdapter} from './accounts-provision.mjs';
-import {readFileSync,existsSync} from 'node:fs';
+import {planProvision,loadCanonicalStaffInventory,isOfficialAuthAdminAdapter} from './accounts-provision.mjs';
+import {isOfficialAccountResetAdapter,isNativeOfficialAccountResetAdapter,isAccountRuntimeAuthority} from './accounts-official-reset.mjs';
+import {existsSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
 import {resolve,join,isAbsolute} from 'node:path';
 import {mkdir,open} from 'node:fs/promises';
 
-const SOURCE='717375eee1e99d558af80eca91a7ea7e829edd20';
+// Historical canonical-key/identity evidence ONLY, never execution release.
+const MAPPING_SOURCE='717375eee1e99d558af80eca91a7ea7e829edd20';
 const TARGET='https://movzojtnkkmdsjhmlgtq.supabase.co';
 const FAISAL='0a1df502-9232-4ef5-af2d-df585ad7f187';
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -30,36 +32,44 @@ const journalWriters=new WeakMap();
  * Exclusive files + fsync; no lease, expiry, overwrite, delete or automatic retry.
  * Ambiguous failures leave claims in place for Parent read-only reconciliation.
  */
-export function createOriginalStaffReceiptJournal({directory,canonicalKeys,targetProject='movzojtnkkmdsjhmlgtq'}={}){
+export function createOriginalStaffReceiptJournal({directory,canonicalKeys,targetProject='movzojtnkkmdsjhmlgtq',executionMode='synthetic',runtimeAuthority}={}){
   requireFact(typeof directory==='string' && isAbsolute(directory) && targetProject==='movzojtnkkmdsjhmlgtq' && Array.isArray(canonicalKeys) &&
     canonicalKeys.length>0 && canonicalKeys.length<=56 && new Set(canonicalKeys).size===canonicalKeys.length && canonicalKeys.every(k=>typeof k==='string' && /^[a-z][a-z0-9_]*$/.test(k) && k!=='faisal'),'invalid_receipt_journal');
-  const ownedReservations=new Map(),ownedLinks=new Map();
+  requireFact(['synthetic','real-apply'].includes(executionMode) && (executionMode==='synthetic' || isAccountRuntimeAuthority(runtimeAuthority)),'runtime_provenance_required');
+  const admission=async receipt=>{if(executionMode==='real-apply')await runtimeAuthority.assertCurrent({scope:'account-receipt',operationId:receipt.operation_id});};
+  const ownedReservations=new Map(),ownedLinks=new Map(),ownedResets=new Map();
   const allowed=new Set(canonicalKeys),root=resolve(directory),keys=['operation_id','sequence','phase','canonical_key','target_user_id','ownership_proven','can_retry_create'];
-  const durableWrite=async(path,text)=>{let file;try{file=await open(path,'wx',0o600);await file.writeFile(text,'utf8');await file.sync();}finally{if(file)await file.close();}};
+  const durableWrite=async(path,text,receipt)=>{let file;try{await admission(receipt);file=await open(path,'wx',0o600);await admission(receipt);await file.writeFile(text,'utf8');await admission(receipt);await file.sync();}finally{if(file)await file.close();}};
   const writer=async receipt=>{
     try{
-      requireFact(receipt && Object.keys(receipt).length===keys.length && keys.every(k=>Object.hasOwn(receipt,k)) && UUID.test(receipt.operation_id) &&
+      const resetReceipt=receipt && Object.hasOwn(receipt,'reset_operation_id');
+      requireFact(receipt && Object.keys(receipt).length===keys.length+(resetReceipt?1:0) && keys.every(k=>Object.hasOwn(receipt,k)) && UUID.test(receipt.operation_id) &&
         Number.isSafeInteger(receipt.sequence) && receipt.sequence>0 && allowed.has(receipt.canonical_key) &&
-        ['create_intent','create_returned_unproven','auth_proven','link_intent','linked_verified','blocked','quarantined'].includes(receipt.phase) &&
+        ['create_intent','create_returned_unproven','auth_proven','link_intent','linked_verified','reset_intent','reset_verified','blocked','quarantined'].includes(receipt.phase) &&
+        (resetReceipt?UUID.test(receipt.reset_operation_id) && receipt.reset_operation_id!==receipt.operation_id && ['reset_intent','reset_verified','quarantined'].includes(receipt.phase):!['reset_intent','reset_verified'].includes(receipt.phase)) &&
         (receipt.target_user_id===null || UUID.test(receipt.target_user_id) && receipt.target_user_id.toLowerCase()!==FAISAL) &&
         typeof receipt.ownership_proven==='boolean' && receipt.can_retry_create===false,'invalid_nonsecret_receipt');
-      const clean=Object.fromEntries(keys.map(k=>[k,receipt[k]])),content=JSON.stringify(clean)+'\n';
+      const clean=Object.fromEntries([...keys,...(resetReceipt?['reset_operation_id']:[])].map(k=>[k,receipt[k]])),content=JSON.stringify(clean)+'\n';
+      if(resetReceipt && clean.phase!=='quarantined')requireFact(ownedLinks.get(clean.canonical_key)===clean.operation_id,'unsettled_prior_link_reservation');
+      if(clean.phase==='reset_verified')requireFact(ownedResets.get(clean.canonical_key)===clean.reset_operation_id,'unsettled_prior_reset_reservation');
       if(['auth_proven','link_intent','linked_verified'].includes(clean.phase) && existsSync(join(root,`reservation-${clean.canonical_key}.json`)))requireFact(ownedReservations.get(clean.canonical_key)===clean.operation_id,'unsettled_prior_create_reservation');
       if(['auth_proven','link_intent','linked_verified'].includes(clean.phase) && existsSync(join(root,`link-reservation-${clean.canonical_key}.json`)))requireFact(ownedLinks.get(clean.canonical_key)===clean.operation_id && clean.phase!=='link_intent','unsettled_prior_link_reservation');
-      await mkdir(root,{recursive:true});
+      await admission(clean);await mkdir(root,{recursive:true});
       if(clean.phase==='create_intent'){
         requireFact(clean.target_user_id===null && clean.ownership_proven===false,'invalid_create_intent');
-        try{await durableWrite(join(root,`reservation-${clean.canonical_key}.json`),content);}
+        try{await durableWrite(join(root,`reservation-${clean.canonical_key}.json`),content,clean);}
         catch{return {persisted:false,operation_id:clean.operation_id,sequence:clean.sequence,write_allowed:false};}
       }
-      if(clean.phase==='link_intent')await durableWrite(join(root,`link-reservation-${clean.canonical_key}.json`),content);
-      await durableWrite(join(root,`${clean.operation_id}-${clean.sequence}.json`),content);
+      if(clean.phase==='link_intent')await durableWrite(join(root,`link-reservation-${clean.canonical_key}.json`),content,clean);
+      if(clean.phase==='reset_intent')await durableWrite(join(root,`reset-reservation-${clean.canonical_key}.json`),content,clean);
+      await durableWrite(join(root,`${clean.operation_id}-${clean.sequence}.json`),content,clean);
       if(clean.phase==='create_intent')ownedReservations.set(clean.canonical_key,clean.operation_id);
       if(clean.phase==='link_intent')ownedLinks.set(clean.canonical_key,clean.operation_id);
+      if(clean.phase==='reset_intent')ownedResets.set(clean.canonical_key,clean.reset_operation_id);
       return {persisted:true,operation_id:clean.operation_id,sequence:clean.sequence,write_allowed:clean.phase==='create_intent'};
     }catch{throw guardError('receipt_journal_unverified');}
   };
-  journalWriters.set(writer,{reservation_domain:createHash('sha256').update(TARGET+'\n'+root).digest('hex')});
+  journalWriters.set(writer,{executionMode,runtimeAuthority,reservation_domain:createHash('sha256').update(TARGET+'\n'+root).digest('hex')});
   Object.defineProperty(writer,'reservationDomain',{value:journalWriters.get(writer).reservation_domain});
   return Object.freeze(writer);
 }
@@ -68,8 +78,11 @@ export function createOriginalStaffReceiptJournal({directory,canonicalKeys,targe
  * Inert import; trusted backend-only dependency injection, NOT a request-body API.
  * prepared is the repaired planner's reviewed result including nonenumerable baseline.
  * Parent independently verifies exact source/key join and supplies short-lived approval.
- * No reset/update/delete methods are accepted or inspected. No native client, CLI,
- * env reads or network implementation. Synthetic test coverage is not native acceptance.
+ * No direct Auth update/delete methods are accepted or inspected. Reuse can
+ * obtain a fresh candidate ONLY through the separately checked official product
+ * reset adapter after its source-bound QA gate and before private delivery.
+ * No native client, CLI, env reads or network implementation occurs here.
+ * Synthetic test coverage is not native acceptance.
  * persistReceipt must durably reserve each create_intent by operation/key and return
  * {persisted:true,operation_id,sequence,write_allowed:true} exactly once. On restart,
  * deny prior uncertain intents; never turn can_retry_create:false into a retry.
@@ -81,32 +94,25 @@ export function createOriginalStaffReceiptJournal({directory,canonicalKeys,targe
  * linkCanonical maps ONLY to the reviewed service-role RPC ABI:
  * account_provision_link_internal(p_key text,p_auth_user uuid,p_memberships jsonb).
  */
-export function createOriginalStaffExecutor({prepared,approval,port,persistReceipt,deliver,deadlineMs=30000,executionMode='real-apply',verifyIsolationReceipt}={}) {
+export function createOriginalStaffExecutor({prepared,approval,port,persistReceipt,deliver,resetAdapter,deadlineMs=30000,executionMode='real-apply',runtimeAuthority,syntheticBeforeWrite}={}) {
   let baseline,plan,approved,initError;
   try {baseline=publicCopy(prepared?.baseline);plan=publicCopy(prepared?.plan);approved=publicCopy(approval);}catch{initError=true;}
   const pending=new Map(),used=new Set(),finished=new Set(),completed=new Map(),deliveryInFlight=new Set(),mutationsInFlight=new Set(),phases=new Map();
+  const resets=new Map();let resetRecoveryPromise;
   const transition=(key,next,from)=>{requireFact(from.includes(phases.get(key)),'invalid_operation_phase');phases.set(key,next);};
-  const result={status:'blocked',created:0,reused:0,receipts:[],needs_private_original_password_delivery:[]};
+  const result={status:'blocked',created:0,reused:0,receipts:[]};
   let promise,sequence=0,currentKey=null,currentId=null,mutation=false,active=false,deliveryActive=false,deliveryLoopActive=false,deliveryAllowed=false,end=0;
   const target=()=>requireFact((port?.targetUrl===TARGET || port?.targetUrl===TARGET+'/') && approved?.target?.origin===TARGET &&
     approved.target.project_ref==='movzojtnkkmdsjhmlgtq' && approved.target.official_admin===true,'wrong_target');
-  let realGateInitialized=false,destroyed=false;
+  let mappingVerified=false,destroyed=false;
   const activationGate=()=>{
     requireFact(['synthetic','real-apply'].includes(executionMode),'invalid_execution_mode');
     if(executionMode==='synthetic'){requireFact(port?.transportMode==='synthetic','synthetic_transport_required');return;}
-    const r=approved?.isolation_approval;
-    requireFact(r?.verdict==='APPROVED' && r.independent===true && r.issuer==='Parent' && UUID.test(r.receipt_id) &&
-      r.project_ref==='movzojtnkkmdsjhmlgtq' && r.source_main===SOURCE && r.operation_id===approved.operation_id &&
-      equal(r.canonical_keys,approved.canonical_keys) && Number.isSafeInteger(r.expires_at) && r.expires_at>Date.now() &&
-      typeof verifyIsolationReceipt==='function','independent_isolation_approval_required');
-    const i=approved.fresh_inventory;
-    requireFact(i?.verified===true && i.pages_complete===true && i.official_get_verified===true &&
-      i.project_ref===r.project_ref && Number.isSafeInteger(i.captured_at) && i.captured_at<=Date.now() &&
-      Date.now()-i.captured_at<=60000 && Number.isSafeInteger(i.expires_at) && i.expires_at>Date.now() &&
-      i.baseline_digest===inventoryDigest(baseline) && r.baseline_digest===i.baseline_digest,'fresh_verified_inventory_required');
+    requireFact(isAccountRuntimeAuthority(runtimeAuthority),'runtime_provenance_required');
+    requireFact(syntheticBeforeWrite===undefined && port?.transportMode!=='synthetic','native_transport_required');
     requireFact(isOfficialAuthAdminAdapter(port),'official_auth_admin_required');
-    requireFact(journalWriters.has(persistReceipt) && r.reservation_domain===journalWriters.get(persistReceipt).reservation_domain,'durable_reservation_domain_required');
-    if(!realGateInitialized){
+    requireFact(journalWriters.has(persistReceipt) && journalWriters.get(persistReceipt).executionMode==='real-apply' && journalWriters.get(persistReceipt).runtimeAuthority===runtimeAuthority && approved.reservation_domain===journalWriters.get(persistReceipt).reservation_domain,'durable_reservation_domain_required');
+    if(!mappingVerified){
       const inventory=loadCanonicalStaffInventory();
       requireFact(equal(inventory,baseline.staff_inventory),'canonical_source_join_required');
       for(const identity of inventory.identities){
@@ -115,19 +121,14 @@ export function createOriginalStaffExecutor({prepared,approval,port,persistRecei
         // Current preferred/login usernames are preserved by the frozen live baseline.
         requireFact(row && ['display_name','role_code','org_name','dept_names','internal_email'].every(k=>equal(row[k],identity[k])),'canonical_mapping_conflict');
       }
-      const hashes=Object.fromEntries(['accounts-create-originals.mjs','accounts-provision.mjs'].map(name=>[name,createHash('sha256').update(readFileSync(new URL(name,import.meta.url))).digest('hex')]));
-      requireFact(equal(r.executor_hashes,hashes),'executor_source_receipt_mismatch');
-      // Parent owns receipt authenticity (signature/approved exact receipt registry).
-      // No boolean request-body approval or self-signed receipt is trusted here.
-      requireFact(verifyIsolationReceipt(frozenCopy(r))===true,'independent_isolation_receipt_unverified');
-      realGateInitialized=true;
+      mappingVerified=true;
     }
   };
   const gate=()=>{target();activationGate();requireFact(approved?.expires_at>Date.now(),'approval_expired');};
-  const bounded=async(fn,args,ms,mutating=false,observe=null)=>{
+  const bounded=async(fn,args,ms,mutating=false,observe=null,ioKind='mutation')=>{
     requireFact(ms>0,'deadline_exceeded');let timer;
     // Reserve synchronously; timeout ends only the waiter, never the real IO.
-    const reservation={};if(mutating)mutationsInFlight.add(reservation);
+    const reservation={kind:ioKind};if(mutating)mutationsInFlight.add(reservation);
     const actual=Promise.resolve().then(()=>fn(...args)).then(r=>{
       requireFact(!r?.error,'adapter_error');const value=r && Object.hasOwn(r,'data')?r.data:r;
       if(observe)observe(value);return value;
@@ -136,13 +137,39 @@ export function createOriginalStaffExecutor({prepared,approval,port,persistRecei
     finally{clearTimeout(timer);}
   };
   const call=async(fn,...args)=>{gate();return bounded(fn,args,end-Date.now());};
-  const write=async(fn,args,observe=null)=>{gate();return bounded(fn,args,end-Date.now(),true,observe);};
+  const assertRuntime=async scope=>{
+    gate();
+    if(executionMode==='real-apply')await runtimeAuthority.assertCurrent({scope,operationId:approved.operation_id});
+    else if(syntheticBeforeWrite)await syntheticBeforeWrite({scope,operationId:approved.operation_id});
+    gate();
+  };
+  const write=async(fn,args,observe=null,ioKind='mutation',scope='account-receipt',ms=null)=>{
+    // Assertion is inside the physical reservation promise: timeout cannot
+    // release custody while an admission/readback or transmitted IO is pending.
+    gate();const window=ms??end-Date.now(),dispatchDeadline=Date.now()+window;
+    return bounded(async()=>{
+      if(scope==='account-link'){
+        const a=plan.accounts.find(a=>a.canonical_key===currentKey);
+        if(a?.action==='reuse'){
+          await resetAvailable(a);
+          // Revalidate separate planner snapshots after the availability await.
+          await reconcile();projection(a,await call(port.readAccount.bind(port),a.canonical_key,a.auth_user_id),false,a.auth_user_id);
+          const u=await readUser(a,a.auth_user_id);checkUser(a,u,a.auth_user_id);
+          requireFact(equal(stableAuth(u),stableAuth(baseline.accounts[a.canonical_key].user)),'pre_dispatch_auth_drift');
+        }
+      }
+      await assertRuntime(scope);gate();requireFact(Date.now()<dispatchDeadline,'deadline_exceeded');
+      return fn(...args);
+    },[],window,true,observe,ioKind);
+  };
   const receipt=async(phase,owned=false,recovery=false)=>{
-    const origins={create_intent:['preflight'],create_returned_unproven:['create_in_flight'],auth_proven:['preflight','create_returned_unproven'],link_intent:['auth_proven'],linked_verified:['link_in_flight']};
+    const origins={create_intent:['preflight'],create_returned_unproven:['create_in_flight'],auth_proven:['preflight','create_returned_unproven'],link_intent:['auth_proven'],linked_verified:['link_in_flight'],reset_intent:['linked_verified'],reset_verified:['reset_in_flight','quarantined']};
     if(origins[phase])transition(currentKey,phase,origins[phase]);
     else{requireFact(['blocked','quarantined'].includes(phase),'invalid_receipt_phase');phases.set(currentKey,phase);}
     const r={operation_id:approved.operation_id,sequence:++sequence,phase,canonical_key:currentKey,target_user_id:currentId,ownership_proven:owned,can_retry_create:false};
-    result.receipts.push(r);target();const ack=recovery?await bounded(persistReceipt,[publicCopy(r)],Math.min(deadlineMs,100),true):await write(persistReceipt,[publicCopy(r)]);
+    const c=pending.get(currentId);
+    if(c && c.operation_id!==approved.operation_id)r.reset_operation_id=c.operation_id;
+    result.receipts.push(r);target();const ack=await write(persistReceipt,[publicCopy(r)],null,'receipt','account-receipt',recovery?Math.min(deadlineMs,100):null);
     requireFact(ack?.persisted===true && ack.operation_id===r.operation_id && ack.sequence===r.sequence,'receipt_not_persisted');
     if(phase==='create_intent')requireFact(ack.write_allowed===true,'one_shot_create_reservation_required');
   };
@@ -177,6 +204,21 @@ export function createOriginalStaffExecutor({prepared,approval,port,persistRecei
     requireFact(s.memberships.every((m,i,all)=>m?.active===true && a.memberships.some(e=>memberEqual(e,m)) && all.findIndex(n=>memberEqual(m,n))===i),'membership_conflict');
     if(linked)requireFact(s.roles.length===1 && s.memberships.length===a.memberships.length,'authorization_incomplete');
     requireFact(s.credential_generation===0 && s.has_password_operations===false,'credential_state_conflict');
+  };
+  const candidate=(key,id,operationId=approved.operation_id)=>{
+    let password,fingerprint;
+    do{password='';while(password.length<20){for(const byte of randomBytes(32)){if(byte<188 && password.length<20)password+=String.fromCharCode(33+byte%94);}}
+      fingerprint=createHash('sha256').update(password).digest('hex');
+    }while(!/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/[0-9]/.test(password) || !/[^A-Za-z0-9]/.test(password) || used.has(fingerprint));
+    used.add(fingerprint);
+    const c={operation_id:operationId,canonical_key:key,target_user_id:id};
+    Object.defineProperties(c,{password:{value:password,writable:true},verified:{value:false,writable:true}});return c;
+  };
+  const resetAvailable=async(a)=>{
+    requireFact(isOfficialAccountResetAdapter(resetAdapter),'official_reset_unavailable');
+    requireFact(executionMode==='synthetic'?resetAdapter.transportMode==='synthetic':isNativeOfficialAccountResetAdapter(resetAdapter),'native_reset_adapter_required');
+    await assertRuntime('account-reset');
+    await call(resetAdapter.assertAvailable.bind(resetAdapter),{canonical_key:a.canonical_key,target_user_id:a.auth_user_id,operation_id:approved.operation_id});
   };
   const checkCompleted=async(registry=null)=>{
     for(const [key,c] of completed){
@@ -225,13 +267,18 @@ export function createOriginalStaffExecutor({prepared,approval,port,persistRecei
       if(!c.verified)continue;
       currentKey=c.canonical_key;currentId=c.target_user_id;deliveryValidated=false;
       // Previous delivery/ACK may have changed any protected or completed fact.
+      await assertRuntime('account-receipt');
       await reconcile();deliveryValidated=true;
-      gate();requireFact(end-Date.now()>0,'deadline_exceeded');
-      const transfer=Object.freeze({candidate:c,id,operation_id:approved.operation_id});
+      await assertRuntime('account-receipt');gate();requireFact(end-Date.now()>0,'deadline_exceeded');
+      const transfer=Object.freeze({candidate:c,id,operation_id:c.operation_id});
       // A deadline only stops awaiting. Keep the reservation until the real IO settles.
-      transition(c.canonical_key,'delivery_in_flight',['linked_verified','awaiting_ack']);
+      transition(c.canonical_key,'delivery_in_flight',['linked_verified','reset_verified','awaiting_ack']);
       deliveryInFlight.add(transfer);
-      const actual=Promise.resolve().then(()=>deliver(c)).then(raw=>{
+      const actual=Promise.resolve().then(async()=>{
+        const a=plan.accounts.find(a=>a.canonical_key===c.canonical_key);
+        if(a?.action==='reuse'){await resetAvailable(a);await reconcile();}
+        await assertRuntime('account-receipt');gate();requireFact(end-Date.now()>0,'deadline_exceeded');return deliver(c);
+      }).then(raw=>{
         requireFact(!raw?.error,'adapter_error');
         const ack=raw && Object.hasOwn(raw,'data')?raw.data:raw;
         if(ack?.acknowledged===true && ack.operation_id===transfer.operation_id && ack.target_user_id===transfer.id && pending.get(transfer.id)===transfer.candidate){
@@ -256,7 +303,7 @@ export function createOriginalStaffExecutor({prepared,approval,port,persistRecei
       requireFact(!destroyed,'executor_finalized');
       requireFact(Number.isSafeInteger(deadlineMs) && deadlineMs>0 && deadlineMs<=300000,'invalid_deadline');
       requireFact(!initError && prepared?.status==='reviewed' && baseline && plan?.status==='ready','reviewed_plan_required');
-      requireFact(approved?.approved===true && approved.current_source===true && approved.source_main===SOURCE && UUID.test(approved.operation_id),'parent_approval_required');
+      requireFact(approved?.approved===true && baseline.staff_inventory.source_main===MAPPING_SOURCE && UUID.test(approved.operation_id),'parent_approval_required');
       gate();
       requireFact(equal(approved.staff_inventory,baseline.staff_inventory),'staff_inventory_mismatch');
       requireFact(equal(plan,planProvision(baseline.registry,baseline.users,baseline.units,baseline.staff_inventory)),'plan_baseline_mismatch');
@@ -264,30 +311,28 @@ export function createOriginalStaffExecutor({prepared,approval,port,persistRecei
       requireFact(Array.isArray(approved.canonical_keys) && approved.canonical_keys.length>0 && new Set(approved.canonical_keys).size===approved.canonical_keys.length,'invalid_scope');
       for(const key of approved.canonical_keys){const a=plan.accounts.find(a=>a.canonical_key===key);requireFact(a && key!=='faisal' && ['create','reuse'].includes(a.action) && a.auth_user_id!==FAISAL,'create_reuse_only');}
       requireFact(['registry','units','listAllUsers','readAccount','linkCanonical'].every(k=>typeof port[k]==='function') && typeof port.auth?.getUserById==='function' && typeof port.auth?.createUser==='function' && typeof persistReceipt==='function' && typeof deliver==='function','invalid_adapter');
+      // Whole-batch availability before the first mutation. A later unavailable
+      // reuse must not leave earlier CREATEs/links as an unintended partial apply.
+      for(const key of approved.canonical_keys){const a=plan.accounts.find(a=>a.canonical_key===key);if(a.action==='reuse')await resetAvailable(a);}
       for(const key of approved.canonical_keys){
         currentKey=key;currentId=null;transition(key,'preflight',[undefined]);
         let a=(await reconcile()).accounts.find(a=>a.canonical_key===key);
         let id=a.auth_user_id,user,marker=null;
         projection(a,await call(port.readAccount.bind(port),key,id),false,id);
+        if(a.action==='reuse')await resetAvailable(a);
         if(a.action==='create'){
           await receipt('create_intent');
           // The durable writer may yield to another provisioning operation.
           a=(await reconcile()).accounts.find(x=>x.canonical_key===key);
           requireFact(a?.action==='create','duplicate_pre_dispatch');
-          let password,fingerprint;
-          do{password='';while(password.length<20){for(const byte of randomBytes(32)){if(byte<188 && password.length<20)password+=String.fromCharCode(33+byte%94);}}
-            fingerprint=createHash('sha256').update(password).digest('hex');
-          }while(!/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/[0-9]/.test(password) || !/[^A-Za-z0-9]/.test(password) || used.has(fingerprint));
-          used.add(fingerprint);
-          const c={operation_id:approved.operation_id,canonical_key:key,target_user_id:null};
-          Object.defineProperties(c,{password:{value:password,writable:true},verified:{value:false,writable:true}});pending.set(key,c);
-          marker={original_registration:{operation_id:approved.operation_id,source_main:SOURCE}};
+          const c=candidate(key,null);pending.set(key,c);
+          marker={original_registration:{operation_id:approved.operation_id,source_main:MAPPING_SOURCE}};
           mutation=true;
           transition(key,'create_in_flight',['create_intent']);
-          const created=await write(port.auth.createUser.bind(port.auth),[{email:a.internal_email,email_confirm:true,password,user_metadata:publicCopy(marker)}],observed=>{
+          const created=await write(port.auth.createUser.bind(port.auth),[{email:a.internal_email,email_confirm:true,password:c.password,user_metadata:publicCopy(marker)}],observed=>{
             // Late return records an observed UID only: never link, deliver or claim ownership.
             if(UUID.test(observed?.id)){currentId=observed.id;c.target_user_id=observed.id;}
-          });
+          },'mutation','account-create');
           await receipt('create_returned_unproven');
           requireFact(created && UUID.test(created.id) && created.id.toLowerCase()!==FAISAL && created.email===a.internal_email && markerMatches(created.user_metadata,marker),'create_identity_conflict');
           id=created.id;pending.delete(key);pending.set(id,c);
@@ -320,9 +365,16 @@ export function createOriginalStaffExecutor({prepared,approval,port,persistRecei
         await checkCompleted(await call(port.registry.bind(port)));
         const dispatchUser=await readUser(a,id);checkUser(a,dispatchUser,id,marker);
         requireFact(equal(stableAuth(dispatchUser),stableAuth(user)),'pre_dispatch_auth_drift');
+        if(a.action==='reuse'){
+          await resetAvailable(a);
+          // Revalidate after the final availability await, not before it.
+          await reconcile();
+          projection(a,await call(port.readAccount.bind(port),key,id),false,id);
+          requireFact(equal(stableAuth(await readUser(a,id)),stableAuth(user)),'pre_dispatch_auth_drift');
+        }
         mutation=true;
         transition(key,'link_in_flight',['link_intent']);
-        const linked=await write(port.linkCanonical.bind(port),[{p_key:key,p_auth_user:id,p_memberships:publicCopy(a.memberships)}]);
+        const linked=await write(port.linkCanonical.bind(port),[{p_key:key,p_auth_user:id,p_memberships:publicCopy(a.memberships)}],null,'mutation','account-link');
         requireFact(linked?.ok===true && ['linked','already_linked'].includes(linked.status) && linked.target_user_id===id && linked.canonical_key===key && linked.login_username===a.login_username,'link_result_conflict');
         const persisted=await readUser(a,id);checkUser(a,persisted,id,marker);
         requireFact(equal(stableAuth(persisted),stableAuth(user)),'persisted_auth_drift');
@@ -340,19 +392,85 @@ export function createOriginalStaffExecutor({prepared,approval,port,persistRecei
         await receipt('linked_verified',a.action==='create');finished.add(key);
         completed.set(key,frozenCopy({account:a,user:stableAuth(persisted),projection:linkedProjection}));
         if(a.action==='create'){result.created++;pending.get(id).verified=true;}
-        else {result.reused++;result.needs_private_original_password_delivery.push({canonical_key:key,target_user_id:id});}
+        else {
+          const c=candidate(key,id,randomUUID());pending.set(id,c);
+          Object.defineProperty(c,'internal_email',{value:a.internal_email});
+          await receipt('reset_intent');
+          await resetAvailable(a);
+          await reconcile();
+          transition(key,'reset_in_flight',['reset_intent']);
+          const resetStartedAt=Date.now();
+          resets.set(id,{account:a,user:stableAuth(persisted),projection:publicCopy(linkedProjection),started_at:resetStartedAt,confirmed:false});
+          const reset=await write(resetAdapter.reset.bind(resetAdapter),[c,{admitBefore:end}],null,'reset','account-reset');
+          requireFact(reset?.ok===true && reset.operation_id===c.operation_id && reset.login_username===a.login_username && reset.must_change_password===true,'official_reset_result_conflict');
+          await verifyResetReadback(c);
+          await receipt('reset_verified');c.verified=true;resets.get(id).confirmed=true;result.reused++;
+        }
       }
       deliveryAllowed=true;
       const delivery=await deliverPending(true);
-      result.status=delivery.status==='quarantined' || pending.size?'quarantined':result.reused?'needs_private_original_password_delivery':'completed';
+      result.status=delivery.status==='quarantined' || pending.size?'quarantined':'completed';
     }catch(error){deliveryAllowed=false;result.status=mutation?'quarantined':'blocked';result.blocked={canonical_key:currentKey,code:guardCodes.get(error)??'uncertain_adapter_outcome'};
       try{if(currentKey)await receipt(result.status,false,true);}catch{result.receipt_persistence_failed=true;}
     }finally{active=false;}
     if(!pending.size)used.clear();
     return publicCopy(result);
   };
-  return Object.freeze({run(){if(!promise)promise=runOnce();return promise;},deliverPending:()=>deliverPending(false),pendingCount:()=>pending.size,
-    state:()=>publicCopy({phases:Object.fromEntries(phases),mutating_io:mutationsInFlight.size,delivery_io:deliveryInFlight.size,pending:pending.size,finalized:destroyed}),
+  const verifyResetReadback=async(c,allowUnfinished=false)=>{
+    const record=resets.get(c.target_user_id);requireFact(record,'original_reset_required');
+    const a=record.account,id=c.target_user_id,key=c.canonical_key;
+    const resetUser=await readUser(a,id);checkUser(a,resetUser,id);
+    const generation=resetUser.app_metadata.msajed_password_generation;
+    requireFact(Number.isSafeInteger(generation) && generation===record.projection.credential_generation+1 && resetUser.app_metadata.msajed_password_operation===c.operation_id,'official_reset_readback_conflict');
+    const expectedUser=publicCopy(record.user);
+    expectedUser.app_metadata={...expectedUser.app_metadata,msajed_password_operation:c.operation_id,msajed_password_generation:generation};
+    requireFact(equal(stableAuth(resetUser),expectedUser),'reset_auth_drift');
+    const resetProjection=await call(port.readAccount.bind(port),key,id),expectedProjection=publicCopy(record.projection);
+    expectedProjection.credential_generation=generation;expectedProjection.has_password_operations=true;
+    // Only documented Core finish timestamps may change. Complete snapshots
+    // retain every other field; do not normalize away metadata/registry drift.
+    for(const [section,field] of [['registry','password_changed_at'],['profile','updated_at']]){
+      if(Object.hasOwn(expectedProjection[section],field) || Object.hasOwn(resetProjection?.[section]??{},field)){
+        const value=resetProjection?.[section]?.[field],time=typeof value==='string'?Date.parse(value):NaN;
+        // A provider-proven unknown operation may not have finished Core yet.
+        // Accept only that exact previous timestamp before official recovery;
+        // completed delivery readback still requires fresh finish timestamps.
+        if(allowUnfinished && equal(value,expectedProjection[section][field]))continue;
+        requireFact(Number.isFinite(time) && time>=record.started_at && time<=Date.now()+1000,'reset_timestamp_conflict');
+        expectedProjection[section][field]=value;
+      }
+    }
+    requireFact(equal(resetProjection,expectedProjection),'reset_projection_drift');
+    completed.set(key,frozenCopy({account:a,user:stableAuth(resetUser),projection:resetProjection}));
+    await reconcile();
+  };
+  const reconcileReset=async()=>{
+    if(active || deliveryActive || mutationsInFlight.size || deliveryInFlight.size)return {status:'busy',pending:pending.size};
+    active=true;end=Date.now()+deadlineMs;
+    try{
+      gate();requireFact(!destroyed && isOfficialAccountResetAdapter(resetAdapter),'original_reset_required');
+      for(const [id,c] of pending){
+        if(c.verified)continue;
+        const record=resets.get(id);requireFact(record && phases.get(c.canonical_key)==='quarantined','original_reset_required');
+        currentKey=c.canonical_key;currentId=id;
+        // No provider retry: first prove the original marker and all current
+        // non-target snapshots, then ask the official command to reconcile ONLY
+        // that existing durable operation and exact retained candidate.
+        await verifyResetReadback(c,true);
+        const r=await write(resetAdapter.reconcile.bind(resetAdapter),[c,{admitBefore:end}],null,'reset','account-reset');
+        requireFact(r?.ok===true && r.operation_id===c.operation_id && r.login_username===record.account.login_username && r.must_change_password===true,'official_reset_result_conflict');
+        await verifyResetReadback(c);await receipt('reset_verified');c.verified=true;
+        if(!record.confirmed){record.confirmed=true;result.reused++;}
+      }
+      deliveryAllowed=approved.canonical_keys.every(k=>finished.has(k)) && [...pending.values()].every(c=>c.verified);
+      return {status:'reset_reconciled',pending:pending.size,delivery_allowed:deliveryAllowed};
+    }catch(error){deliveryAllowed=false;result.status='quarantined';result.blocked={canonical_key:currentKey,code:guardCodes.get(error)??'uncertain_adapter_outcome'};
+      try{if(currentKey)await receipt('quarantined',false,true);}catch{result.receipt_persistence_failed=true;}
+      return {status:'quarantined',pending:pending.size,blocked:publicCopy(result.blocked)};
+    }finally{active=false;}
+  };
+  return Object.freeze({run(){if(!promise)promise=runOnce();return promise;},reconcileReset(){if(active || mutationsInFlight.size || deliveryActive)return Promise.resolve({status:'busy',pending:pending.size});if(!resetRecoveryPromise)resetRecoveryPromise=reconcileReset();return resetRecoveryPromise;},deliverPending:()=>deliverPending(false),pendingCount:()=>pending.size,
+    state:()=>publicCopy({phases:Object.fromEntries(phases),mutating_io:mutationsInFlight.size,reset_io:[...mutationsInFlight].filter(r=>r.kind==='reset').length,receipt_io:[...mutationsInFlight].filter(r=>r.kind==='receipt').length,delivery_io:deliveryInFlight.size,pending:pending.size,finalized:destroyed}),
     finalize(decision){requireFact(!active && !deliveryActive && !deliveryInFlight.size && !mutationsInFlight.size && decision==='destroy','explicit_final_decision_required');for(const c of pending.values()){c.password=null;phases.set(c.canonical_key,'destroyed');}pending.clear();used.clear();completed.clear();deliveryAllowed=false;destroyed=true;}});
 }
 

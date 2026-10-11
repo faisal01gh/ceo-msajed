@@ -1,7 +1,10 @@
 {
-  "stage": "NativeCleanupPlanOnly",
+  "stage": "LocalOwnedCleanup57VerifiedPendingPrimaryF3Integration",
+  "nativeAdmissionPresent": true,
+  "officialMutationPrimitivesPresent": true,
+  "blockingCode": "OWNED_PRIMARY_PROVENANCE_REQUIRED",
   "executed": false,
-  "mutationExecutorPresent": false,
+  "mutationExecutorPresent": true,
   "preserve": {
     "realStaff": 57,
     "faisalPassword": "unchanged",
@@ -10,7 +13,7 @@
   },
   "populations": [
     "own-load50",
-    "own-e2e7 (plus explicitly receipted reset-target canary if needed)",
+    "own-e2e7 (reset targets must be selected from the exact 57 newly owned resources)",
     "protected-real57",
     "protected-legacy8"
   ],
@@ -49,7 +52,7 @@
     "pendingOperations": 0,
     "openSessions": 0,
     "protectedSnapshotDigest": "must equal immutable pre-cleanup protected baseline",
-    "orphanClosure": "zero own catalogued direct/indirect references; unknown schemas fail closed"
+    "orphanClosure": "local public/app_private exact-reference scan and receipted native row absence verified; deployed Auth/storage/other-schema closure is NOT established by the bounded fixture"
   },
-  "implementation": "cleanup.mjs pure planCleanup + verifyCleanupReadback; these functions do not establish live ownership by themselves"
+  "implementation": "New service-only owned SQL performs exact native typed row issuance, locked receipted reverse-order disposal, full exact-PK absence and ephemeral/run cleanup. Actual local PostgreSQL plus pinned SDK completes all57 journeys,18 native denial counters, physical-unknown native journaling, real two-process durable journal restart and native COMMIT closure. Genuine F3 primary metadata/new inventory facets remain required; no target/provider/native approval was performed. Durable run receipts remain as immutable no-retry evidence; planner booleans never authorize writes."
 }

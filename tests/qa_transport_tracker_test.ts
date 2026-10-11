@@ -1,8 +1,9 @@
+import { edgeTest, finishEdgeTests } from "./qa_edge_fixture_cases.ts";
 import {
   BoundedIO,
   retainCustody,
 } from "../supabase/functions/_shared/qa-context.ts";
-Deno.test("I/O receipt distinguishes failed SDK response from physical fulfillment", async () => {
+edgeTest("I/O receipt distinguishes failed SDK response from physical fulfillment", async () => {
   const io = new BoundedIO({ stageMs: 20 });
   await io.run("provider", () => ({ error: { status: 500 }, data: null }));
   const r = io.snapshot().stages[0];
@@ -10,7 +11,7 @@ Deno.test("I/O receipt distinguishes failed SDK response from physical fulfillme
     throw Error("API failure is not completed success");
   }
 });
-Deno.test("deadline receipt remains timed out after later physical fulfillment", async () => {
+edgeTest("deadline receipt remains timed out after later physical fulfillment", async () => {
   const io = new BoundedIO({ stageMs: 10 });
   let release!: (v: number) => void;
   const held = new Promise<number>((r) => release = r),
@@ -33,7 +34,7 @@ Deno.test("deadline receipt remains timed out after later physical fulfillment",
     after.stages[0].actual !== "fulfilled"
   ) throw Error("late settlement lost its timeout history");
 });
-Deno.test("private custody registers actual settlement with EdgeRuntime waitUntil", async () => {
+edgeTest("private custody registers actual settlement with EdgeRuntime waitUntil", async () => {
   const previous = Object.getOwnPropertyDescriptor(globalThis, "EdgeRuntime");
   const registered: Promise<unknown>[] = [];
   let release!: () => void;
@@ -62,7 +63,7 @@ Deno.test("private custody registers actual settlement with EdgeRuntime waitUnti
     else Reflect.deleteProperty(globalThis, "EdgeRuntime");
   }
 });
-Deno.test("success rejection and invalid deadline receipts are nonsecret", async () => {
+edgeTest("success rejection and invalid deadline receipts are nonsecret", async () => {
   const io = new BoundedIO({ stageMs: 20 });
   await io.run("auth", () => 1);
   await io.run(
@@ -86,3 +87,5 @@ Deno.test("success rejection and invalid deadline receipts are nonsecret", async
     if (!denied) throw Error("nonfinite/unbounded deadline accepted");
   }
 });
+
+finishEdgeTests();

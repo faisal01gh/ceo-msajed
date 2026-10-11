@@ -1,12 +1,13 @@
+import { edgeTest, finishEdgeTests } from "./qa_edge_fixture_cases.ts";
 // Independent offline actual SQL + SDK probes. No real credentials or network.
-import { createTransactionFeedbackFixture } from "../tests/qa_isolation_fixture.mjs";
+// Import the credential-rejecting native client before any dummy test env.
+import "./qa_postgres_native_fixture.mjs";
+import { createFinalComposedFixture } from "./qa_final_composed_fixture.mjs";
 import {
   passwordPort,
   passwordTransportState,
 } from "../supabase/functions/_shared/password-port.ts";
 const endpoint = "https://movzojtnkkmdsjhmlgtq.supabase.co";
-Deno.env.set("SUPABASE_URL", endpoint);
-Deno.env.set("SUPABASE_SERVICE_ROLE_KEY", "offline-fixture-not-a-key");
 const results: unknown[] = [];
 for (
   const mode of [
@@ -15,9 +16,24 @@ for (
     "candidate_logout_unsettled",
   ]
 ) {
-  Deno.test(mode, async () => {
-    const f = await createTransactionFeedbackFixture({
-        modulePath: Deno.env.get("QA_TRANSPORT_ADAPTER") ?? undefined,
+  edgeTest(mode, async () => {
+    const f = await createFinalComposedFixture({
+        beforeGuards: async (fixture: any) => {
+          const { db, id, actors } = fixture;
+          const run = id(9923), user = actors.employee;
+          await db.query(
+            "insert into app_private.qa_runs values($1,'active',true,clock_timestamp()+interval '1 hour',clock_timestamp())",
+            [run],
+          );
+          await db.query(
+            "insert into app_private.qa_account_manifest values($1,'fixture_employee','fixture_employee','current_owned_QA',$2,$3,$4,null)",
+            [user, run, id(9924), id(9925)],
+          );
+          await db.query(
+            "insert into app_private.qa_run_members values($1,$2,'employee',true)",
+            [run, user],
+          );
+        },
       }),
       { db, id, actors, scalar } = f;
     const user = actors.employee,
@@ -46,43 +62,10 @@ for (
       logoutStarted: (() => void) | undefined;
     const started = new Promise<void>((r) => logoutStarted = r);
     const oldFetch = globalThis.fetch;
+    Deno.env.set("SUPABASE_URL", endpoint);
+    Deno.env.set("SUPABASE_SERVICE_ROLE_KEY", "offline-fixture-not-a-key");
     try {
-      for (
-        const name of [
-          "20261008010000_qa_isolation_prerequisites.sql",
-          "20261008015000_qa_password_transport.sql",
-          "20261008018000_qa_rest_provenance.sql",
-          "20261008018500_qa_core_rest_admission.sql",
-          "20261008020500_qa_password_frame_composition.sql",
-        ]
-      ) {
-        await db.exec(
-          await Deno.readTextFile(
-            new URL("../supabase/migrations/" + name, import.meta.url),
-          ),
-        );
-      }
-      await db.query(
-        "insert into app_private.qa_runs values($1,'active',true,clock_timestamp()+interval '1 hour',clock_timestamp())",
-        [run],
-      );
-      await db.query(
-        "insert into app_private.qa_account_manifest values($1,'fixture_employee','fixture_employee','current_owned_QA',$2,$3,$4,null)",
-        [user, run, id(9924), id(9925)],
-      );
-      await db.query(
-        "insert into app_private.qa_run_members values($1,$2,'employee',true)",
-        [run, user],
-      );
-      for (
-        const table of ["profiles", "account_migration_users", "audit_log"]
-      ) {
-        await db.exec(
-          "create trigger edge_transport_guard before insert or update or delete on public." +
-            table +
-            " for each row execute function app_private.qa_reference_guard_before_row()",
-        );
-      }
+      // Official migrations/guard attachments were installed exactly once.
       globalThis.fetch = async (input, init) => {
         const r = new Request(input, init),
           u = new URL(r.url),
@@ -152,7 +135,7 @@ for (
           if (mode === "candidate_logout_unsettled") {
             await new Promise<void>((r) => release = r);
           }
-          await db.query("delete from auth.sessions where id=$1", [verify]);
+          await db.query("delete from auth.sessions where id=$1", [verify]).catch((e:any)=>{lastCode=String(e.code)+':'+String(e.message);throw e;});
           return new Response(null, { status: 204 });
         }
         if (u.pathname.startsWith("/rest/v1/rpc/")) {
@@ -202,10 +185,12 @@ for (
         throw Error("unexpected offline transport");
       };
       const port = (passwordPort as any)("change", {
-          sqlMs: 250,
-          authMs: 250,
-          providerMs: 250,
-          cleanupMs: 25,
+          // TEST-ONLY budgets cover native attestation round trips; the deliberate
+          // unsettled logout still uses its original bounded cleanup deadline.
+          sqlMs: 2000,
+          authMs: 2000,
+          providerMs: 2000,
+          cleanupMs: mode === "candidate_logout_unsettled" ? 25 : 2000,
         }),
         caller = await port.caller(token(sid));
       if (!caller) {
@@ -251,7 +236,7 @@ for (
         if (
           failed || logouts !== 1 || retained !== 0 || narrow.allowed ||
           !ownershipBefore
-        ) throw Error("owned samePassword session stranded after halt/cutoff");
+        ) throw Error("owned samePassword session stranded after halt/cutoff " + JSON.stringify({failed,logouts,retained,narrow:narrow.allowed,ownershipBefore,lastCode}));
       } else {
         const op = await port.begin(caller, account, "change", opid).catch(
           () => {
@@ -319,3 +304,5 @@ for (
     }
   });
 }
+
+finishEdgeTests();

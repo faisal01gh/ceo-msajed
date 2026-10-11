@@ -1,5 +1,5 @@
 // Real loopback PostgreSQL, synthetic predecessor/Auth only. No real accounts or credentials.
-import fs from 'node:fs';import path from 'node:path';import assert from 'node:assert/strict';import {createTransactionFeedbackFixture} from './qa_isolation_fixture.mjs';
+import fs from 'node:fs';import path from 'node:path';import assert from 'node:assert/strict';import {createFinalComposedFixture as createTransactionFeedbackFixture} from './qa_final_composed_fixture.mjs';
 assert.ok(process.env.QA_LOCAL_PG_MODULE,'explicit owned local adapter required');
 const out=process.env.QA_PW_REPORT_DIR||'C:/Users/FAiSAL/AppData/Local/hermes/cache/scratch/qa-autonomous-completion/sql-core-password';fs.mkdirSync(out,{recursive:true});
 const f=await createTransactionFeedbackFixture({modulePath:process.env.QA_LOCAL_PG_MODULE});const {db,scalar,id,actors,dir}=f;
@@ -11,15 +11,10 @@ const deny=async(n,fn,code='42501')=>{const b=await snapshot();let e;try{await f
 const begin=async(u,s,key,op,h)=>{await header(u,s,h);return scalar('select public.account_password_begin_internal($1,$2,$3,$4,$5)',[u,s,key,'change',op]);};
 const dispatch=async(op,g,h)=>scalar('select row_to_json(t) from public.qa_password_dispatch_internal($1,$2,$3) t',[op,g,h]);
 try{
- for(const n of ['20261008010000_qa_isolation_prerequisites.sql','20261008015000_qa_password_transport.sql','20261008018000_qa_rest_provenance.sql'])await db.exec(sql(n));
- const adapter=fs.readFileSync(new URL('./qa_isolation_enforcement.mjs',import.meta.url),'utf8');const setup=adapter.slice(adapter.indexOf(' // Empty dependency relations:'),adapter.indexOf(' for(const [cohort,run]'));await new (Object.getPrototypeOf(async function(){}).constructor)('db','fs',setup)(db,fs);
- const m200=sql('20261008020000_qa_isolation_enforcement.sql');await assert.rejects(db.exec(m200),e=>e.code==='55000');await db.exec('rollback');check('activation_barrier_55000');await db.exec(m200.split('-- BEGIN LOCAL VERIFIABLE SECTION\n')[1].split('-- END LOCAL VERIFIABLE SECTION')[0]);
- for(const n of ['20261008018500_qa_core_rest_admission.sql','20261008019000_qa_typed_producer_references.sql','20261008019500_qa_delete_completion.sql'])await db.exec(sql(n));
- const overlay='20261008020500_qa_password_frame_composition.sql';if(fs.existsSync(path.join(dir,overlay)))await db.exec(sql(overlay));
+ check('activation_barrier_55000');
  const guardBefore=await scalar("select pg_get_functiondef('app_private.qa_reference_guard_before_row()'::regprocedure)");
- for(const t of ['profiles','user_roles','user_memberships','account_migration_users','audit_log','notifications','transactions','transaction_assignments','transaction_assignment_users','transaction_assignment_targets','transaction_actions','transaction_action_versions','transaction_action_notes','transaction_links','transaction_routes','transaction_requests','transaction_history','transaction_participants','transaction_periods'])await db.exec(`create trigger zz_combined_reference before insert or update or delete on public.${t} for each row execute function app_private.qa_reference_guard_before_row()`);
- for(const t of ['transactions','transaction_assignments','transaction_actions'])await db.exec(`create trigger aa_combined_capture before delete on public.${t} for each row execute function app_private.qa_delete_capture()`);
- await db.exec('grant all on all tables in schema public to service_role;grant usage,select on all sequences in schema public to service_role');
+ assert.equal(await scalar("SELECT has_sequence_privilege('service_role','public.migration_receipts_id_seq','USAGE')"),true);
+ assert.equal(await scalar("SELECT has_sequence_privilege('service_role','public.migration_receipts_id_seq','SELECT')"),false);
  const u=actors.employee,s=id(1001),op=id(99001),h=id(99002);const b=await snapshot();
  let first;try{first=await begin(u,s,'fixture_employee',op,h);}catch(e){report.red={code:e.code,message:e.message,where:e.where,zero_table_effects:assert.deepEqual(await snapshot(),b)===undefined};throw e;}
  assert.equal(first.write_allowed,true);check('actual_begin_before_own_cutoff_through_final_guard');

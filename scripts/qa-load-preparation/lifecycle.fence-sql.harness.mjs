@@ -1,0 +1,6 @@
+import assert from 'node:assert/strict';
+export const OUT='C:/Users/FAiSAL/AppData/Local/hermes/cache/scratch/qa-autonomous-completion/external-round2/durable-deletion-fence/sql';
+export async function guard(c){const prior=(await c.query("SELECT current_setting('role') role")).rows[0].role;await c.query('RESET ROLE;');await c.query(`DO $g$ BEGIN IF current_database()<>'qa_fence_tracer' OR host(inet_server_addr())<>'127.0.0.1' OR inet_server_port()<>52512 OR current_setting('listen_addresses')<>'127.0.0.1' OR current_setting('data_directory')<>'${OUT}/pgdata' OR EXISTS(SELECT 1 FROM pg_foreign_server) OR EXISTS(SELECT 1 FROM pg_stat_activity WHERE client_addr IS NOT NULL AND application_name<>'qa-fence-tracer' AND pid<>pg_backend_pid()) THEN RAISE EXCEPTION 'fixture identity drift';END IF;END $g$;`);if(prior!=='none'){assert(['service_role','authenticated','anon'].includes(prior));await c.query('SET ROLE '+prior+';');}}
+export async function effect(s,c){await guard(c);return c.query(s);}
+export async function service(c){await effect(`SET ROLE service_role;SET request.jwt.claims='{"role":"service_role"}';SET request.headers='{}';`,c);}
+export async function rpc(name,args,c){return (await effect(`SELECT public.${name}(${args}) receipt`,c)).rows[0].receipt;}

@@ -1,3 +1,4 @@
+import { edgeTest, finishEdgeTests } from "./qa_edge_fixture_cases.ts";
 const endpoint = "https://movzojtnkkmdsjhmlgtq.supabase.co",
   uid = "10000000-0000-4000-8000-000000000071",
   sid = "30000000-0000-4000-8000-000000000071";
@@ -14,7 +15,7 @@ const token = [
   "fixture",
 ].join(".");
 for (const stage of ["auth", "sql", "cleanup"] as const) {
-  Deno.test(
+  edgeTest(
     "public logout " + stage +
       " finite caller with exact late settlement and no duplicate",
     async () => {
@@ -108,3 +109,5 @@ for (const stage of ["auth", "sql", "cleanup"] as const) {
     },
   );
 }
+
+finishEdgeTests();

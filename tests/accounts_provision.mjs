@@ -280,17 +280,20 @@ test('CREATE-separated: protected generation and operation drift at the last lin
   assert.equal(runner.pendingCount(), 47); assert.equal(f.delivered.length, 0); runner.finalize('destroy');
 });
 
-test('CREATE-separated: exact unlinked Auth reuse never creates duplicates or resets unknown credentials', async () => {
+// Finding1 supersedes the old needs-private-original-password outcome. This
+// fixture has no checked official reset gate: deny before link or delivery.
+test('CREATE-separated: exact unlinked reuse without checked official reset authority is write-free', async () => {
   const f = fixture(); const id = uuid(800);
   f.users.push({ ...clone(f.users[1]), id, email: f.registry[10].internal_email, user_metadata: { original: true } });
   const c = await creator(f, ['person_10']); const before = clone(c.state.users.find(u => u.id === id));
   assert.equal(c.prepared.plan.counts.create, 46); assert.equal(c.prepared.plan.counts.reuse, 1);
   assert.equal(c.prepared.execution.reset.length, 9, 'reuse never becomes an extra reset');
-  const r = await c.build().run(); assert.equal(r.status, 'needs_private_original_password_delivery');
-  assert.equal(r.created, 0); assert.equal(r.reused, 1); assert.equal(c.state.registry[10].migrated_user_id, id);
+  const r = await c.build().run(); assert.equal(r.status, 'blocked');
+  assert.equal(r.created, 0); assert.equal(r.reused, 0); assert.equal(c.state.registry[10].migrated_user_id, null);
   assert.equal(c.state.calls.filter(x => x.method === 'createUser').length, 0); assert.equal(c.delivered.length, 0);
   assert.deepEqual(c.state.users.find(u => u.id === id), before);
-  assert.deepEqual(r.needs_private_original_password_delivery, [{ canonical_key: 'person_10', target_user_id: id }]);
+  assert.equal(c.state.calls.filter(x => x.method === 'account_provision_link_internal').length, 0);
+  assert.equal(r.needs_private_original_password_delivery, undefined);
 });
 
 test('retired reset: provider timeout callback cannot run or generate a reset candidate', async () => {

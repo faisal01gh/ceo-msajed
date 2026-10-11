@@ -1,3 +1,4 @@
+import { edgeTest, finishEdgeTests } from "./qa_edge_fixture_cases.ts";
 // Actual pinned SDK and endpoint handlers. All HTTP is intercepted before
 // constructor execution; credentials and captured logs exist only in memory.
 const endpoint = "https://initial-sdk-fixture.invalid";
@@ -141,7 +142,7 @@ function assertPrivacy(f: Fixture, response: string) {
     "raw credential reached endpoint response",
   );
 }
-Deno.test("initial transactions actual getUser fetch error protects credentials before SDK logging", async () => {
+edgeTest("initial transactions actual getUser fetch error protects credentials before SDK logging", async () => {
   await fixture("transactions-api", (req, f) => {
     check(
       new URL(req.url).pathname === "/auth/v1/user",
@@ -169,7 +170,7 @@ Deno.test("initial transactions actual getUser fetch error protects credentials 
   });
 });
 
-Deno.test("initial account resolve replaces external fetch exceptions before SDK field inspection", async () => {
+edgeTest("initial account resolve replaces external fetch exceptions before SDK field inspection", async () => {
   let inspected = 0;
   await fixture("account-resolve", (req, f) => {
     const path = new URL(req.url).pathname;
@@ -209,7 +210,7 @@ Deno.test("initial account resolve replaces external fetch exceptions before SDK
 
 for (const name of ["transactions-api", "account-resolve"] as const) {
   for (const mode of ["body_error", "late_body_error"] as const) {
-    Deno.test(`initial ${name} ${mode} keeps external credentials out of SDK logs`, async () => {
+    edgeTest(`initial ${name} ${mode} keeps external credentials out of SDK logs`, async () => {
       let release: (() => void) | undefined, started!: () => void;
       const ready = new Promise<void>((resolve) => {
         started = resolve;
@@ -281,7 +282,7 @@ for (const name of ["transactions-api", "account-resolve"] as const) {
 }
 
 for (const name of ["transactions-api", "account-resolve"] as const) {
-  Deno.test(`initial ${name} waits for complete body and preserves SDK request signature`, async () => {
+  edgeTest(`initial ${name} waits for complete body and preserves SDK request signature`, async () => {
     let release: (() => void) | undefined, started!: () => void;
     const ready = new Promise<void>((resolve) => {
       started = resolve;
@@ -416,7 +417,7 @@ for (const name of ["transactions-api", "account-resolve"] as const) {
 }
 
 for (const status of [400, 401, 403, 422, 500]) {
-  Deno.test(`initial transactions HTTP ${status} retains auth denial without transport retry`, async () => {
+  edgeTest(`initial transactions HTTP ${status} retains auth denial without transport retry`, async () => {
     await fixture("transactions-api", (req, f) => {
       check(
         new URL(req.url).pathname === "/auth/v1/user",
@@ -443,7 +444,7 @@ for (const status of [400, 401, 403, 422, 500]) {
 }
 
 for (const ready of [true, false]) {
-  Deno.test(`initial transactions success preserves verified actor binding and native ready=${ready}`, async () => {
+  edgeTest(`initial transactions success preserves verified actor binding and native ready=${ready}`, async () => {
     let verified = false;
     await fixture("transactions-api", async (req, f) => {
       const url = new URL(req.url), name = url.pathname.split("/").at(-1);
@@ -522,7 +523,7 @@ for (const ready of [true, false]) {
 }
 
 for (const migrated of [true, false]) {
-  Deno.test(`initial account resolve keeps alias lookup and migrated=${migrated} public contract`, async () => {
+  edgeTest(`initial account resolve keeps alias lookup and migrated=${migrated} public contract`, async () => {
     let lookups = 0;
     await fixture("account-resolve", (req, f) => {
       const url = new URL(req.url), name = url.pathname.split("/").at(-1);
@@ -590,3 +591,5 @@ for (const migrated of [true, false]) {
     });
   });
 }
+
+finishEdgeTests();

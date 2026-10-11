@@ -1,5 +1,8 @@
 {
-  "stage": "NativeJourneyPlanOnly",
+  "stage": "LocalOwnedSQLSDK57VerifiedPendingPrimaryF3Integration",
+  "populationContract": {"load": 50, "separateRoleE2E": 7, "total": 57},
+  "blockingCode": "OWNED_PRIMARY_PROVENANCE_REQUIRED",
+  "implementation": "New owned-control.sql defines service-only source/run reservation, exact native typed bootstrap and receipted disposal. Actual local PostgreSQL plus pinned SDK executes all57 persistedGET/UIDSID/manifest/boundedQA/logout/SQLdisposal/AuthDELETE/absence paths. Live Auth/browser/roleE2E remains unexecuted; genuine F3 primary bridge metadata and new inventory facets remain an integration prerequisite.",
   "executed": false,
   "sourceSHA": "717375eee1e99d558af80eca91a7ea7e829edd20",
   "roleSources": [

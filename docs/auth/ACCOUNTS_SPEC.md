@@ -1,6 +1,17 @@
 # مواصفة الحسابات وكلمات المرور
 
-> تسليم المصدر للمراجعة الخارجية فقط: تفويض فيصل الأحدث يسمح بـCommit/Push إلى `review/qa-isolation-gate-20261009` دون PR أو Merge أو نشر. هذا لا يرفع منع المرحلة الحية أو `main`؛ عبارات عدم النشر أدناه تخص إصدار الإنتاج. قائمة المصدر والإيصالات المنقحة في `docs/qa-review/README.md`.
+## إثبات Final Composed المحلي — 2026-10-10
+
+تم التحقق من القسم الرسمي LOCAL VERIFIABLE SECTION محليًا، بينما بقي حاجز التفعيل غير المشروط في Migration 200 فعالًا. لم تُطبق Migration 200 كاملة، ولا يمثل نجاح الاختبارات تصريحًا بالتفعيل الحي أو الإنتاجي.
+
+- المصدر الرسمي المحلي: 100 → 150 → 180 → 185 → 190 → 195 → 200 الكاملة **blocked_by_activation_guard** → قسم 200 **applied_for_local_test** → 205 → مصدر التركيب الرسمي 210 الذي أُجيز إضافته لهذه الجولة. لا إعادة CREATE ولا إضافة Guards يدويًا.
+- تحقق فعلي محلي: Exact Composition **26/26**؛ Native Password **29/24/27/54**؛ Edge **108** حالة أصلية مع **11** وضع SDK مستقل؛ Step1 **7/7**؛ Typed **22/22**؛ Guard **6/6**؛ Durable Fence **14/14**؛ دورة **57** إنشاء/اختبار/تنظيف إلى صفر؛ Accounts **226/226**. الجهات الخارجية لـAuth/Edge/F3 في هذه Fixtures مصطنعة؛ ليست Auth أو E2E أو حملًا حيًا.
+- Provenance لهذه النسخة: **162/162**؛ شملت 149 حالة عليا و13 مجس Metadata/SELECT محليًا على قاعدة Mechanics مستقلة في خادم WSL نفسه دون إنشاء خادم جديد أو تفعيل المنتج. المتبقي المراجعة المستقلة النهائية. **LOCAL VERIFICATION = PENDING FINAL GATES**؛ لا Commit جديد ولا رفع قبل APPROVED.
+- دورة 57: Owned/Sessions/Password operations/Frames/Pending/Fences كلها صفر، وProtected snapshot مطابق. إخراج قواعد Fixtures ذات الملكية الدقيقة منفصل عن قبول تنظيف دورة المنتج.
+- الحدود والـManifest والبصمات وقرارات الإقفال: `docs/transactions/QA_LOCAL_FINAL_COMPOSED_2026-10-10.md`. الأقسام بتاريخ 2026-10-09 وما قبله سجل إثبات تاريخي وليست صلاحية تشغيل حالي.
+
+
+> التفويض الحاكم — 2026-10-10: استكمال QA محليًا من القسم الرسمي فقط، مع إبقاء Migration 200 الكاملة محجوبة بالتصميم. Commit/Push إلى `review/qa-isolation-gate-20261009` مشروطان بنجاح جميع الاختبارات والمراجعة المستقلة النهائية APPROVED. لا PR أو Merge أو Deploy أو تطبيق على Supabase؛ التفعيل الحي/الإنتاجي غير مأذون حتى بعد نجاح الإثبات المحلي.
 
 المرجع المعتمد: 2026-10-09؛ القرارات غير المعدلة من مواصفة 2026-10-05 محفوظة. هذه المواصفة تخص النظام الجديد فقط، ولا تسمح بالاتصال بالنظام السابق أو استخدامه.
 
@@ -57,7 +68,7 @@
 - تحقق صلاحية service-role قبل طلب أعمال منفصل لا يثبت منعًا ذريًا لكتابة كانت قيد التنفيذ أثناء إعادة التعيين. لا ادعاء بذلك دون إدخال التحقق في المعاملة التشغيلية نفسها.
 - بعد DB: Security/Performance Advisor، قراءة schema/grants/RLS، والتحقق من source/deployment/production parity كلٌ على حدة.
 
-## حالة التنفيذ الحالية — 2026-10-09
+## سجل حالة التنفيذ السابقة — 2026-10-09
 
 - الجديد فقط؛ الاستثناءات التشغيلية التاريخية للنظام القديم أدناه لا تنطبق على هذه الجولة.
 - اعتماد مستقل محلي: SQL `G1–G5/P1–P4` كلها `CLOSED`، ومراجعة SDK/password/session `APPROVED` مع346 حالة نهائية دون فشل/تخطٍ/XFail. هذا ليس قبولًا حيًا.
@@ -72,3 +83,37 @@
 core الترحيل وEdge قُبل مستقلًا، وطُبّق وقُرئ من المشروع الجديد. 8 service-only RPCs و37/37 restrictive RLS؛ protected identities وعدّادات الأعمال محفوظة. وظائف confirm v5 / reset v1 / transactions v35 ACTIVE وملفاتها مطابقة؛ ingress السلبي الحي مثبت فقط.
 
 التفعيل الجماعي وE2E الحي وLoad وتسليم كلمات المرور ونشر مصدر التسليم النهائي لم تكتمل بهذه النتائج؛ تسجّل أدلتها النهائية في PROJECT_STATE/HANDOFF بعد التنفيذ الفعلي.
+
+## إصلاحات المراجعة المحلية النهائية — 2026-10-10
+
+أعادت المراجعة الأولى SQL/Lifecycle نتيجة BLOCKED بخمس ملاحظات، مع APPROVED لنطاق Harness فقط. أُصلحت الملاحظات ضمن النطاق المحلي؛ لم تصبح الحزمة APPROVED بعد، والمراجعة المستقلة المحدّثة مطلوبة قبل Commit/Push.
+
+- التحقق من شاهد ABI الأصلي195 يسبق أي Refresh في المصدر الرسمي210؛ اجتازت15 حالة Native محلية، منها رفض الانحراف بـ55000 مع Catalog/Data/Witness مطابقين بعد Rollback.
+- أُضيفت13 نقطة تحقق Native لتغطية Password في حالات delete_prepared/auth_delete_unknown/db_finalize_pending. أثبتت المنتج المسموح قبل Fence، واستبعاد العملية القائمة/SID الحي من Prepare، واستحالة Admission بعده مع رفض إنشاء SID جديد بالـFence الحقيقي. لا يُنسب رفض Missing SID إلى تنفيذ Password Fence مباشر.
+- Signed Plan يستخدم تسعة حقول مع بصمتي SQL؛ Full Primary Metadata وController Identity لهما مجالا Hash منفصلان. تتطابق Cleanup مع Run/Source/UID/Operation/Generation قبل Logout أو حذف، حتى عند Replay لإيصال مكتمل.
+- اجتازت الشجرة الحالية Composition26، own-reset29، Frames24، Integration27، Transport54، Step1=7، Typed22، Guard6، SDK11، Native Edge13 وLogout2، Durable14، دورة57 إلى الصفر، Accounts226 وProvenance162. نتائج Edge95 غير المتأثرة محفوظة على المصادر نفسها، ليبقى الإجمالي108. اجتازت اختبارات Lifecycle Offline82؛ تتضمن30 Regression جديدة.
+- Provenance162 يشمل149 حالة/مدخلًا أعلى و13 اختبار SELECT ميكانيكيًا بواجهات ABI خاملة؛ ليس تصريحًا لـAuth أو Product Guard حي.
+- بقيت Genuine F3 رافضة لإعادة تفويض Run مكتمل بعد إزالة الحجوزات المؤقتة؛ نجاح Durable Mapping Replay المحلي لا يمثل قبولًا حيًا لهذا المسار ولا يُخفف سياسة Inventory.
+- انقطاع Wrapper أثناء دورة57 حُفظ كدليل HARNESS TIMEOUT، لا نجاحًا ولا فشل Product. أُغلقت العمليات المملوكة، وصُرفت Fixture بإيصال دقيق؛ دورة57 الجديدة اكتملت في استدعاء واحد ذي مهلة مناسبة دون تغيير Production Timeouts أو إعادة DELETE غامض.
+
+تم التحقق من القسم الرسمي LOCAL VERIFIABLE SECTION محليًا، بينما بقي حاجز التفعيل غير المشروط في Migration 200 فعالًا. لم تُطبق Migration 200 كاملة، ولا يمثل نجاح الاختبارات تصريحًا بالتفعيل الحي أو الإنتاجي.
+
+FULL MIGRATION 200 APPLY = BLOCKED BY DESIGN (55000: qa_enforcement_not_ready). PRODUCTION ACTIVATION = NOT AUTHORIZED. لا Merge/Deploy/Auth حقيقي/Reset حقيقي/E2E حي/Load حي/اتصال إنتاجي.
+
+## توقف الإقفال النهائي — يلزم قرار Completed Replay
+
+المراجعة المستقلة المحدّثة أعادت Harness=APPROVED وSQL/Lifecycle=BLOCKED. أُغلقت SQL-FINAL-02 وLQR01/LQR02، وأُصلح قبول UID/Source غير مطابق في LQR03. بعد المراجعة أُضيفت تغطية المكتب المستقل:17/17 Native، مع SID للمكتب يبقى حيًا وReset مسموح قبل Fence ثم رفض بالـFence الحقيقي في delete_prepared/auth_delete_unknown، ورفض الهدف الغائب في db_finalize_pending. هذه الإضافة ناجحة محليًا ولم تحصل بعد على Re-review مستقل؛ لا يُحوّل ذلك verdict SQL السابق إلى APPROVED.
+
+بقي Exact Completed Replay عبر Genuine F3 محجوبًا: المصدر يشترط57 حجزًا مؤقتًا عند وجود Run Receipt؛ Complete الرسمي يحذف تلك الحجوزات ويحتفظ بالإيصالات. الضبط الحالي يرفض بـruntime_provenance_denied قبل أي أثر. لم يُخفف ownedBinding، ولم يُضف Bypass أو تصريح Mutation جديد. يتطلب الإقفال اعتمادًا صريحًا لتصميم مسار Replay قراءة فقط بإثبات الإيصال المكتمل، مع إبقاء كل صلاحيات الكتابة وشروطها الحالية، أو تضييقًا صريحًا لمعيار القبول.
+
+LOCAL VERIFICATION = BLOCKED (NOT APPROVED). FULL MIGRATION 200 APPLY = BLOCKED BY DESIGN. PRODUCTION ACTIVATION = NOT AUTHORIZED. لا Commit/Push جديد، ولا عمل مستمر في الخلفية أو مرحلة حية. جميع التغييرات والأدلة محفوظة؛ لا Reset/Clean/Restore.
+
+## Completed Cleanup Replay — التفويض المحلي 2026-10-11
+
+اعتمد المستخدم الفصل بين Incomplete Writes وCompleted Read-only. أُضيف createCompletedReplayGate مع Facade مستقل يعيد already_completed، دون Mutation brand أو SDK/Adapter/OwnedIO/Coordinator. ownedBinding والـWrite Gate وDurable Inventory validators الأصلية بقيت مطابقة بايتًا؛ غياب حجز/Fence/Operation مطلوب أثناء Incomplete يظل مرفوضًا.
+
+اجتازت Genuine F3 Source Protocol54 (45 سلوكًا +9 Mechanical)، Lifecycle Offline82، Provenance Offline148 وAccounts226. فحص Imports الحقيقي وإغلاق GET/POST read-only وSELECT-only سجّل صفر Mutation primitives. Native Regression الحالي: Composition26، own-reset29، Frames24، Integration27، Transport54، Step1=7، Typed22، Guard6، SDK11/Native Edge13/Logout2، Durable14، Provenance162، والمكتب المستقل17/17. دورة Current57 الجديدة أنشأت/اختبرت/نظّفت57 إلى الصفر مع Protected مطابق.
+
+لم يُثبت Positive Completed Replay على بيانات PostgreSQL المحمّلة: Probe إضافي رُفض قبل Replay لأن Inventory قرئ كـpostgres بينما Genuine F3 يشترط supabase_read_only_user. لم تُزوّر خانة readRole ولم تُمنح صلاحيات أو Memberships لتجاوز ذلك. هذا قصور Harness في دليل Native الإضافي؛ لا يُسجّل كنجاح ولا يعادل Native F3 activation. Genuine source protocol PASS لا يغطي هذا Positive غير المثبت.
+
+المراجعة المستقلة الجديدة مطلوبة وتشمل Completed Replay والمكتب17 وSQL/Composition؛ جميع Claims APPROVED السابقة تخص لقطاتها فقط. لم يُنشأ Commit/Push لهذه الجولة. Migration200 والـFence/FK/RLS/Password Guards وProduction Auth settings لم تتغير. لا Production connection أو مرحلة حية.

@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { provisionAccounts } from '../scripts/accounts-provision.mjs';
 import { createOriginalStaffExecutor } from '../scripts/accounts-create-originals.mjs';
+import {generateKeyPairSync,sign} from 'node:crypto';
+import * as reset from '../scripts/accounts-official-reset.mjs';
 const SOURCE = '717375eee1e99d558af80eca91a7ea7e829edd20';
 const TARGET = 'https://movzojtnkkmdsjhmlgtq.supabase.co';
 const F = '0a1df502-9232-4ef5-af2d-df585ad7f187';
@@ -37,3 +39,15 @@ async function fixture(keys=['person_10']) {
 
 
 export {fixture, OP, uuid};
+// Ephemeral fixture signing key: NEVER a native gate or real authorization.
+export function checkedResetFixture(f,{available=true}={}){
+ const {publicKey,privateKey}=generateKeyPairSync('ed25519');
+ const proof={version:1,verdict:'APPROVED',independent:true,reviewer_id:'offline-independent-fixture',evidence_kind:'synthetic-only',project_ref:'movzojtnkkmdsjhmlgtq',endpoint:'account-admin-reset-password',operation_id:OP,canonical_keys:['person_10'],issued_at:Date.now()-1,expires_at:Date.now()+60000,source_hashes:reset.officialResetSourceHashes(),edge_version:7,native_qa_proof:{reset_completed:true,candidate_binding_verified:true,forced_change_completed:true,old_session_denied:true,logout_verified:true,cleanup_verified:true,exit_code:0}};
+ const seal=p=>{const payload=JSON.stringify(p);return {payload,signature:sign(null,Buffer.from(payload),privateKey).toString('base64')};};
+ const calls=[];
+ const functions={url:TARGET+'/functions/v1',async invoke(name,options){calls.push({name,options});if(f){f.calls.push(name);const c=options.body;const u=f.users.find(u=>u.email===f.rows.find(r=>r.canonical_key===c.target_key).internal_email);u.app_metadata={...u.app_metadata,msajed_password_operation:c.operation_id,msajed_password_generation:1};const s=f.projections.get(c.target_key);s.credential_generation=1;s.has_password_operations=true;return {data:{ok:true,operation_id:c.operation_id,login_username:f.rows[10].login_username,must_change_password:true},error:null};}return {data:{ok:true,operation_id:options.body.operation_id,login_username:'ameen10',must_change_password:true},error:null};}};
+ const client={supabaseUrl:TARGET,functions};
+ const availability=async()=>({project_ref:'movzojtnkkmdsjhmlgtq',endpoint:proof.endpoint,status:available?'ACTIVE':'UNAVAILABLE',version:7,source_hashes:reset.officialResetSourceHashes()});
+ const build=(options={})=>reset.createOfficialAccountResetAdapter({client,targetUrl:TARGET,accessToken:'synthetic-memory-token',signedQaResetReceipt:seal(proof),trustedReviewerPublicKey:publicKey,operationId:OP,canonicalKeys:['person_10'],readAvailability:availability,executionMode:'synthetic',...options});
+ return {build,proof,seal,publicKey,calls,client,functions,availability};
+}

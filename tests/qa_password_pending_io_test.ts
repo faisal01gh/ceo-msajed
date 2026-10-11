@@ -1,3 +1,4 @@
+import { edgeTest, finishEdgeTests } from "./qa_edge_fixture_cases.ts";
 // Actual pinned SDK, deterministic local fetch boundary; no network or secrets.
 import * as module from "../supabase/functions/_shared/password-port.ts";
 const endpoint = "https://movzojtnkkmdsjhmlgtq.supabase.co";
@@ -47,7 +48,7 @@ for (
     "late_login",
   ] as const
 ) {
-  Deno.test(
+  edgeTest(
     "bounded actual SDK " + stage + " preserves physical custody and no retry",
     async () => {
       const old = globalThis.fetch;
@@ -203,3 +204,5 @@ for (
     },
   );
 }
+
+finishEdgeTests();

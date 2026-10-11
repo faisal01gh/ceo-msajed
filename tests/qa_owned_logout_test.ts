@@ -98,11 +98,16 @@ Deno.test("actual logout verifies native ownership before checked global logout;
   }
 });
 Deno.test("actual logout uses native owned-token disposal after forced cutoff and QA halt without readiness escape", async () => {
-  const module = "./qa_isolation_fixture.mjs";
-  const { createTransactionFeedbackFixture } = await import(module);
-  const { db, id, actors } = await createTransactionFeedbackFixture({
-    modulePath: Deno.env.get("QA_TRANSPORT_ADAPTER") ?? undefined,
-  });
+  for (const key of ['SUPABASE_URL','SUPABASE_SERVICE_ROLE_KEY','SUPABASE_ANON_KEY']) Deno.env.delete(key);
+  const { createFinalComposedFixture } = await import("./qa_final_composed_fixture.mjs");
+  const { db, id, actors } = await createFinalComposedFixture({beforeGuards:async (f:any)=>{
+    const run=f.id(9701),actor=f.actors.employee;
+    await f.db.query("insert into app_private.qa_runs values($1,'halted',false,clock_timestamp()+interval '1 hour',clock_timestamp())",[run]);
+    await f.db.query("insert into app_private.qa_account_manifest values($1,'fixture_employee','fixture_employee','current_owned_QA',$2,$3,$4,null)",[actor,run,f.id(9702),f.id(9703)]);
+    await f.db.query("insert into app_private.qa_run_members values($1,$2,'employee',false)",[run,actor]);
+    await f.db.query("update public.profiles set must_change_password=true where id=$1",[actor]);
+    await f.db.query("update app_private.account_credential_state set session_valid_after=clock_timestamp() where user_id=$1",[actor]);
+  }});
   const actor = actors.employee;
   let session = id(1001), logouts = 0;
   const run = id(9701);
@@ -112,41 +117,7 @@ Deno.test("actual logout uses native owned-token disposal after forced cutoff an
   Deno.env.set("SUPABASE_SERVICE_ROLE_KEY", "offline-fixture-not-a-key");
   Deno.env.set("SUPABASE_ANON_KEY", "offline-public-fixture");
   try {
-    for (
-      const file of [
-        "20261008010000_qa_isolation_prerequisites.sql",
-        "20261008015000_qa_password_transport.sql",
-        "20261008018000_qa_rest_provenance.sql",
-        "20261008018500_qa_core_rest_admission.sql",
-        "20261008020500_qa_password_frame_composition.sql",
-      ]
-    ) {
-      await db.exec(
-        await Deno.readTextFile(
-          new URL("../supabase/migrations/" + file, import.meta.url),
-        ),
-      );
-    }
-    await db.query(
-      "insert into app_private.qa_runs values($1,'halted',false,clock_timestamp()+interval '1 hour',clock_timestamp())",
-      [run],
-    );
-    await db.query(
-      "insert into app_private.qa_account_manifest values($1,'fixture_employee','fixture_employee','current_owned_QA',$2,$3,$4,null)",
-      [actor, run, id(9702), id(9703)],
-    );
-    await db.query(
-      "insert into app_private.qa_run_members values($1,$2,'employee',false)",
-      [run, actor],
-    );
-    await db.query(
-      "update public.profiles set must_change_password=true where id=$1",
-      [actor],
-    );
-    await db.query(
-      "update app_private.account_credential_state set session_valid_after=clock_timestamp() where user_id=$1",
-      [actor],
-    );
+    // Final official schema and synthetic halted state already installed.
     globalThis.fetch = async (input, init) => {
       const r = new Request(input, init), u = new URL(r.url);
       if (u.origin !== endpoint) throw Error("offline network forbidden");

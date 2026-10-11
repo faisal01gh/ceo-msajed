@@ -1,0 +1,6 @@
+// TEST ONLY. Tight native transport admission race probe; no provider or mutation.
+import fs from 'node:fs';import path from 'node:path';import assert from 'node:assert/strict';import {createFinalComposedFixture} from './qa_final_composed_fixture.mjs';import {PGlite} from './qa_postgres_native_fixture.mjs';
+const report={status:'RUNNING',checks:[]},out=path.join(process.env.QA_PW_REPORT_DIR,'CONNECTION_ADMISSION.json');let f;const clients=[];
+try{f=await createFinalComposedFixture();for(let round=0;round<3;round++){
+ const batch=[new PGlite(),new PGlite()];clients.push(...batch);const ready=await Promise.allSettled(batch.map(x=>x.verified));const failures=ready.filter(x=>x.status==='rejected').map(x=>({code:x.reason.code,message:x.reason.message,stack:x.reason.stack}));assert.equal(failures.length,0,JSON.stringify(failures));await Promise.all(batch.map(async x=>assert.equal((await x.query('SELECT 1 value')).rows[0].value,1)));for(const x of batch)await x.close();report.checks.push({round,ownedStartupAndPreflight:'PASS'});
+}report.status='PASS';}catch(e){report.status='FAIL';report.error={code:e.code,message:e.message,stack:e.stack};process.exitCode=1;}finally{for(const c of clients)await c.close();await f?.db.close();fs.writeFileSync(out,JSON.stringify(report,null,2));console.log(JSON.stringify(report));}

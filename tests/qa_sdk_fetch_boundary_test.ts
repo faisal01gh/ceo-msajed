@@ -1,3 +1,4 @@
+import { edgeTest, finishEdgeTests } from "./qa_edge_fixture_cases.ts";
 // Actual pinned SDK; provider requests intercepted before client construction.
 // Credential sentinels and captured logging live only in memory.
 import {
@@ -129,7 +130,7 @@ async function fixture(
     (globalThis as any).EdgeRuntime = runtime;
   }
 }
-Deno.test("SDK local logout held body remains cleanup actual-pending with custody and no repeat", async () => {
+edgeTest("SDK local logout held body remains cleanup actual-pending with custody and no repeat", async () => {
   await fixture(async ({ port, setLogout, count, waits }) => {
     let control!: ReadableStreamDefaultController<Uint8Array>,
       started!: () => void,
@@ -200,7 +201,7 @@ Deno.test("SDK local logout held body remains cleanup actual-pending with custod
   });
 });
 
-Deno.test("SDK provider fetch exception is replaced before dependency logging", async () => {
+edgeTest("SDK provider fetch exception is replaced before dependency logging", async () => {
   const secret = crypto.randomUUID() + "9#";
   const oldError = console.error, oldWarn = console.warn;
   const logs: unknown[][] = [];
@@ -269,7 +270,7 @@ for (
     "logout_body",
   ] as const
 ) {
-  Deno.test(
+  edgeTest(
     "SDK per-client privacy boundary " + mode + " preserves safe failure",
     async () => {
       const secret = crypto.randomUUID() + "9#";
@@ -367,7 +368,7 @@ for (
 }
 
 for (const body of [false, true]) {
-  Deno.test(
+  edgeTest(
     "SDK exception boundary never reads external thrown fields " +
       (body ? "body" : "fetch"),
     async () => {
@@ -419,7 +420,7 @@ for (const body of [false, true]) {
 }
 
 for (const publicLogout of [false, true]) {
-  Deno.test(
+  edgeTest(
     "initial " + (publicLogout ? "public logout" : "password admin") +
       " SDK client sanitizes fetch/body exceptions",
     async () => {
@@ -499,7 +500,7 @@ for (const publicLogout of [false, true]) {
   );
 }
 
-Deno.test("credential fetch preserves normal HTTP statuses, response bytes, headers and request Auth", async () => {
+edgeTest("credential fetch preserves normal HTTP statuses, response bytes, headers and request Auth", async () => {
   const { credentialFetch } = await import(
     "../supabase/functions/_shared/qa-context.ts"
   );
@@ -562,3 +563,5 @@ Deno.test("credential fetch preserves normal HTTP statuses, response bytes, head
     globalThis.fetch = oldFetch;
   }
 });
+
+finishEdgeTests();

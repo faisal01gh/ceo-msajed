@@ -1,0 +1,92 @@
+// Exact original-FK native provider proof; no production Auth or HTTP.
+import fs from 'node:fs';
+import vm from 'node:vm';
+import {webcrypto,createHash} from 'node:crypto';
+import assert from 'node:assert/strict';
+import {spawnSync} from 'node:child_process';
+import {PGlite} from './lifecycle.fence-sql.pg.mjs';
+import {OUT,guard,effect,service,rpc} from './lifecycle.fence-sql.harness.mjs';
+const dir=OUT.replace(/\/sql$/,'/cascade');fs.mkdirSync(dir,{recursive:true});
+const id=n=>'00000000-0000-4000-8000-'+String(n).padStart(12,'0');
+const run=id(90001),source=id(91002),uid=id(94002),op=id(99002);
+const phase=process.env.CASCADE_PHASE||'GREEN';
+const report={phase,checks:[],failures:[],noLiveActions:true,noHTTP:true};
+const db=new PGlite();
+const q=s=>effect(s,db);
+async function deny(name,f,codes=['42501','55000','23503']){try{await f();throw Error('MISSING DENIAL '+name);}catch(e){assert(codes.includes(e.code),name+': '+e.message);report.checks.push({name,sqlstate:e.code});}}
+try{
+ await db.verified;await guard(db);await q('RESET ROLE');
+ const expected=JSON.parse(fs.readFileSync(OUT+'/ORIGINAL_CASCADE_RED.json','utf8')).originalFKs;
+ const fks=()=>db.query("SELECT conrelid::regclass::text child,confrelid::regclass::text parent,conname,pg_get_constraintdef(oid) definition FROM pg_constraint WHERE contype='f' AND conrelid::regclass::text NOT LIKE 'app_private.qa_owned_%' ORDER BY child,conname");
+ report.fkBefore=(await fks()).rows;
+ assert.deepEqual(report.fkBefore,expected.filter(x=>!x.child.startsWith('app_private.qa_owned_')).sort((a,b)=>a.child.localeCompare(b.child)||a.conname.localeCompare(b.conname)));
+ let proof=/const proof=`([\s\S]*?)`;/.exec(fs.readFileSync(new URL('lifecycle.native-sql.mjs',import.meta.url),'utf8'))[1];
+ const start=proof.indexOf("  PERFORM set_config('role','service_role',true);ret:=public.qa_owned_dispose_internal");
+ if(!(await db.query(`SELECT 1 FROM app_private.qa_owned_sources WHERE source_id='${source}'`)).rows.length)await q(proof.slice(0,start)+" END LOOP;\nEND $proof$;");
+ await service(db);
+ await q("RESET ROLE;BEGIN;ALTER TABLE public.legacy_login_credentials DISABLE TRIGGER qa_owned_deletion_fence;");
+ await q(`INSERT INTO public.legacy_login_credentials(username,source,display_name,migrated_user_id) VALUES('foreign-cascade-proof','ceo_users','foreign','${uid}');ALTER TABLE public.legacy_login_credentials ENABLE TRIGGER qa_owned_deletion_fence;COMMIT;`);
+ await service(db);await deny('foreign legacy SET NULL rejects Prepare before effects',()=>rpc('qa_owned_delete_prepare_internal',`'${run}','${source}','${op}'`,db));
+ await q("RESET ROLE;BEGIN;ALTER TABLE public.legacy_login_credentials DISABLE TRIGGER qa_owned_deletion_fence;DELETE FROM public.legacy_login_credentials WHERE username='foreign-cascade-proof';ALTER TABLE public.legacy_login_credentials ENABLE TRIGGER qa_owned_deletion_fence;COMMIT;");
+ await service(db);
+ const receipt=await rpc('qa_owned_delete_prepare_internal',`'${run}','${source}','${op}'`,db);
+ assert.equal(receipt.status,'delete_prepared');report.checks.push({name:'original-FK prepare commits',receipt});
+ await deny('prepared cannot direct-delete Auth',()=>q(`RESET ROLE;DELETE FROM auth.users WHERE id='${uid}'`));
+ await service(db);await rpc('qa_owned_delete_transition_internal',`'${op}',1,'auth_delete_in_flight'`,db);await q('RESET ROLE;');
+ await deny('service JWT cannot forge gateway',()=>q(`SET request.jwt.claims='{"role":"supabase_auth_admin"}';DELETE FROM auth.users WHERE id='${uid}'`));
+ const cmd=s=>spawnSync('C:/Program Files/PostgreSQL/17/bin/psql.exe',['-X','-w','-h','127.0.0.1','-p','52512','-U','qa_fixture_auth_gateway','-d','qa_fence_tracer','-v','ON_ERROR_STOP=1','-c',s],{encoding:'utf8',timeout:20000});
+ await guard(db);
+ const ordinary=id(99777);await q(`BEGIN;INSERT INTO auth.users(id,email) VALUES('${ordinary}','ordinary-cascade-proof@example.invalid');DELETE FROM auth.users WHERE id='${ordinary}';ROLLBACK;`);report.checks.push({name:'nonfenced ordinary native Auth root retains no-frame old decision path, rollback'});
+ const rollback=cmd(`BEGIN;DELETE FROM auth.users WHERE id='${uid}';ROLLBACK;`);assert.equal(rollback.status,0,rollback.stderr);
+ assert.equal((await db.query(`SELECT count(*) n FROM auth.users WHERE id='${uid}'`)).rows[0].n,1);
+ assert.equal((await db.query(`SELECT count(*) n FROM app_private.qa_owned_native_effects WHERE operation_id='${op}' AND effect_state='observed'`)).rows[0].n,0);
+ report.checks.push({name:'provider SQL rollback restores Auth, cascades and exact receipt slots'});
+ await q(`CREATE FUNCTION app_private.qa_cascade_reentrant_fixture() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN DELETE FROM auth.users WHERE id=OLD.id;RETURN OLD;END $$;CREATE TRIGGER zz_qa_cascade_reentrant_fixture BEFORE DELETE ON auth.users FOR EACH ROW EXECUTE FUNCTION app_private.qa_cascade_reentrant_fixture();`);
+ const reentrant=cmd(`DELETE FROM auth.users WHERE id='${uid}'`);assert.notEqual(reentrant.status,0);assert.match(reentrant.stderr,/not attested|unattested/);
+ await q('DROP TRIGGER zz_qa_cascade_reentrant_fixture ON auth.users;DROP FUNCTION app_private.qa_cascade_reentrant_fixture();');
+ report.checks.push({name:'unapproved reentrant root callback rejected before root effect',stderr:reentrant.stderr});
+ await q(`UPDATE app_private.qa_owned_native_effects SET effect_state='observed' WHERE operation_id='${op}' AND effect_slot=(SELECT min(effect_slot) FROM app_private.qa_owned_native_effects WHERE operation_id='${op}')`);
+ const missing=cmd(`DELETE FROM auth.users WHERE id='${uid}'`);assert.notEqual(missing.status,0);assert.match(missing.stderr,/effect\/phase\/reentrance denied/);
+ await q(`UPDATE app_private.qa_owned_native_effects SET effect_state='captured' WHERE operation_id='${op}' AND observed_xid IS NULL`);
+ report.checks.push({name:'preconsumed effect slot cannot be replayed, whole provider transaction rolls back',stderr:missing.stderr});
+ let nativeResult;const sdkCalls=[];
+ const shim=async(input,init={})=>{
+  const url=new URL(String(input));assert.equal(url.origin,'https://native-cascade.example.invalid');assert.equal(url.pathname,'/auth/v1/admin/users/'+uid);
+  const method=init.method||'GET';sdkCalls.push({method,path:url.pathname});
+  if(method==='DELETE'){
+   assert.deepEqual(JSON.parse(init.body),{should_soft_delete:false});await guard(db);
+   const inspector=new PGlite();await inspector.verified;await guard(inspector);
+   const idle=(await inspector.query(`SELECT state,xact_start FROM pg_stat_activity WHERE pid=${db.connection.pid}`)).rows[0];assert.equal(idle.state,'idle');assert.equal(idle.xact_start,null);await inspector.close();
+   nativeResult=cmd(`DELETE FROM auth.users WHERE id='${uid}';`);assert.equal(nativeResult.status,0,nativeResult.stderr);
+   return new Response('{}',{status:200,headers:{'Content-Type':'application/json','X-Supabase-Api-Version':'2024-01-01'}});
+  }
+  assert.equal(method,'GET');await q('RESET ROLE;');const present=(await db.query(`SELECT id FROM auth.users WHERE id='${uid}'`)).rows.length;
+  assert.equal(present,0);return new Response(JSON.stringify({code:'user_not_found',msg:'User not found'}),{status:404,headers:{'Content-Type':'application/json','X-Supabase-Api-Version':'2024-01-01'}});
+ };
+ const context=vm.createContext({Buffer,URL,URLSearchParams,Response,Headers,Request,Blob,FormData,AbortController,TextDecoder,TextEncoder,atob,btoa,setTimeout,clearTimeout,setInterval,clearInterval,structuredClone,Map,crypto:webcrypto,fetch:shim,console,WebSocket:class{constructor(){throw Error('OFFLINE_WEBSOCKET_DENIED')}}});context.self=context;
+ const sdkPath='C:/Users/FAiSAL/AppData/Local/hermes/cache/scratch/qa-892044a-prep-verification/deno-cache/npm/registry.npmjs.org/@supabase/supabase-js/2.57.4/dist/umd/supabase.js';
+ vm.runInContext(fs.readFileSync(sdkPath,'utf8'),context,{filename:'official-supabase-2.57.4-umd.js'});
+ const sdk=context.supabase.createClient('https://native-cascade.example.invalid','synthetic-memory-only-key',{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}});
+ const deleted=await sdk.auth.admin.deleteUser(uid,false);assert.equal(deleted.error,null);
+ const absent=await sdk.auth.admin.getUserById(uid);assert.equal(absent.error.code,'user_not_found');assert.equal(absent.error.status,404);
+ const readbackDigest=createHash('sha256').update(JSON.stringify({uid,status:absent.error.status,code:absent.error.code})).digest('hex');
+ report.provider={sdk:'2.57.4 actual UMD',sdkCalls,exitCode:nativeResult.status,stdout:nativeResult.stdout,stderr:nativeResult.stderr,noSQLTransactionAcrossSDKFetch:true};
+ report.checks.push({name:'actual official SDK DELETE and GET drive exact native gateway root plus all original RI callbacks'});
+ assert.equal((await db.query(`SELECT count(*) n FROM auth.users WHERE id='${uid}'`)).rows[0].n,0);
+ assert.equal((await db.query(`SELECT count(*) n FROM public.profiles WHERE id='${uid}'`)).rows[0].n,0);
+ report.effects=(await db.query(`SELECT table_oid::regclass::text surface,effect_op,pk,effect_state,depth,ri_oid,guard_oid,observed_xid::text FROM app_private.qa_owned_native_effects WHERE operation_id='${op}' ORDER BY effect_slot`)).rows;
+ assert.equal(report.effects.filter(x=>x.effect_state==='observed').length,5);assert(report.effects.some(x=>x.surface.endsWith('user_roles')&&x.depth===2));
+ report.checks.push({name:'native root/profile/grandchildren/credential/registry exact effect receipts'});
+ await service(db);await rpc('qa_owned_delete_transition_internal',`'${op}',1,'auth_delete_unknown'`,db);
+ await deny('unknown cannot finalize remaining rows',()=>rpc('qa_owned_delete_finalize_internal',`'${op}',1`,db));
+ await q('RESET ROLE;');const remaining=(await db.query(`SELECT count(*) n FROM app_private.qa_account_manifest WHERE user_id='${uid}'`)).rows[0].n;assert.equal(remaining,1);await service(db);
+ await rpc('qa_owned_delete_absence_internal',`'${op}',1,'${uid}','${readbackDigest}'`,db);
+ const complete=await rpc('qa_owned_delete_finalize_internal',`'${op}',1`,db);assert.equal(complete.status,'completed');
+ assert.deepEqual(await rpc('qa_owned_delete_finalize_internal',`'${op}',1`,db),complete);
+ await q('RESET ROLE;');
+ report.privateFrames=(await db.query('SELECT (SELECT count(*) FROM app_private.qa_owned_frames)+(SELECT count(*) FROM app_private.qa_owned_native_frames)+(SELECT count(*) FROM app_private.qa_password_frames)+(SELECT count(*) FROM app_private.qa_sql_operation_context) n')).rows[0].n;assert.equal(report.privateFrames,0);
+ report.fkAfter=(await fks()).rows;assert.deepEqual(report.fkAfter,report.fkBefore);
+ report.callbacks=(await db.query("SELECT t.tgrelid::regclass::text surface,t.tgname,t.tgfoid::regprocedure::text callback,t.tgtype,t.tgdeferrable,t.tgenabled FROM pg_trigger t WHERE t.tgfoid IN ('app_private.qa_owned_native_root()'::regprocedure,'app_private.qa_owned_native_close()'::regprocedure,'app_private.qa_owned_fence_before_row()'::regprocedure) ORDER BY surface,t.tgname")).rows;
+ report.checks.push({name:'valid absence then exact remaining finalization, idempotent, original FKs unchanged, private frames zero'});report.status='GREEN';
+}catch(e){report.status='FAILED';report.failures.push({message:e.message,sqlstate:e.code||null,where:e.where||null});process.exitCode=1;console.error(e);}
+finally{await db.close();fs.writeFileSync(dir+'/'+phase+'.json',JSON.stringify(report,null,2));console.log(JSON.stringify(report));}

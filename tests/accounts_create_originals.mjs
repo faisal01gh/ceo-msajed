@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { provisionAccounts } from '../scripts/accounts-provision.mjs';
 import { createOriginalStaffExecutor } from '../scripts/accounts-create-originals.mjs';
+import {checkedResetFixture} from './accounts_executor_fixture.mjs';
 const SOURCE = '717375eee1e99d558af80eca91a7ea7e829edd20';
 const TARGET = 'https://movzojtnkkmdsjhmlgtq.supabase.co';
 const F = '0a1df502-9232-4ef5-af2d-df585ad7f187';
@@ -99,10 +100,12 @@ test('provider-added persisted metadata remains strict after link',async()=>{
  const runner=f.build();assert.equal((await runner.run()).status,'quarantined');assert.equal(f.calls.filter(x=>x==='linkCanonical').length,1);assert.equal(f.delivered.length,0);runner.finalize('destroy');
 });
 
-test('reuse exact unlinked Auth performs zero CREATE and requires private original-password delivery',async()=>{
+// Finding1 supersedes the old original-password handoff state. Missing reset
+// authority now denies BEFORE linking; identity duplication remains forbidden.
+test('reuse exact unlinked Auth without checked reset authority performs zero CREATE/link/delivery',async()=>{
  const f=await fixture();f.users.push({id:uuid(777),email:'person-10@msajed.local',email_confirmed_at:'confirmed',banned_until:null,deleted_at:null,app_metadata:{provider:'email'},user_metadata:{existing:true}});
  const prepared=await provisionAccounts(f.port,()=>{}, {mode:'plan-only',staffInventory:f.approval.staff_inventory});assert.equal(prepared.status,'reviewed');f.calls.length=0;
- const runner=f.build({prepared});const r=await runner.run();assert.equal(r.status,'needs_private_original_password_delivery');assert.equal(r.reused,1);assert.equal(f.calls.includes('createUser'),false);assert.equal(f.delivered.length,0);assert.equal(runner.pendingCount(),0);
+ const runner=f.build({prepared});const r=await runner.run();assert.equal(r.status,'blocked');assert.equal(r.reused,0);assert.equal(f.calls.includes('createUser'),false);assert.equal(f.calls.includes('linkCanonical'),false);assert.equal(f.delivered.length,0);assert.equal(runner.pendingCount(),0);
 });
 
 for(const mode of ['disconnect','reject','wrong acknowledgement'])test(`delivery ${mode} retains custody; exact explicit acknowledgement clears`,async()=>{
@@ -200,12 +203,15 @@ test('earlier completed drift is caught before a later CREATE mutation',async()=
 });
 
 // Supplemental coverage: these cases already pass the corrected completion mechanism.
-test('earlier completed reuse is protected without acquiring or resetting its original credential',async()=>{
+// Finding1 authorizes one checked official reset, never acquisition of an old
+// credential; subsequent full-snapshot drift must still quarantine both candidates.
+test('earlier completed reuse remains protected after its checked official temporary reset',async()=>{
  const f=await fixture(['person_10','person_11']);const existing={id:uuid(777),email:'person-10@msajed.local',email_confirmed_at:'confirmed',banned_until:null,deleted_at:null,app_metadata:{provider:'email'},user_metadata:{existing:true}};f.users.push(existing);
  const prepared=await provisionAccounts(f.port,()=>{}, {mode:'plan-only',staffInventory:f.approval.staff_inventory});const original=f.port.linkCanonical;
  f.port.linkCanonical=async p=>{const r=await original(p);if(p.p_key==='person_11')f.projections.get('person_10').roles[0].role_code='outside-change';return r;};
- const runner=f.build({prepared});const r=await runner.run();assert.equal(r.status,'quarantined');assert.equal(r.reused,1);assert.equal(f.calls.filter(x=>x==='createUser').length,1);assert.equal(f.delivered.length,0);assert.equal(runner.pendingCount(),1);
- assert.deepEqual(f.users.find(u=>u.id===uuid(777)),existing);assert.equal(f.projections.get('person_10').roles[0].role_code,'outside-change');runner.finalize('destroy');
+ const before=clone(existing);const checked=checkedResetFixture(f);const runner=f.build({prepared,resetAdapter:checked.build()});const r=await runner.run();assert.equal(r.status,'quarantined');assert.equal(r.reused,1);assert.equal(f.calls.filter(x=>x==='createUser').length,1);assert.equal(f.delivered.length,0);assert.equal(runner.pendingCount(),2);
+ const after=clone(f.users.find(u=>u.id===uuid(777)));const op=after.app_metadata.msajed_password_operation;assert.ok(op);delete after.app_metadata.msajed_password_operation;delete after.app_metadata.msajed_password_generation;
+ assert.deepEqual(after,before);assert.equal(checked.calls.length,1);assert.equal(f.projections.get('person_10').roles[0].role_code,'outside-change');runner.finalize('destroy');
 });
 test('earlier completed drift at later link-intent receipt is caught before that link mutation',async()=>{
  const f=await fixture(['person_10','person_11']);const original=f.callbacks.persistReceipt;

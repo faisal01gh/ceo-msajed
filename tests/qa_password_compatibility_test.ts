@@ -1,15 +1,34 @@
+import { edgeTest, finishEdgeTests } from "./qa_edge_fixture_cases.ts";
 // Positive ordinary compatibility and fail-closed QA classification through SQL.
-import { createTransactionFeedbackFixture } from "./qa_isolation_fixture.mjs";
+// Import the credential-rejecting native client before any dummy test env.
+import "./qa_postgres_native_fixture.mjs";
+import { createFinalComposedFixture } from "./qa_final_composed_fixture.mjs";
 import { passwordPort } from "../supabase/functions/_shared/password-port.ts";
 const endpoint = "https://movzojtnkkmdsjhmlgtq.supabase.co";
 for (const mode of ["ordinary", "halted_QA", "unresolved_QA"] as const) {
-  Deno.test(
+  edgeTest(
     "missing owned helper compatibility requires actual " + mode +
       " classification",
     async () => {
-      const { db, id, actors, scalar } = await createTransactionFeedbackFixture(
-        { modulePath: Deno.env.get("QA_TRANSPORT_ADAPTER") ?? undefined },
-      );
+      const { db, id, actors, scalar } = await createFinalComposedFixture({
+        beforeGuards: async (fixture: any) => {
+          if (mode === "ordinary") return;
+          const { db, id, actors } = fixture;
+          const run = id(9892), user = actors.employee;
+          await db.query(
+            "insert into app_private.qa_runs values($1,'active',true,clock_timestamp()+interval '1 hour',clock_timestamp())",
+            [run],
+          );
+          await db.query(
+            "insert into app_private.qa_account_manifest values($1,'fixture_employee','fixture_employee','current_owned_QA',$2,$3,$4,null)",
+            [user, run, id(9893), id(9894)],
+          );
+          await db.query(
+            "insert into app_private.qa_run_members values($1,$2,'employee',true)",
+            [run, user],
+          );
+        },
+      });
       const user = actors.employee,
         sid = id(1001),
         verify = id(9891),
@@ -34,34 +53,21 @@ for (const mode of ["ordinary", "halted_QA", "unresolved_QA"] as const) {
       Deno.env.set("SUPABASE_URL", endpoint);
       Deno.env.set("SUPABASE_SERVICE_ROLE_KEY", "offline-fixture-not-a-key");
       try {
-        await db.exec(
-          await Deno.readTextFile(
-            new URL(
-              "../supabase/migrations/20261008010000_qa_isolation_prerequisites.sql",
-              import.meta.url,
-            ),
-          ),
-        );
-        if (mode !== "ordinary") {
-          await db.query(
-            "insert into app_private.qa_runs values($1,'active',true,clock_timestamp()+interval '1 hour',clock_timestamp())",
-            [run],
-          );
-          await db.query(
-            "insert into app_private.qa_account_manifest values($1,'fixture_employee','fixture_employee','current_owned_QA',$2,$3,$4,null)",
-            [user, run, id(9893), id(9894)],
-          );
-          await db.query(
-            "insert into app_private.qa_run_members values($1,$2,'employee',true)",
-            [run, user],
-          );
-        }
+        // Missing-helper compatibility is an exact REST error below.
         globalThis.fetch = async (input, init) => {
           const r = new Request(input, init),
             u = new URL(r.url),
             name = u.pathname.split("/").at(-1)!;
           if (u.origin !== endpoint) throw Error("network forbidden");
           await db.exec("reset role");
+          // Model the original missing-helper deployment only at its REST boundary.
+          // Native final-composed functions/guards stay installed and unchanged.
+          if (name === "qa_owned_session_check_internal") {
+            return Response.json({
+              code: "PGRST202",
+              message: "offline fixture helper unavailable",
+            }, { status: 404 });
+          }
           if (name === "user") {
             return Response.json({ id: user, email });
           }
@@ -189,13 +195,28 @@ for (const mode of ["ordinary", "halted_QA", "unresolved_QA"] as const) {
 }
 
 for (const phase of ["active", "halted"] as const) {
-  Deno.test(
+  edgeTest(
     "legacy password begin denies classified QA before every journal/provider write " +
       phase,
     async () => {
-      const { db, id, actors, scalar } = await createTransactionFeedbackFixture(
-        { modulePath: Deno.env.get("QA_TRANSPORT_ADAPTER") ?? undefined },
-      );
+      const { db, id, actors, scalar } = await createFinalComposedFixture({
+        beforeGuards: async (fixture: any) => {
+          const { db, id, actors } = fixture;
+          const run = id(9861), user = actors.employee;
+          await db.query(
+            "insert into app_private.qa_runs values($1,$2,$3,clock_timestamp()+interval '1 hour',clock_timestamp())",
+            [run, phase, phase === "active"],
+          );
+          await db.query(
+            "insert into app_private.qa_account_manifest values($1,'fixture_employee','fixture_employee','current_owned_QA',$2,$3,$4,null)",
+            [user, run, id(9862), id(9863)],
+          );
+          await db.query(
+            "insert into app_private.qa_run_members values($1,$2,'employee',true)",
+            [run, user],
+          );
+        },
+      });
       const user = actors.employee,
         sid = id(1001),
         run = id(9861),
@@ -217,26 +238,7 @@ for (const phase of ["active", "halted"] as const) {
       Deno.env.set("SUPABASE_URL", endpoint);
       Deno.env.set("SUPABASE_SERVICE_ROLE_KEY", "offline-fixture-not-a-key");
       try {
-        await db.exec(
-          await Deno.readTextFile(
-            new URL(
-              "../supabase/migrations/20261008010000_qa_isolation_prerequisites.sql",
-              import.meta.url,
-            ),
-          ),
-        );
-        await db.query(
-          "insert into app_private.qa_runs values($1,$2,$3,clock_timestamp()+interval '1 hour',clock_timestamp())",
-          [run, phase, phase === "active"],
-        );
-        await db.query(
-          "insert into app_private.qa_account_manifest values($1,'fixture_employee','fixture_employee','current_owned_QA',$2,$3,$4,null)",
-          [user, run, id(9862), id(9863)],
-        );
-        await db.query(
-          "insert into app_private.qa_run_members values($1,$2,'employee',true)",
-          [run, user],
-        );
+        // Native final catalog remains intact while REST models an older helper ABI.
         const snapshot =
           "select jsonb_build_object('profiles',(select jsonb_agg(to_jsonb(t) order by id) from public.profiles t),'registry',(select jsonb_agg(to_jsonb(t) order by canonical_key) from public.account_migration_users t),'state',(select jsonb_agg(to_jsonb(t) order by user_id) from app_private.account_credential_state t),'journal',(select jsonb_agg(to_jsonb(t) order by operation_id) from app_private.account_password_operations t))";
         const before = JSON.stringify(await scalar(snapshot));
@@ -246,6 +248,14 @@ for (const phase of ["active", "halted"] as const) {
             name = u.pathname.split("/").at(-1)!;
           if (u.origin !== endpoint) throw Error("network forbidden");
           await db.exec("reset role");
+          // Model the original missing-helper deployment only at its REST boundary.
+          // Native final-composed functions/guards stay installed and unchanged.
+          if (name === "qa_owned_session_check_internal") {
+            return Response.json({
+              code: "PGRST202",
+              message: "offline fixture helper unavailable",
+            }, { status: 404 });
+          }
           if (name === "user") return Response.json({ id: user, email });
           if (name === "account_migration_users") {
             return Response.json(
@@ -315,3 +325,5 @@ for (const phase of ["active", "halted"] as const) {
     },
   );
 }
+
+finishEdgeTests();

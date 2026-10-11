@@ -1,5 +1,8 @@
+import { edgeTest, finishEdgeTests } from "./qa_edge_fixture_cases.ts";
 // Real SQL journal + actual pinned SDK; only the provider HTTP boundary is synthetic.
-import { createTransactionFeedbackFixture } from "./qa_isolation_fixture.mjs";
+// Import the credential-rejecting native client before any dummy test env.
+import "./qa_postgres_native_fixture.mjs";
+import { createFinalComposedFixture } from "./qa_final_composed_fixture.mjs";
 import {
   passwordPort,
   passwordTransportState,
@@ -16,13 +19,11 @@ for (
     "unknown_pending",
   ] as const
 ) {
-  Deno.test(
+  edgeTest(
     "actual command quarantines " + mode +
       " without retry or early custody release",
     async () => {
-      const { db, id, actors, scalar } = await createTransactionFeedbackFixture(
-        { modulePath: Deno.env.get("QA_TRANSPORT_ADAPTER") ?? undefined },
-      );
+      const { db, id, actors, scalar } = await createFinalComposedFixture();
       const target = actors.employee,
         original = id(1001),
         verification = id(9881),
@@ -60,30 +61,7 @@ for (
       Deno.env.set("SUPABASE_SERVICE_ROLE_KEY", "offline-fixture-not-a-key");
       let port: ReturnType<typeof passwordPort> | undefined;
       try {
-        for (
-          const file of [
-            "20261008010000_qa_isolation_prerequisites.sql",
-            "20261008015000_qa_password_transport.sql",
-            "20261008018000_qa_rest_provenance.sql",
-            "20261008018500_qa_core_rest_admission.sql",
-            "20261008020500_qa_password_frame_composition.sql",
-          ]
-        ) {
-          await db.exec(
-            await Deno.readTextFile(
-              new URL("../supabase/migrations/" + file, import.meta.url),
-            ),
-          );
-        }
-        for (
-          const table of ["profiles", "account_migration_users", "audit_log"]
-        ) {
-          await db.exec(
-            "create trigger edge_transport_guard before insert or update or delete on public." +
-              table +
-              " for each row execute function app_private.qa_reference_guard_before_row()",
-          );
-        }
+        // Final official catalog; no test-attached product triggers.
         globalThis.fetch = async (input, init) => {
           const r = new Request(input, init),
             u = new URL(r.url),
@@ -337,3 +315,5 @@ for (
     },
   );
 }
+
+finishEdgeTests();

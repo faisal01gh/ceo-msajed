@@ -268,8 +268,10 @@ Deno.test("actual password handler retains exact original-SID native journal obs
   }
 });
 Deno.test("actual SDK consumes actual SQL control/proof ABI with one shot and owned disposal offline", async () => {
-  const module = "./qa_isolation_fixture.mjs";
-  const { createTransactionFeedbackFixture } = await import(module);
+  const { createFinalComposedFixture } = await import("./qa_final_composed_fixture.mjs");
+  const { createLegacySdkFixture } = await import("./qa_legacy_sdk_fixture.mjs");
+  const selectedMode = Deno.env.get("QA_SDK_MODE");
+  if (!selectedMode) throw Error("one explicit SDK mode and clean owned fixture database required");
   const { passwordRequest } = await import(
     "../supabase/functions/_shared/password-command.ts"
   );
@@ -291,9 +293,13 @@ Deno.test("actual SDK consumes actual SQL control/proof ABI with one shot and ow
       "halt_after_finish",
     ] as const
   ) {
-    const f = await createTransactionFeedbackFixture({
-      modulePath: Deno.env.get("QA_TRANSPORT_ADAPTER") ?? undefined,
-    });
+    if (mode !== selectedMode) continue;
+    const f = mode === "legacy" ? await createLegacySdkFixture() : await createFinalComposedFixture({beforeGuards: async (f: any) => {
+      if (mode === "reset" || mode === "reset_deny") {
+        await f.db.query("insert into public.user_roles(user_id,role_code,is_primary) values($1,'ceo_office_manager',false)",[f.actors.manager]);
+        if (mode === "reset_deny") await f.db.query("insert into public.user_permissions(user_id,permission_code,effect) values($1,'profiles.admin_reset_password','deny')",[f.actors.manager]);
+      }
+    }});
     const { db, scalar, id, actors } = f;
     const reset = mode === "reset" || mode === "reset_deny",
       target = actors.employee,
@@ -330,42 +336,7 @@ Deno.test("actual SDK consumes actual SQL control/proof ABI with one shot and ow
     Deno.env.set("SUPABASE_URL", endpoint);
     Deno.env.set("SUPABASE_SERVICE_ROLE_KEY", "offline-fixture-not-a-key");
     try {
-      await db.exec(
-        await Deno.readTextFile(
-          new URL(
-            "../supabase/migrations/20261008010000_qa_isolation_prerequisites.sql",
-            import.meta.url,
-          ),
-        ),
-      );
-      if (mode !== "legacy") {
-        for (
-          const file of [
-            "20261008015000_qa_password_transport.sql",
-            "20261008018000_qa_rest_provenance.sql",
-            "20261008018500_qa_core_rest_admission.sql",
-            "20261008020500_qa_password_frame_composition.sql",
-          ]
-        ) {
-          await db.exec(
-            await Deno.readTextFile(
-              new URL("../supabase/migrations/" + file, import.meta.url),
-            ),
-          );
-        }
-      }
-      if (reset) {
-        await db.query(
-          "insert into public.user_roles(user_id,role_code,is_primary) values($1,'ceo_office_manager',false)",
-          [actor],
-        );
-        if (mode === "reset_deny") {
-          await db.query(
-            "insert into public.user_permissions(user_id,permission_code,effect) values($1,'profiles.admin_reset_password','deny')",
-            [actor],
-          );
-        }
-      }
+      // Official migrations are installed exactly once by the source-bound fixture.
       if (mode === "halt_after_finish") {
         await db.query(
           "insert into app_private.qa_runs values($1,'active',true,clock_timestamp()+interval '1 hour',clock_timestamp())",
@@ -379,17 +350,6 @@ Deno.test("actual SDK consumes actual SQL control/proof ABI with one shot and ow
           "insert into app_private.qa_run_members values($1,$2,'employee',true)",
           [id(9600), target],
         );
-      }
-      if (mode !== "legacy") {
-        for (
-          const table of ["profiles", "account_migration_users", "audit_log"]
-        ) {
-          await db.exec(
-            "create trigger edge_transport_guard before insert or update or delete on public." +
-              table +
-              " for each row execute function app_private.qa_reference_guard_before_row()",
-          );
-        }
       }
       globalThis.fetch = async (input, init) => {
         const r = new Request(input, init),

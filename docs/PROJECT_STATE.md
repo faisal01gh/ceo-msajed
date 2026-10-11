@@ -1,5 +1,44 @@
 # حالة المشروع الحالية
 
+## حالة QA الحالية للنظام الجديد — 2026-10-11
+
+- Genuine F3 نجح محليًا بالدور الحقيقي `supabase_read_only_user` داخل Transaction READ ONLY؛ الإيصال المكتمل والقراءة المكررة أعادا `already_completed` بلا Mutation، وجميع العدادات النهائية صفر.
+- Completed Replay Read API الرسمية211 تمت مراجعتها مستقلًا: **APPROVED لنطاق المصدر والأمان المحلي فقط**؛210 موجودة ومحفوظة، وWrite/Incomplete validators لم تتغير.
+- فحص النطاق المقبول128 ملفًا:117 نتيجة محسومة، صفر غير محسوم؛ سيُعاد الفحص على شجرة الدمج دون تخفيف القواعد.
+- **FULL MIGRATION 200 APPLY = BLOCKED BY DESIGN** (`55000: qa_enforcement_not_ready`). **PRODUCTION ACTIVATION = NOT AUTHORIZED**.
+- الاختبارات الحية والحسابات الحقيقية وAuth/Reset/E2E والحمل50×50 **لم تبدأ بعد**؛ بيانات PostgreSQL وSDK السابقة QA اصطناعية محلية، وProvider/Edge/Deployment نماذج بروتوكول.
+- التفويض الحالي يقتصر على حفظ الحزمة ومزامنة تغييرات main التوثيقية وإعادة ربط Source/provenance ومراجعة Delta ثم رفع فرع المراجعة فقط برسالة `[CF-Pages-Skip]`؛ لا PR أو Merge إلى main أو Deploy أو Production write.
+- الـCheckpoint المحلي قبل المزامنة: `dc19bdf7cc8ceba3999e8097b83480515780987b`. الأدلة القديمة سجل تاريخي فقط، وليست ادعاءً بأن HEAD القديم ما زال الحالي؛ دليل ما بعد الدمج يربط الشجرة والـHEAD النهائي وبصمات Runtime المحفوظة.
+
+
+
+آخر تحديث مرجعي: 2026-10-11
+
+## حالة «مرفوعة للرئيس التنفيذي» — 2026-10-11
+
+- النظام القديم فقط: فهد الرشيد وفيصل الزكري يستطيعان رفع مهمة الرئاسة للرئيس التنفيذي ثم استرجاعها إذا لم تكتمل.
+- تخزن الحالة داخل نفس كائن المهمة في `ceo_hold`: `active`, `started_at`, `total_days`؛ لا Schema جديد.
+- أيام الإسناد الفعلية = العمر من تاريخ الإسناد ناقص مجموع أيام التوقف السابقة والحالية.
+- الرفع والاسترجاع يضيفان إجراءات فعلية إلى `actions`، لذلك يظهران في سجل الإجراءات والتقارير، وليس فقط في Audit.
+- أثناء الرفع يتوقف عداد الإسناد وتستبعد المهمة من مؤشرات التأخر؛ عند الاسترجاع تكمل الحسبة من الرقم السابق.
+- Backend: `ceoportal` v32 و`ceoapprove` v13، كلاهما ACTIVE.
+- Frontend source: portal `0d959d4a54557c9dc9867062b401abc56ddccdbc`، CEO `619577c3fb026e75b3d32fb9f5b74a533b981b6a`، وJavaScript syntax ناجح.
+- Cloudflare الحي يحمل build `20261011-ceo-hold-v1` في الصفحتين.
+- لا بيانات أعمال كُتبت للاختبار.
+
+## صلاحيات مهام قديمة إضافية — 2026-10-11
+
+- النظام القديم فقط: فيصل الزكري أضيف لمسار طلب نقل المهمة داخل قطاع المشاريع والشؤون الفنية.
+- فهد الرشيد + فيصل الزكري يستطيعان طلب إغلاق مهمة؛ الطلب لا يغير `app_state` حتى يقرر مدير المكتب.
+- Backend الحالي: `ceoportal` v31 و`ceoapprove` v12، كلاهما ACTIVE.
+- طلب الإغلاق يخزن كـ`portal_task_updates.kind=task_close`, `status=pending`, `stage=ceo` مع `_sid` داخل payload؛ لا Schema جديد.
+- عند موافقة مدير المكتب: `done=true` على نفس المهمة، `portal_routes.stage=done`، القرار في Audit، ثم الطلب `approved_date`. عند الرفض تبقى المهمة مفتوحة ويغلق الطلب `rejected`.
+- واجهة القطاعات source commit `a31c6ce5d870165a00714400096c3e6a42dc8468`، وواجهة مدير المكتب source commit `b0b96d96cca80d6412aa930a7eea6105ed9a4ddc`.
+- JavaScript source اجتاز فحص Syntax: portal كتلة واحدة، CEO ست كتل.
+- لم تُستخدم بيانات أعمال كاختبار كتابة.
+
+## سجل QA المحلي المحفوظ قبل مزامنة main
+
 ### تحديث الإقفال المحلي 2026-10-11
 واجهة Completed Replay الرسمية211 وGenuine F3 بالدور الحقيقي نجحا محليًا؛ لا يتغير200/55000. التفاصيل والأدلة الحالية في docs/transactions/QA_LOCAL_FINAL_COMPOSED_2026-10-10.md وdocs/qa-review/evidence/local-final-verification.sanitized.json. الاعتماد والرفع ينتظران Secret scan والمراجعة المستقلة؛ لا Production/Auth/E2E/Load/Merge/Deploy.
 

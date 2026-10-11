@@ -1,9 +1,28 @@
 # QA isolation — external review handoff
 
+## حالة QA الحالية — إقفال التحقق المحلي 2026-10-11
+
+- **LOCAL VERIFICATION = APPROVED** لنطاق التحقق والمراجعة المحليين فقط؛ ليست موافقة تشغيل حي أو إنتاجي.
+- **Genuine F3 بالدور الحقيقي = PASS**: `session_user=postgres` و`current_user=supabase_read_only_user` داخل Transaction READ ONLY؛ القراءة الأولى والمكررة أعادتا `already_completed`، صفر Mutation وجميع العدادات النهائية صفر.
+- **Completed Replay Read API / Migration211 = APPROVED محليًا**؛ Migration210 وWrite/Incomplete validators محفوظة دون تغيير.
+- النتائج المحلية المقبولة: **Lifecycle 82/82**، **Independent office 17/17**، **Durable Fence 14/14**، **Accounts 226/226**، **Provenance 162/162**؛ **دورة57: إنشاء57 / اختبار57 / تنظيف57 إلى صفر**. هذه نتائج الجولة المقبولة، ولم تُعد في هذا الإقفال التوثيقي.
+- إعادة ربط المصدر بعد الدمج على HEAD النهائي: **Provenance source-only 148/148**، وليس بديلًا عن نتيجة162 المحلية السابقة أو تصريح Auth حي.
+- **Secret scan النهائي = PASS**: Findings الأصلية10، False Positive مثبتة10، SANITIZED0، Real Secret0، Unresolved0. إثبات مستقل source → generator → output → finding؛ لا قبول بالبصمة وحدها، ولا تخفيف قواعد الفحص. نطاق الفحص السابق: الشجرة والـIndex والـCommit النهائي270 ملفًا، لا ادعاء فحص شامل جديد لهذه الجولة التوثيقية.
+- **Delta independent review = APPROVED** للدمج التوثيقي وحسم النتائج العشر على HEAD أدناه؛ هذا الاعتماد لا يُسقط حظر التشغيل الحي.
+- **Final review branch SHA قبل هذا التحديث**: `0e445f60678d56a3cd34c4b0d9ac650db00b638a`؛ فرع `review/qa-isolation-gate-20261009` مرفوع ومتطابق محليًا وبعيدًا قبل الإقفال التوثيقي.
+- **main**: `ce3e1f9eb889ca1e7d2b276be08b7697ccc23ece`؛ pre-merge checkpoint: `dc19bdf7cc8ceba3999e8097b83480515780987b`. الـSource Manifest يثبت المصدر المقبول قبل هذا التحديث ومحتويات الشجرة التوثيقية المرشحة دون ادعاء SHA ذاتي للـCommit الذي سيحمله.
+- **FULL MIGRATION 200 APPLY = BLOCKED BY DESIGN** (`55000: qa_enforcement_not_ready`). **PRODUCTION ACTIVATION = NOT AUTHORIZED**.
+- **لا Auth حقيقي، لا Reset حقيقي، لا E2E حي، لا Load 50×50 حي، لا Deploy، ولا اتصال تطبيق/قاعدة Production**. تمت قراءة Cloudflare Metadata فقط للتحقق من Preview skipped وProduction دون تغيير.
+- هذا التحديث توثيقي فقط: Runtime/SQL/Test code محفوظ؛ لا إعادة Full Regression، لا PR، لا Merge إلى main. الأدلة: `docs/qa-review/evidence/local-final-verification.sanitized.json` و`secret-scan.sanitized.json` و`source-manifest.sanitized.json`.
+
+## Historical — حدود قراءة السجل المحفوظ
+
+الأقسام التالية لقطات تاريخية بحدودها ونتائجها الأصلية، وليست الحالة الحالية أو أوامر استئناف. أي BLOCKED/PENDING أو SHA سابق فيها يخص جولته فقط؛ الحالة الحالية هي القسم أعلاه. القرارات التشغيلية السابقة للنظام القديم محفوظة ولا يلغيها الإقفال التوثيقي. رفض مراجعة Provider التاريخي محفوظ ولم يُعد أو يُتجاوز؛ APPROVED المحلي لا يحوله إلى موافقة جاهزية حية.
+
 Review branch: `review/qa-isolation-gate-20261009`.
 Base `main`: `717375eee1e99d558af80eca91a7ea7e829edd20`.
 
-## Current local final candidate — 2026-10-10
+## Historical — Current local final candidate — 2026-10-10
 
 All required local test groups have now passed, including official final composition26, native password29/24/27/54, Edge108 plus11 SDK modes, Step1 seven, Typed22, Guard6, Durable14, current lifecycle57 terminal-zero, Accounts226 and Provenance162. Provenance includes inert ABI SELECT-mechanics tests and is not product/native Auth approval. The independent final verdict on this changed candidate is pending; commit/push remains conditional on APPROVED.
 
@@ -17,7 +36,7 @@ This is a **review-only**, unapproved full-batch checkpoint. It does not authori
 
 Current code covers account provisioning/linking, private password/session operations, isolation, actual-I/O deadline/pending custody, scoped cleanup, and preparation for native role/load work. Keep all existing roles/memberships/overrides/current aliases and protected `faisal` state. No credentials or database files are included. Source fixtures generate dummy transport material in memory; they are not real credentials or native Auth proof.
 
-## Missing independent disposition
+## Historical — Missing independent disposition
 
 Review `scripts/accounts-create-originals.mjs`, `scripts/accounts-provision.mjs`, associated `tests/accounts_*`, and `scripts/qa-load-preparation/` against `docs/auth/ACCOUNTS_SPEC.md` and the final contract in `docs/transactions/LOAD_TEST_2026-10-04.md`.
 
@@ -27,7 +46,7 @@ For load/E2E preparation, distinguish synthetic fixture journeys from actual pro
 
 Return explicit scoped `APPROVED` or concrete minimal remaining findings with file/line, source hashes and reproducible owned-local evidence. No live/provider operation is needed or authorized by this handoff.
 
-## Executed local evidence
+## Historical — Executed local evidence
 
 - Current offline account suite:161passed/0failed/0skipped/0todo with networking denied. Set `TMPDIR` to an explicitly owned scratch directory before running the suite; absentTMPDIR gives setup TypeErrors, not a product assertion.
 - Current complete password/session/SDK Edge suite:108passed/0failed/0skipped/0XFail, using cached pinned SDK and only guarded loopback PostgreSQL.
@@ -42,7 +61,7 @@ node --import ./tests/accounts_executor_deny_network.mjs --test --test-reporter=
 
 Native SQL/SDK fixture cases require an explicitly owned, identity-guarded loopback adapter through `QA_TRANSPORT_ADAPTER`/`QA_LOCAL_PG_MODULE`, or the documented test fixture dependencies. No local databases, adapters tied to the owner's machine, connection strings, raw captures or Hermes cache are supplied. Do not connect to the production project to make a missing fixture pass.
 
-## Evidence and packaging
+## Historical — Evidence and packaging
 
 `evidence/*.sanitized.json` are field-allowlisted derivatives, not raw reviewer output or substitute verdicts. They preserve original reviewer report hashes, exact input source hashes, counts and limitations; full originals and failures remain local. `evidence/source-manifest.sanitized.json` lists the intended changed paths and hashes of LF-normalized Git blobs, separately from original reviewer exact-byte hashes.
 
@@ -50,7 +69,7 @@ Existing load preparation source was packaged from the local working artifacts. 
 
 Commit prefix `[CF-Pages-Skip]` prevents the configured automatic Pages preview build; GitHub Pages and Cloudflare Production remain on `main`. No configuration mutation, PR or merge is part of this task.
 
-## إصلاحات المراجعة المحلية النهائية — 2026-10-10
+## Historical — إصلاحات المراجعة المحلية النهائية — 2026-10-10
 
 أعادت المراجعة الأولى SQL/Lifecycle نتيجة BLOCKED بخمس ملاحظات، مع APPROVED لنطاق Harness فقط. أُصلحت الملاحظات ضمن النطاق المحلي؛ لم تصبح الحزمة APPROVED بعد، والمراجعة المستقلة المحدّثة مطلوبة قبل Commit/Push.
 
@@ -66,7 +85,7 @@ Commit prefix `[CF-Pages-Skip]` prevents the configured automatic Pages preview 
 
 FULL MIGRATION 200 APPLY = BLOCKED BY DESIGN (55000: qa_enforcement_not_ready). PRODUCTION ACTIVATION = NOT AUTHORIZED. لا Merge/Deploy/Auth حقيقي/Reset حقيقي/E2E حي/Load حي/اتصال إنتاجي.
 
-## توقف الإقفال النهائي — يلزم قرار Completed Replay
+## Historical — توقف الإقفال النهائي — يلزم قرار Completed Replay
 
 المراجعة المستقلة المحدّثة أعادت Harness=APPROVED وSQL/Lifecycle=BLOCKED. أُغلقت SQL-FINAL-02 وLQR01/LQR02، وأُصلح قبول UID/Source غير مطابق في LQR03. بعد المراجعة أُضيفت تغطية المكتب المستقل:17/17 Native، مع SID للمكتب يبقى حيًا وReset مسموح قبل Fence ثم رفض بالـFence الحقيقي في delete_prepared/auth_delete_unknown، ورفض الهدف الغائب في db_finalize_pending. هذه الإضافة ناجحة محليًا ولم تحصل بعد على Re-review مستقل؛ لا يُحوّل ذلك verdict SQL السابق إلى APPROVED.
 
@@ -74,7 +93,7 @@ FULL MIGRATION 200 APPLY = BLOCKED BY DESIGN (55000: qa_enforcement_not_ready). 
 
 LOCAL VERIFICATION = BLOCKED (NOT APPROVED). FULL MIGRATION 200 APPLY = BLOCKED BY DESIGN. PRODUCTION ACTIVATION = NOT AUTHORIZED. لا Commit/Push جديد، ولا عمل مستمر في الخلفية أو مرحلة حية. جميع التغييرات والأدلة محفوظة؛ لا Reset/Clean/Restore.
 
-## Completed Cleanup Replay — التفويض المحلي 2026-10-11
+## Historical — Completed Cleanup Replay — التفويض المحلي 2026-10-11
 
 اعتمد المستخدم الفصل بين Incomplete Writes وCompleted Read-only. أُضيف createCompletedReplayGate مع Facade مستقل يعيد already_completed، دون Mutation brand أو SDK/Adapter/OwnedIO/Coordinator. ownedBinding والـWrite Gate وDurable Inventory validators الأصلية بقيت مطابقة بايتًا؛ غياب حجز/Fence/Operation مطلوب أثناء Incomplete يظل مرفوضًا.
 
@@ -84,7 +103,7 @@ LOCAL VERIFICATION = BLOCKED (NOT APPROVED). FULL MIGRATION 200 APPLY = BLOCKED 
 
 شمل Completed Replay والمكتب17 وSQL/Composition؛ جميع Claims APPROVED السابقة تخص لقطاتها فقط. لم يُنشأ Commit/Push لهذه الجولة. Migration200 والـFence/FK/RLS/Password Guards وProduction Auth settings لم تتغير. لا Production connection أو مرحلة حية.
 
-## واجهة القراءة العامة الرسمية — الحالة الحالية 2026-10-11
+## Historical — واجهة القراءة العامة الرسمية — الحالة الحالية 2026-10-11
 
 هذا القسم يُحدّث حالة الجولة السابقة أعلاه ولا يحذف إخفاقاتها التاريخية. أُضيفت Migration211 لأن رقم210 مستخدم بالفعل ومصدره محفوظ؛ لم تتغير Migration200 أو حاجز55000. الدالة العامة ثابتة SELECT فقط، SQL/STABLE/SECURITY DEFINER، مملوكة لـpostgres وبـsearch_path فارغ وACL على الدالة وحدها. لا Grants على app_private/auth أو جداولها، ولا ALTER ROLE أو Memberships.
 

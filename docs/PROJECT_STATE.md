@@ -1,5 +1,18 @@
 # حالة المشروع الحالية
 
+## إقفال Secret Gate الخارجي — 2026-10-12
+
+- **EXTERNAL SECRET GATE = APPROVED** لمستودع `faisal01gh/ceo-msajed` بعد حسم التنبيهات التسعة منفردة داخل GitGuardian، وإعادة تحميل كل Incident للتحقق من بقاء الحالة.
+- **Incidents originally pending = 9؛ Processed = 9؛ PROVEN_FALSE_POSITIVE = 9؛ REAL_SECRET = 0؛ UNRESOLVED = 0؛ Open relevant incidents = 0؛ Active secrets = 0**. قائمة المستودع الكاملة تضم10 Incidents، جميعها Ignored بسبب **Not a secret (false positive)**؛ Incident38112007 كان مقفلًا قبل هذه الجولة.
+- النتائج التسع منفصلة عن **العشرة False Positives الداخلية السابقة**؛ لا دمج للأعداد أو قبول بالبصمة وحدها. الإثبات المستقل ربط Git commit/file/line بالدالة أو الثابت وبالملف الكامل أو الناتج وبمطابقة GitGuardian الفعلية: بصمات سلامة مصدر/إيصال، fragment توثيقي في SQL comment، ومعرّف مستخدم محمي في شروط الاستبعاد؛ ليست Credentials أو قيمًا مشتقة من Environment/Storage/Live response.
+- **Internal Secret Gate = PASS محفوظ** على المصدر المقبول دون تغيير. الفحص الجديد لهذه الجولة **Delta توثيقي فقط**؛ لا إعادة QA Regression أو Accounts226 أو Provenance162 أو Durable14 أو Lifecycle82 أو دورة57 أو Genuine F3 أو Auth/E2E/Load، ولا إعداد خطط جديدة.
+- **Review HEAD قبل إقفال التوثيق**: `98f7a8c3f344014995a5ea7c9fef2261812877e3`. مصدر الاعتماد المحلي قبل التوثيق السابق `0e445f60678d56a3cd34c4b0d9ac650db00b638a` محفوظ كمرجع تاريخي، وليس إيصال تنفيذ للـCommit التوثيقي التالي.
+- **Remote main المرصود عند الإقفال الخارجي**: `7391f0c862b5d5e4dad4a7fd7dea10768cae39fb`؛ قيمة `ce3e1f9eb889ca1e7d2b276be08b7697ccc23ece` أدناه تخص Snapshot الاعتماد السابق. تقدّم main خارجيًا أثناء هذه الجولة؛ **لم تعدّل هذه المهمة main ولم تدمجه**، ولم تغيّر Runtime/SQL/Test code.
+- **LOCAL VERIFICATION = APPROVED** ضمن نطاقها المحلي السابق. **FULL MIGRATION 200 APPLY = BLOCKED BY DESIGN**. **PRODUCTION ACTIVATION = NOT AUTHORIZED**. إقفال الأسرار لا يمنح صلاحية تشغيل حي أو قبولًا لـAuth/E2E/Load أو تجاوزًا لحاجز200.
+- الدليل المنقح: `docs/qa-review/evidence/external-secret-gate.sanitized.json`. لا يحتوي القيم التي طابقها Detector؛ فقط Fingerprints منقحة، معرفات Incidents، مصدر/موضع، التصنيف، وReadback الحالة. لا Repository ignore أو Detector ignore أو Allowlist عامة أو تعديل Scanner rules.
+- Commit توثيقي فقط على `review/qa-isolation-gate-20261009` ببادئة `[CF-Pages-Skip]`؛ لا Merge إلى main، لا Deploy، لا Supabase live reads، لا Production connection/write، ولا Rotate/Revoke/History rewrite.
+- قسم التحقق المحلي أدناه يحتفظ بنتائج Snapshot2026-10-11 وحدوده؛ معلومات Source/main القديمة فيه تاريخية، وليست الحالة الراهنة لفرع main أو إذنًا حيًا جديدًا.
+
 ## حالة QA الحالية — إقفال التحقق المحلي 2026-10-11
 
 - **LOCAL VERIFICATION = APPROVED** لنطاق التحقق والمراجعة المحليين فقط؛ ليست موافقة تشغيل حي أو إنتاجي.

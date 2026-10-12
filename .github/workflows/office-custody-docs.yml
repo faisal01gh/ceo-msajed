@@ -1,0 +1,103 @@
+name: Office custody documentation sync
+on:
+  push:
+    branches: [docs/office-custody-handoff-20261012]
+permissions:
+  contents: write
+jobs:
+  docs-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.sha }}
+      - name: Update only approved documentation sections
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          import re
+          paths=['docs/HANDOFF.md','docs/PROJECT_STATE.md','docs/tasks/LEGACY_INVENTORY.md','CHANGELOG.md']
+          contents={p:Path(p).read_text(encoding='utf8') for p in paths}
+          ref='docs/tasks/OFFICE_TASK_CUSTODY_2026-10-12.md'
+          assert Path(ref).is_file()
+          section='''## المهام المرفوعة داخل مكتب الرئيس — منشور ومتحقق 2026-10-12
+
+          - الصندوق الأزرق باقٍ، والمهام المرفوعة تظهر أيضًا داخل قسم «مكتب الرئيس التنفيذي» في عداده وقائمته، مرتبطة بالمهمة الأصلية بواسطة `_sid` دون نسخ بيانات أو مضاعفة الإجمالي.
+          - «فتح وتوجيه الرئيس» يتيح كتابة توجيه إلزامي ثم «إعادة للقطاع المعني» أو «إحالة إلى قطاع آخر» مع إدارة فعلية. يحفظ توجيه الرئيس كإجراء جديد، وينهي الرفع دون إغلاق المهمة أو تغيير تاريخ إسنادها الأصلي.
+          - المرجع الحالي: `docs/tasks/OFFICE_TASK_CUSTODY_2026-10-12.md`، ويكمل قواعد استمرار أيام الإسناد واستثناء المرفوع/الموقوف من التأخر واعتماد استئناف الإيقاف المؤقت.
+          - المصدر القديم المنشور `0c8b1626c51cd1b83530cbec71c80dd26467ec4f`، PR رقم 1 في `ceo-office-tasks`. واجهة المكتب `20261012-office-custody-v4`، وصفحة القطاعات بقيت `20261012-task-aging-resume-v3`.
+          - أضيفت `ceo-task-office v1` بتحقق فعلي من جلسة مدير المكتب وحالة الحساب والدور الحالي، مع CAS وإعادة الطلب نفسه دون تكرار الإجراء. لم تتغير `ceoportal v35` أو `ceoapp v9` أو `ceoapprove v16` في هذا التسليم.
+          - اختبار المصدر: 40 حالة ناجحة وChromium بدوال الرسم الأصلية وخمس مهام مصطنعة (عداد المكتب 5 والإجمالي 5). النشر الحي: بايتات HTML والإضافة تطابق Git، التهيئة الفعلية للنافذة ناجحة، والخدمة ترفض الطلب بلا جلسة بـ401 عربي. ليس اختبار إحالة إيجابيًا على مهمة حقيقية.
+          - الأدلة: https://github.com/faisal01gh/ceo-office-tasks/actions/runs/38237401389 وhttps://github.com/faisal01gh/ceo-office-tasks/actions/runs/38238711674 . لا Schema/Auth/موظفين أو مهمة حقيقية تغيرت بغرض الاختبار.
+
+          '''
+          def prepend_first_section(s,block):
+              at=s.find('\n## ')
+              assert at>=0
+              return s[:at+1]+block+s[at+1:]
+          def replace_section(s,heading,body):
+              token='## '+heading+'\n'
+              assert s.count(token)==1,heading
+              start=s.index(token);end=s.find('\n## ',start+len(token))
+              if end<0:end=len(s)
+              return s[:start]+token+'\n'+body.strip()+'\n'+s[end:]
+          h=contents['docs/HANDOFF.md']
+          assert '## ضبط حسبة الأيام والعودة من الرئيس/الإيقاف — 2026-10-12' in h
+          h=prepend_first_section(h,section)
+          h=h.replace('- عند رفعها للرئيس يظهر لمكتب الرئيس التنفيذي عرض متابعة لنفس المهمة، لا نسخة بيانات مستقلة.','- عند رفعها للرئيس تظهر المهمة في صندوق المتابعة وداخل قسم مكتب الرئيس وعداد المكتب، مع «فتح وتوجيه الرئيس» للإعادة أو الإحالة. هذا ارتباط بالمهمة نفسها وليس نسخة مستقلة؛ المرجع `'+ref+'`.')
+          h=h.replace('## رفع المهمة للرئيس التنفيذي وإيقاف مدة الإسناد — محدث 2026-10-12','## رفع المهمة للرئيس التنفيذي واستمرار مدة الإسناد — محدث 2026-10-12')
+          h=h.replace('- الواجهات الحالية: portal commit `e1f490e1daa9ca8d8ea0d0f548e3e6ec2c2b1180`، CEO commit `b2ac73e208c67a1428f79179a1bec5dcea6df200`، والبناء الحي على الصفحتين `20261012-task-aging-resume-v3`.','- تسليم قاعدة الأيام السابق: portal commit `e1f490e1daa9ca8d8ea0d0f548e3e6ec2c2b1180` وCEO commit `b2ac73e208c67a1428f79179a1bec5dcea6df200`. أضيف ربط مكتب الرئيس لاحقًا في `0c8b1626c51cd1b83530cbec71c80dd26467ec4f`؛ CEO الآن v4 والقطاعات بقيت v3 كما في أحدث تسليم أعلاه.')
+          contents['docs/HANDOFF.md']=h
+          p=contents['docs/PROJECT_STATE.md']
+          p=replace_section(p,'إيقاف مؤقت بموافقة مدير المكتب — 2026-10-12','''- النظام القديم فقط: `task_pause` منفصل عن `ceo_hold` وعن الإغلاق.
+          - المصرح لهم بطلب الإيقاف: فهد الرشيد، فيصل الزكري، مدير المكتب، فهد بامقدم؛ التحقق خلفي. الطلب لا يغير المهمة حتى اعتماد مدير المكتب.
+          - أيام الإسناد مستمرة من تاريخ الإسناد الأصلي ولا تخصم مدد الرفع أو الإيقاف. أثناء الحالة الفعالة تُستبعد المهمة من وصف وقوائم وعدادات التأخر.
+          - الاستئناف ليس مباشرًا: `task_pause_resume` بسبب إلزامي واعتماد مدير المكتب؛ يسجل السبب كإجراء جديد عند الاعتماد ويبدأ منه عداد أيام آخر إجراء.
+          - `ceoportal v35` و`ceoapp v9` و`ceoapprove v16` هي الإصدارات الحالية لهذا المسار. لا Schema جديد أو اختبار كتابة على مهمة حقيقية.
+          - تحديث مكتب الرئيس في أعلى الملف لا يلغي قواعد الإيقاف والاستئناف.''')
+          p=replace_section(p,'حالة «مرفوعة للرئيس التنفيذي» — محدث 2026-10-12','''- النظام القديم فقط: فهد الرشيد وفيصل الزكري يملكان طلب رفع مع سبب إلزامي؛ يحفظ `task_ceo_hold / pending / ceo` دون تغيير المهمة قبل اعتماد مدير المكتب.
+          - موافقة مدير المكتب تفعّل `ceo_hold` مع استمرار عداد أيام الإسناد. لا تجميد ولا خصم لمدد الرفع؛ الاستثناء من التأخر فقط أثناء الحالة النشطة.
+          - المهمة تبقى عند المساعد والإدارة، وتظهر في صندوق المتابعة وفي قسم مكتب الرئيس وعداد المكتب. العرض مرتبط بالمعرف نفسه، وليس مهمة مكررة.
+          - مدير المكتب يسجل توجيه الرئيس كإجراء جديد ثم يعيدها لقطاعها أو يحيلها لقطاع وإدارة آخرين. ينتهي الرفع ولا تغلق المهمة؛ يبدأ عداد آخر إجراء من التوجيه ويبقى تاريخ الإسناد الأصلي محفوظًا.
+          - مسار العودة السابق للحساب المخول يتطلب أيضًا توجيه الرئيس، ولا يقبل عودة بلا توجيه. الاستئناف من الإيقاف المؤقت منفصل ويحتاج سببًا واعتماد مدير المكتب.
+          - المصدر الحالي والاختبارات في `docs/tasks/OFFICE_TASK_CUSTODY_2026-10-12.md`. `ceoportal v35` و`ceoapprove v16` للطلبات، و`ceo-task-office v1` لقرار المكتب.
+          - تصحيح بيانات «متابعة الخطة الاستراتيجية» السابق محفوظ تاريخيًا في الجرد وCHANGELOG؛ لم يُكرر أو تُعدل أي مهمة حقيقية في تسليم ربط المكتب.''')
+          p=prepend_first_section(p,section)
+          for stale in ['تخصم فترات `ceo_hold`','الاستئناف مباشر للمخولين','وتوقف أيام الإسناد']:
+              assert stale not in p,stale
+          contents['docs/PROJECT_STATE.md']=p
+          l=contents['docs/tasks/LEGACY_INVENTORY.md']
+          l=l.replace('آخر تحديث: 2026-10-11','آخر تحديث: 2026-10-12',1)
+          l=prepend_first_section(l,section)
+          l=l.replace('ويظهر لمكتب الرئيس التنفيذي عرض متابعة لنفس المهمة دون إنشاء نسخة بيانات مستقلة.','وتظهر داخل قسم مكتب الرئيس وفي عداده وقائمة المتابعة، مع زر «فتح وتوجيه الرئيس» للإعادة أو الإحالة حسب `'+ref+'`، دون إنشاء نسخة بيانات مستقلة.')
+          l=l.replace('- الواجهات الحالية: portal commit `e1f490e1daa9ca8d8ea0d0f548e3e6ec2c2b1180` وCEO commit `b2ac73e208c67a1428f79179a1bec5dcea6df200`، والبناء الحي `20261012-task-aging-resume-v3`.','- واجهة القطاعات باقية على commit `e1f490e1daa9ca8d8ea0d0f548e3e6ec2c2b1180` وبناء v3، وواجهة المكتب الحالية على `0c8b1626c51cd1b83530cbec71c80dd26467ec4f` وبناء `20261012-office-custody-v4`.')
+          contents['docs/tasks/LEGACY_INVENTORY.md']=l
+          c=contents['CHANGELOG.md'];assert c.startswith('# Changelog\n\n')
+          entry='''## 2026-10-12 — انعكاس المهام المرفوعة داخل مكتب الرئيس مع التوجيه والإحالة
+
+          - عولج سبب ظهور صفر في بطاقة المكتب: لم يعد عرض المهام المرفوعة مقتصرًا على الصندوق الأزرق؛ أصبحت تظهر وتُحسب داخل قسم المكتب مع إبقاء الأصل لدى المساعد والإدارة أثناء الرفع، دون مضاعفة الإجمالي.
+          - إضافة «فتح وتوجيه الرئيس» وتوجيه إلزامي مع الإعادة للقطاع المعني أو الإحالة إلى قطاع آخر وإدارة فعلية. يحفظ الإجراء كاملًا على المهمة نفسها ولا يُعد إغلاقًا.
+          - خدمة `ceo-task-office v1` تتحقق من جلسة وحالة حساب مدير المكتب، وتحمي تغيير الحالة من التعارض والتكرار. لا مخطط جديد ولا تعديل Auth أو الموظفين أو المهام الحقيقية للاختبار.
+          - المصدر الخاص `0c8b1626c51cd1b83530cbec71c80dd26467ec4f`، PR #1. بناء المكتب الحي `20261012-office-custody-v4`، والقطاعات باقية v3.
+          - 40 اختبارًا ناجحًا واختبار متصفح بدوال الرسم الأصلية وبيانات مصطنعة؛ ثم إثبات تطابق المصدر مع الرابط الرئيسي، وتهيئة النافذة في المتصفح، ورفض الطلب بلا جلسة بـ401. لا ادعاء باختبار إحالة فعلية على بيانات حقيقية.
+          - المرجع والأدلة: `docs/tasks/OFFICE_TASK_CUSTODY_2026-10-12.md`؛ runs 38237401389 و38238711674 في ceo-office-tasks.
+          - صُححت أيضًا عبارات PROJECT_STATE القديمة التي كانت لا تزال تذكر خصم أيام الإيقاف والاستئناف المباشر، لتتوافق مع قرار استمرار أيام الإسناد واعتماد الاستئناف المسجل سابقًا.
+
+          '''
+          contents['CHANGELOG.md']=c.replace('# Changelog\n\n','# Changelog\n\n'+entry,1)
+          for path,value in contents.items():
+              assert '20261012-office-custody-v4' in value
+              Path(path).write_text(value,encoding='utf8')
+          print('Updated only: '+', '.join(paths))
+          PY
+      - name: Commit documentation only to the review branch
+        run: |
+          git diff --check
+          git diff --stat
+          git config user.name "office-documentation-ci"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/HANDOFF.md docs/PROJECT_STATE.md docs/tasks/LEGACY_INVENTORY.md CHANGELOG.md
+          git commit -m "Synchronize office custody delivery and current task aging rules"
+          git push origin HEAD:refs/heads/docs/office-custody-handoff-20261012
+          git rev-parse HEAD

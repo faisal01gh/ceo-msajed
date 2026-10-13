@@ -111,7 +111,9 @@ Deno.test('feedback actual Edge integration: identity-bound create, owned notifi
    const denied=await call('change_responsible',{transaction_id:'50000000-0000-4000-8000-000000000001',to_login:login,reason:'اختبار'});
    if(denied.status!==400||writes.length!==before)throw new Error('Invalid direct ownership target must deny all writes: '+login);
   }
-  extraPermissions=[];
+  // Approval now requires the effective permission of its resulting action.
+  // Preserve this positive ownership-sync oracle with an explicit existing grant.
+  extraPermissions=['transactions.change_responsible'];
   const approvedBefore=writes.length;
   const approved=await call('decide_request',{request_id:'60000000-0000-4000-8000-000000000001',approve:true});
   const approvedPatch=writes.slice(approvedBefore).find(w=>w.table==='transactions')?.body;

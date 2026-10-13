@@ -1,5 +1,21 @@
 # Handoff — استلام المشروع في أي محادثة جديدة
 
+## 2026-10-13 — المرجع الحاكم للنظام الجديد: Release closure / Performance gate
+
+- النظام الجديد وحده: `faisal01gh/ceo-msajed` / `msajed-ceo-erp` / `movzojtnkkmdsjhmlgtq`. النظام القديم منفصل تمامًا: لا اتصال ولا بيانات ولا API ولا اعتماد Runtime ولا مساهمة في readiness هذا المرشح.
+- المرشح الوحيد لهذه الجولة: `review/new-system-release-closure-20261013` من main `dc4b0df3449e0ce0dec7f045e49c9e5fe956842a`، مع نقل **الدالتين واختباراتهما المباشرة فقط** من `cd6297ffca5fde98a7dbbc655b48ff6b23e5a290`. أحدث Documentation من main محفوظة، لا نقل شامل لـQA أوMigration200 أوالأدوات التاريخية.
+- `review/qa-isolation-gate-20261009 = ARCHIVED_QA_EVIDENCE`: ليس Development/Release branch نشطًا؛ لا إعادة تلقائية لاختباراته. `review/runtime-authz-hardening-20261013 = SUPERSEDED_BY_RELEASE_CLOSURE_BRANCH` بعد نقل إصلاحاته. لا حذف لأي branch.
+- الدليل الحي المقبول من فيصل: **SECURITY HARDENING LIVE SOURCE = PASS**؛ `transactions-api v38` و`session-logout v4`؛ SRC-01..04 VERIFIED في المصدر الحي. التصنيف `VERIFIED_LIVE_SUPPLIED_EVIDENCE` / `NOT_RECHECKED_BY_YOUR_SESSION`، وليس اختبارًا سلوكيًا حيًا. تحسينات الأداء الجديدة مصدرية محلية فقط، **NOT DEPLOYED / SQL PROPOSALS NOT APPLIED**؛ لا تنسب parity الحية إلى تغييرات الأداء غير المنشورة.
+- الأداء Gate أساسي. تتبع القياسات وحدودها في `docs/PERFORMANCE_BASELINE_2026-10-13.md`. RPC/الدخول/الإجراءات الحية `LIVE_PERF_MEASUREMENT_PENDING` بسبب رفض الوصول؛ لا loops على401/403. GET health العام الآمن قيس مستقلًا 30 مرة، ولا يثبت أداء Auth أوDB أوالمعاملات.
+- `EDGE_RUNTIME_DRIFT_01 = OPEN`. `source-reader` و`workspace-editor = LEGACY_TRANSITIONAL_RUNTIME / NOT_APPROVED_FOR_NEW_SYSTEM_RUNTIME`؛ الثلاث `account-bootstrap` / `auth-login` / `auth-complete = DISABLED_STUB`. لا تعديل أوتعطيل أوحذف حي؛ لا ادعاء عدم الاستخدام دون مصدر حي كامل ونافذة logs مقروءة.
+- **REAL AUTH PROVISIONING = BLOCKED — needs Faisal authorization**. **FULL MIGRATION 200 APPLY = BLOCKED_BY_DESIGN — not a pending task**. E2E = NOT_STARTED؛ Load50x50 = NOT_STARTED. التجهيز والاختبارات المحلية ليست Native QA ولا تحميل50×50.
+- التحقق المحلي النهائي: 150 حالة أمن و12 حالة مستقلة إضافية؛ 20 حالة أداء Backend داخلة ضمن43 حالة Loopback؛ 25 حالة واجهة و3 cache وحالتا إعادة إرسال مستقلتان؛ 42 سيناريو فهرسة ومراجعة78 سيناريو؛ 39 حالة مميزة لتحضير الحمل. لا تُجمع retries أوsteps كاختبارات مستقلة. المراجعات الأربع **APPROVED ضمن المصدر والاختبارات المحلية فقط**، لا Native acceptance.
+- الأداء النهائي **PARTIAL**: Startup المحلي p50/p95 =59.50/69.30ms مقابل68.50/85.20؛ renderTableCPU p50 =2.30ms مقابل5.50. لم تتحسن جميع أزمنة المسارات. تفاصيل Backend بقيت24 طلبًا؛ انخفضت مجموعات الانتظار10→7 فقط. لا ادعاء تقليل عددqueries أوتحسن حي؛ التفاصيل والحدود في وثيقة الأداء.
+- الفهارس الثلاثة **PROPOSED_NOT_APPLIED**: `idx_routes_latest_custody_read`، `idx_account_password_operations_actor_id`، `idx_transaction_read_state_user_id`. يلزم فحصcatalog حي وموافقة تطبيق مستقلة؛ Full Migration200 ليست مهمة معلقة.
+- Supabase writes لهذه الجولة = none؛ لا Deploy جديد أوAuth أوحساب فيصل أوموظفين أومعاملات حقيقية أوMerge إلى main. الفهارس proposals غير مطبقة؛ لا حذف للـ18 unused indexes.
+
+> الفصل الحاكم: الإدخالات التاريخية أدناه محفوظة من main كأرشيف فقط. إصلاحات وقياسات النظام القديم لا تدخل readiness أوخطة النظام الجديد، وأوامر QA/native التاريخية لا تتحول تلقائيًا إلى تفويض لهذه الجولة.
+
 ## 2026-10-13 — تعديل اسم المهمة وترتيب الأزرار: منشور ومتحقق
 
 - طلب تعديل الاسم لفهد الرشيد وفيصل الزكري على المهام المسندة لهما ضمن النطاق القائم؛ لا يتغير الاسم قبل موافقة مدير المكتب. تعرض نافذة «تحديثات وطلبات القطاعات» بطاقة عربية بالاسم الحالي والمقترح وطالب التعديل وزري الموافقة والرفض.

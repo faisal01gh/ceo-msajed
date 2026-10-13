@@ -17,17 +17,32 @@ function cors(req:Request){
 }
 function json(req:Request,data:unknown,status=200){return new Response(JSON.stringify(data),{status,headers:cors(req)})}
 
+function isToken(token:unknown):token is string{
+  if(typeof token!=="string"||! /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(token))return false;
+  try{
+    const parts=token.split(".").map(part=>atob(part.replace(/-/g,"+").replace(/_/g,"/")));
+    // Syntax only; Auth remains responsible for signature and session validation.
+    return parts.slice(0,2).every(part=>{
+      const value=JSON.parse(part);
+      return value!==null&&typeof value==="object"&&!Array.isArray(value);
+    });
+  }catch{return false}
+}
+
 Deno.serve(async(req:Request)=>{
   if(req.method==="OPTIONS")return new Response("ok",{headers:cors(req)});
   if(req.method!=="POST")return json(req,{error:"method_not_allowed"},405);
   let b:any;try{b=await req.json()}catch{return json(req,{error:"bad_request"},400)}
-  const token=String(b?.token||"");
-  if(!token)return json(req,{ok:true});
+  const token=b?.token;
+  if(!isToken(token))return json(req,{error:"invalid_credentials"},401);
   try{
-    await fetch(AUTH+"/logout",{
+    const response=await fetch(AUTH+"/logout",{
       method:"POST",
+      redirect:"error",
       headers:{apikey:PUBLIC,Authorization:"Bearer "+token}
     });
-  }catch{}
+    if(response.status===401||response.status===403)return json(req,{error:"invalid_session"},401);
+    if(response.status!==204)return json(req,{error:"logout_failed"},502);
+  }catch{return json(req,{error:"logout_failed"},502)}
   return json(req,{ok:true});
 });

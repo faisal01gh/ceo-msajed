@@ -43,15 +43,18 @@ function safeUrl(v){
     return ["http:","https:"].includes(u.protocol)?u.href:"";
   }catch{return ""}
 }
+// Reuse locale formatters across rows; formatting never caches transaction data.
+const dateFormatter=new Intl.DateTimeFormat("ar-SA-u-ca-gregory",{year:"numeric",month:"2-digit",day:"2-digit"});
+const dateTimeFormatter=new Intl.DateTimeFormat("ar-SA-u-ca-gregory",{year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"});
 function fmtDate(v){
   if(!v)return "—";
   const d=new Date(v);if(Number.isNaN(d.getTime()))return String(v);
-  return new Intl.DateTimeFormat("ar-SA-u-ca-gregory",{year:"numeric",month:"2-digit",day:"2-digit"}).format(d);
+  return dateFormatter.format(d);
 }
 function fmtDateTime(v){
   if(!v)return "—";
   const d=new Date(v);if(Number.isNaN(d.getTime()))return String(v);
-  return new Intl.DateTimeFormat("ar-SA-u-ca-gregory",{year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"}).format(d);
+  return dateTimeFormatter.format(d);
 }
 function periodDays(p){
   if(p?.ended_at)return Number(p.duration_days||0);
@@ -1135,7 +1138,15 @@ function modal(title,body,footer="",invoker=document.activeElement){
         try{result=handler.call(this,e)}catch{showRequestError(w);return}
         if(result&&typeof result.then==='function'){
           button.disabled=true;
-          return result.catch(()=>showRequestError(w)).finally(()=>{if(button.isConnected)button.disabled=wasDisabled});
+          const previousBusy=button.getAttribute('aria-busy');
+          const pending=document.createElement('span');pending.textContent=' …';
+          pending.setAttribute('role','status');pending.setAttribute('aria-label','جارٍ تنفيذ الإجراء');
+          button.setAttribute('aria-busy','true');button.append(pending);
+          return result.catch(()=>showRequestError(w)).finally(()=>{
+            pending.remove();
+            if(previousBusy===null)button.removeAttribute('aria-busy');else button.setAttribute('aria-busy',previousBusy);
+            if(button.isConnected)button.disabled=wasDisabled;
+          });
         }
         return result;
       };

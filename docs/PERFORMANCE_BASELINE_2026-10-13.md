@@ -1,6 +1,17 @@
 # Performance baseline — new system only — 2026-10-13
 
-## Authority and acceptance boundary
+## Current live continuation — 2026-10-14 — BLOCKED
+
+The accepted runtime is main `f3762ca8301650aa719f0dcb15171cc2d80f95e7`. `transactions-api v39` was actually deployed once and its complete live source matches main; JWT remainedfalse. `session-logout v4` source body matches with a declared provider terminal-LF difference and was not redeployed. The denied assistant session is not the correct authorized native Chrome session; native access is now verified. No frontend source/deployment changed, no SQL proposal was applied, and no speculative optimization was added.
+
+Protected LIVE Startup/List/Tabs/Pagination/Search/Filters/Details/«بياناتي» remain **BLOCKED / NOT MEASURED** because no usable ownership-proven QA browser session was obtained. Existing manual QA8 are confirmed/linked/active,4 require password change; private credentials are not publication artifacts. The canonical app has no saved QA vault login and the secure-save request was declined. No Auth create/reset/change or business write was performed.
+
+New actual public-only v39 health30: min269.38 / avg395.43 / p50388.67 / p95445.28 / p99582.11 / max582.11ms, nearest rank. Sequential curl per-process HTTPS totals include DNS/TCP/TLS/network/provider response, not Auth/DB/business latency. Do not claim controlled code-speed BEFORE/AFTER from the earlier/current public distributions. Full current report: `docs/LIVE_VERIFICATION_2026-10-14.md`.
+
+All earlier measurements below retain their original local/public methods, dates and limits. They are not fresh authenticated native acceptance. The earlier statement that performance source is NOT DEPLOYED is superseded only for the actually verified v39 backend payload; native protected performance is still unproven.
+
+## Historical authority and acceptance boundary
+
 
 Repository `faisal01gh/ceo-msajed`; project `msajed-ceo-erp` / `movzojtnkkmdsjhmlgtq`.
 Release candidate `review/new-system-release-closure-20261013`, base main `dc4b0df3449e0ce0dec7f045e49c9e5fe956842a`.

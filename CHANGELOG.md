@@ -1,6 +1,21 @@
 # Changelog
 
-## 2026-10-13 — المرجع الحاكم للنظام الجديد: Release closure / Performance gate
+## 2026-10-14 — الحالة الحاكمة بعد التحقق الحي: BLOCKED
+
+- Runtime معتمد من main `f3762ca8301650aa719f0dcb15171cc2d80f95e7`؛ الدمج ونشر Cloudflare السابقان منجزان. لا تعديل أو إعادة نشر Frontend في هذه المتابعة؛ deployment `ed1ced44-bc74-4583-b273-feb623a28a8e` وcache `20261013-release-closure-1` يبقيان دليلًا سابقًا محفوظًا، لا اختبارًا معادًا.
+- `SUPABASE_SESSION_BLOCKED = RESOLVED_FOR_VERIFIED_NATIVE_MRABU_BROWSER`: الوصول من Chrome المستخدم الصحيح أثبت المشروع الجديد `movzojtnkkmdsjhmlgtq` والمصدر والإعدادات وقراءة SQL داخل `BEGIN READ ONLY`. لا ادعاء بأن صلاحية CLI المرفوضة تغيرت.
+- نشر واحد فقط لـ`transactions-api`: **v38 → v39** من مصدر main المعتمد بعد فهم الفرق وربطه بتحسين القراءة المنشور في Git؛ قراءة المصدر الحي كاملًا بعد hard reload وتفريغ Clipboard أثبتت SHA-256 `6843e4b99a167aacd1b86daf29138a8285637e602db84c648cffbc9e703f48f2` مطابقًا لـGit. `verify_jwt=false` قُرئ قبل النشر وبعده وبقي دون تغيير.
+- `session-logout v4`: كامل جسم المصدر مطابق لـmain، مع توثيق اختلاف LF نهائي واحد في المصدر الموجود بالمزود؛ `verify_jwt=false` قُرئ فعليًا ولم يتغير؛ **لم يُعد نشره**. `updated_at` الدقيق لم يقرأ؛ لا اختلاق تاريخ أو استنتاج إصدار المزود من حقل health الثابت34.
+- 150/150 أمن محلي على main الحالي أُعيدت فعليًا دون شبكة؛ و6/6 probes حيّة آمنة أثبتت health200 ورفض List/Details/Close/Logout دون جلسة401 وCORS دون انعكاس hostile origin. ليست قبولًا حيًا للأدوار أوIDOR/session invalidation المصادق عليه.
+- Native catalog: 19 Auth؛ 37/37 public tables معRLS، صفر public table بلاpolicy؛ ليست إثباتًا دلاليًا لكلRLS/ACL. QA يدوي8 مثبت بالـmetadata، وروابط8/8 وprofiles active8/8؛4 ما زالوا بحاجة لتغيير كلمة. ملف QA خاص موجود ولم تنشر كلماته أو تنسخ إلى الأدلة. لا جلسة QA usable وموثقة متاحة؛ حفظ login في خزينة المتصفح الآمنة رُفض، فلا إعادة طلب ولا إدخال بديل للأسرار.
+- **Auth QA / protected LIVE performance = BLOCKED**: Startup/List/Tabs/Pagination/Search/Filters/Details/«بياناتي» غير مقاسة. health v39 العام قيس30 مرة: p50 **388.67ms**، p95 **445.28ms**؛ ليس Edge/DB isolated ولا دليل تحسن الكود. لا Bottleneck مصادق عليه مثبت ولا تحسين نظري جديد.
+- `EDGE_RUNTIME_DRIFT_01 = OPEN` للتصرف فيRuntime التاريخي؛ فجوة مصدر الدالتين المدارتين أعلاه أُغلقت. `source-reader v1` / `workspace-editor v1` باقٍ تصنيفهما `LEGACY_TRANSITIONAL_RUNTIME / NOT_APPROVED_FOR_NEW_SYSTEM_RUNTIME`: مصدر حي كامل معworkspace engine قُرئ من management فقط، ونافذتاInvocations `Last hour` لم تظهرCalls؛ ليس دليل «لم تستخدم أبدًا» ولا إذنًا بحذف/تعطيل. لا invocation ولا نشر/تعديل لأي منهما.
+- **APPLIED migrations=0**؛ فهارس الأداء الثلاثة وSQL المقترحان `PROPOSED_NOT_APPLIED`. `Migration200 = BLOCKED_BY_DESIGN_NOT_PENDING`. `review/qa-isolation-gate-20261009 = ARCHIVED_QA_EVIDENCE`: قوائم المهام القديمة لا تعيد تفعيل QA50/47create/9reset أو أدواتها.
+- Auth operations=0؛ new QA data=0؛ real business writes=0؛ Old system accessed=no؛ Faisal application account touched=no. المراجعتان الساكنتان السابقتان انقطعتا بلاverdict؛ لا تُعدّانAPPROVED.
+- نقطة الاستئناف: إتاحة جلسة حساب QA موجود وpassword-ready بطريقة آمنة، ثم إثبات هويته الحالية وملكيته وروابطه وصلاحياته ونطاق بياناته، وقياس30 عينة لكل مسار متاح. Details ليستread-only بالضرورة؛ لا فتح أوmutation في بيانات حقيقية. لا إنشاء/reset لحسابات لتجاوز الحاجز.
+- التقرير الحالي وحدود الأدلة والبصمات والقياسات: `docs/LIVE_VERIFICATION_2026-10-14.md`. هذه الحالة تتقدم على المقاطع التاريخية أدناه، ولا تغيّر قراراتBusiness أو حدود الترحيل المعتمدة.
+
+## Historical — 2026-10-13 — Release closure / Performance gate (superseded current-state claims)
 
 - النظام الجديد وحده: `faisal01gh/ceo-msajed` / `msajed-ceo-erp` / `movzojtnkkmdsjhmlgtq`. النظام القديم منفصل تمامًا: لا اتصال ولا بيانات ولا API ولا اعتماد Runtime ولا مساهمة في readiness هذا المرشح.
 - المرشح الوحيد لهذه الجولة: `review/new-system-release-closure-20261013` من main `dc4b0df3449e0ce0dec7f045e49c9e5fe956842a`، مع نقل **الدالتين واختباراتهما المباشرة فقط** من `cd6297ffca5fde98a7dbbc655b48ff6b23e5a290`. أحدث Documentation من main محفوظة، لا نقل شامل لـQA أوMigration200 أوالأدوات التاريخية.

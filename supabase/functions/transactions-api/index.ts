@@ -68,17 +68,21 @@ function higherLevel(a:string|null|undefined,b:string|null|undefined){
 async function effectivePermissions(who:Who){
   const roles=new Set<string>([who.role]);
   if(who.user_id){
-    const {data:urs}=await db.from("user_roles").select("role_code").eq("user_id",who.user_id);
+    const {data:urs,error}=await db.from("user_roles").select("role_code").eq("user_id",who.user_id);
+    if(error)throw new Error("permissions_unavailable");
     for(const r of urs||[])roles.add(String(r.role_code));
   }
-  const {data:rps}=await db.from("role_permissions").select("permission_code").in("role_code",[...roles]);
+  const {data:rps,error:roleError}=await db.from("role_permissions").select("permission_code").in("role_code",[...roles]);
+  if(roleError)throw new Error("permissions_unavailable");
   const enabled=new Set<string>((rps||[]).map((x:any)=>String(x.permission_code)));
 
-  const {data:acct}=await db.from("account_migration_users").select("canonical_key")
+  const {data:acct,error:accountError}=await db.from("account_migration_users").select("canonical_key")
     .eq("preferred_login",who.login_name).eq("eligible",true).limit(1).maybeSingle();
+  if(accountError)throw new Error("permissions_unavailable");
   if(acct?.canonical_key){
-    const {data:aos}=await db.from("account_permission_overrides").select("permission_code,effect")
+    const {data:aos,error}=await db.from("account_permission_overrides").select("permission_code,effect")
       .eq("canonical_key",acct.canonical_key);
+    if(error)throw new Error("permissions_unavailable");
     for(const x of aos||[]){
       const code=String(x.permission_code);
       if(x.effect==="allow")enabled.add(code);
@@ -87,7 +91,8 @@ async function effectivePermissions(who:Who){
   }
 
   if(who.user_id){
-    const {data:ups}=await db.from("user_permissions").select("permission_code,effect").eq("user_id",who.user_id);
+    const {data:ups,error}=await db.from("user_permissions").select("permission_code,effect").eq("user_id",who.user_id);
+    if(error)throw new Error("permissions_unavailable");
     for(const x of ups||[]){
       const code=String(x.permission_code);
       if(x.effect==="allow")enabled.add(code);
@@ -154,7 +159,7 @@ async function identity(app:string,token:string):Promise<Who|null>{
     permissions:[]
   };
   Object.defineProperty(who,"session_id",{value:sid,enumerable:false});
-  who.permissions=await effectivePermissions(who);
+  try{who.permissions=await effectivePermissions(who)}catch{return null}
 
   return who;
 }
@@ -712,6 +717,8 @@ Deno.serve(async(req:Request)=>{
       const {data:act}=await db.from("transaction_actions").select("*").eq("id",actionId).maybeSingle();
       if(!act)return out(req,{error:"not_found"},404);
       if(!hasPerm(who,"transactions.act_all")&&![who.display_name,who.login_name].includes(clean(act.actor_name)))return out(req,{error:"forbidden"},403);
+      const a=await txAccess(who,act.transaction_id);if(!a)return out(req,{error:"not_found"},404);
+      if(!a.flags.visible||!canAct(who,a.tx,a.flags))return out(req,{error:"forbidden"},403);
       const v=Number(act.current_version||1)+1;
       await db.from("transaction_action_versions").insert({action_id:actionId,version_no:v,body:text,actor_name:who.display_name});
       await db.from("transaction_actions").update({action_text:text,current_version:v,status:"recorded",updated_at:new Date().toISOString()}).eq("id",actionId);
@@ -888,6 +895,7 @@ Deno.serve(async(req:Request)=>{
       const id=clean(b.transaction_id),toLogin=clean(b.to_login),directive=clean(b.directive);
       if(!id||!toLogin||!directive)return out(req,{error:"missing"},400);
       const a=await txAccess(who,id);if(!a)return out(req,{error:"not_found"},404);
+      if(!a.flags.visible||a.tx.status!=="open")return out(req,{error:"forbidden"},403);
       const target=await account(toLogin);if(!target||target.role!=="assistant")return out(req,{error:"invalid_target"},400);
       await completeActive(id);
       await addRoute(id,"directive",who,target,{directive,meta:isExec(who.role)?{directive_owner:"الرئيس التنفيذي",entered_by:who.display_name}:{}});
@@ -1088,6 +1096,10 @@ Deno.serve(async(req:Request)=>{
       if(!approve&&!decisionReason)return out(req,{error:"reason_required"},400);
       const now=new Date().toISOString();
       if(approve){
+        const permission:Record<string,string>={close:"transactions.close",reopen:"transactions.reopen",extension:"transactions.set_due_date",change_responsible:"transactions.change_responsible"};
+        // Cancel retains the existing role/scope decision contract; it has no independent permission.
+        if(permission[r.request_type]&&!hasPerm(who,permission[r.request_type]))return out(req,{error:"forbidden"},403);
+        if(a.tx.status!==(r.request_type==="reopen"?"closed":"open"))return out(req,{error:"invalid_state"},409);
         if(r.request_type==="close"){
           if(canClose(who,a))await closeTx(who,a.tx,r.reason);
           else{
@@ -1096,9 +1108,11 @@ Deno.serve(async(req:Request)=>{
           }
         }
         else if(r.request_type==="reopen"){
+          if(!canClose(who,a))return out(req,{error:"forbidden"},403);
           if(a.tx.origin==="legacy"&&(!a.tx.responsible_unit_id||!a.tx.responsible_login_name)){
             const unitId=clean(r.meta?.responsible_unit_id),login=clean(r.meta?.responsible_login_name);
             if(!unitId||!login)return out(req,{error:"legacy_context_required"},409);
+            if(!(await scopeCheck(who,unitId))&&!hasPerm(who,"transactions.act_all"))return out(req,{error:"forbidden_scope"},403);
             const target=await account(login);if(!target)return out(req,{error:"invalid_target"},409);
             await db.from("transactions").update({
               responsible_unit_id:unitId,responsible_login_name:target.login_name,responsible_name:target.display_name,
@@ -1114,11 +1128,16 @@ Deno.serve(async(req:Request)=>{
           await db.from("transactions").update({status:"cancelled",cancelled_at:now,cancelled_reason:r.reason,updated_at:now}).eq("id",a.tx.id);
           await history(a.tx.id,"cancelled",who,r.reason);
         }else if(r.request_type==="extension"){
+          if(!canSetDue(who,a.tx,a.flags))return out(req,{error:"forbidden"},403);
           await db.from("transactions").update({due_at:r.requested_due_at,updated_at:now}).eq("id",a.tx.id);
           await history(a.tx.id,"extension_approved",who,r.reason,{due_at:r.requested_due_at});
         }else if(r.request_type==="change_responsible"){
           const toLogin=clean(r.meta?.to_login),target=await responsibleTarget(toLogin);
           if(!target)return out(req,{error:"invalid_target"},409);
+          const direct=hasPerm(who,"transactions.act_all")||
+            (who.role==="manager"&&["employee","manager"].includes(a.tx.current_level||"")&&target.dept_names.some((x:string)=>who.dept_names.includes(x)||x===who.dept_name))||
+            (who.role==="assistant"&&a.tx.current_level!=="ceo"&&target.org_name===who.org_name);
+          if(!direct)return out(req,{error:"forbidden"},403);
           const oldResponsible=a.tx.responsible_name||a.tx.responsible_login_name||"";
           await db.from("transactions").update({responsible_user_id:target.user_id,responsible_login_name:target.login_name,responsible_name:target.display_name,updated_at:now,last_activity_at:now}).eq("id",a.tx.id);
           await history(a.tx.id,"responsible_changed",who,"تم تغيير مسؤول المعاملة",{old_responsible:oldResponsible,new_responsible:target.display_name,reason:r.reason});
@@ -1135,13 +1154,16 @@ Deno.serve(async(req:Request)=>{
 
     if(action==="delete_hard"){
       if(!hasPerm(who,"transactions.delete_hard"))return out(req,{error:"forbidden"},403);
-      const id=clean(b.transaction_id);const tx=await txRow(id);if(!tx)return out(req,{error:"not_found"},404);
-      const [{count:routes},{count:acts},{count:assigns}]=await Promise.all([
+      const id=clean(b.transaction_id);const a=await txAccess(who,id);if(!a)return out(req,{error:"not_found"},404);
+      if(!a.flags.visible||!canAct(who,a.tx,a.flags))return out(req,{error:"forbidden"},403);
+      const tx=a.tx;
+      const counts=await Promise.all([
         db.from("transaction_routes").select("id",{count:"exact",head:true}).eq("transaction_id",id),
         db.from("transaction_actions").select("id",{count:"exact",head:true}).eq("transaction_id",id),
         db.from("transaction_assignments").select("id",{count:"exact",head:true}).eq("transaction_id",id)
       ]);
-      if(tx.workflow_started||Number(routes||0)>0||Number(acts||0)>0||Number(assigns||0)>0)return out(req,{error:"workflow_started"},409);
+      if(counts.some(r=>r.error||r.count===null))return out(req,{error:"delete_precheck_failed"},503);
+      if(tx.workflow_started||counts.some(r=>Number(r.count)>0))return out(req,{error:"workflow_started"},409);
       await db.from("audit_log").insert({
         actor_id:null,event_type:"hard_delete",entity_type:"transaction",entity_id:id,
         detail:"حذف نهائي لمعاملة لم يبدأ سيرها",meta:{actor_login:who.login_name,actor_name:who.display_name,actor_role:who.role,number:tx.number,title:tx.title}

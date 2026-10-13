@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026-10-13 — SOURCE HARDENING ONLY للمعاملات و logout
+
+**NOT DEPLOYED / NOT LIVE-VERIFIED.**
+
+- إغلاق SRC-01 بإعادةفحصصلاحيةالفعلعلى approve قبل Mutation/forward ؛ explicitdeny نافذحتىمع act_all/CEO ،معالإبقاءعلى reject/forwardworkflow وعقد cancel دون Permission جديدة.
+- إغلاق SRC-02 بفحص error صراحةلكل permissionlookup والحفاظعلى role→accountoverride→useroverride ؛فشللاينتج permissions جزئية.
+- إغلاق SRC-03 للثلاث actions فقط:revise_action visibility/custody/state ، route_exec_assistant visible/open/role/permission/actualassistant ، delete_hard scope/state/workflow/countpreflight.
+- إغلاق SRC-04:credentials/provider/networkfailure non-success ؛ logoutsuccess بعد 204 فقط؛لار awproviderbody أو tokens في logs.
+-150focusednamedtests passed /0failed /0skipped ؛ 93negativewhole-state snapshots متطابقةو zero writeintents ؛ Independentreview APPROVED وأعاد 150 وأضاف 23case ناجحة. الأدلة localactual-handler/pinnedSDK/synthetictransport تحت deny-net ،لا Native قبول.
+- BaseRuntime `51661818dcb7699d0f2b0d359f5e6da76b69a9ac`؛الفرع `review/runtime-authz-hardening-20261013`؛ QA `2a70735e5b609998590b3fae6bc28ae13c92b522` منفصل. Specs/permissioncatalog/RLS/ACL/migrations لمتتغير.
+- Edge الحيةالخمس KEEP/NOCHANGE ؛ EDGE_RUNTIME_DRIFT_01 OPEN. LeakedPasswordProtection unchanged/decisionpending ؛المقترحان PERFORMANCE_IMPROVEMENT_NOT_BLOCKER ؛لا indexes أو unused-indexdeletion.
+- لا Supabase/Auth/reset/قديم/E2E/Load/Productionwrite/Deploy/PR/Mergemain. المصدرمصلحمحليًا فقط؛ RealAuthprovisioning BLOCKED.
+
+
+
 ## متابعة المساعد وتبسيط خانات المدة — منشور ومتحقق 2026-10-12
 
 - الواجهة القديمة فقط: صندوق «المهام المتأخرة» وصندوق «المعاملات الواردة» في مكتبي ولوحة المساعد وسكرتيره، بعدادات مستقلة وبحث وعرض خمسة عناصر لكل صفحة وفتح مباشر للإجراءات الحالية. بقيت أقسام الفريق والاعتمادات والمهام الخاصة والتقارير وصناديق إدارات فهد دون إلغاء.

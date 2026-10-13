@@ -1,6 +1,35 @@
 # حالة المشروع الحالية
 
-آخر تحديث مرجعي: 2026-10-12
+آخر تحديث مرجعي: 2026-10-13
+
+## Source hardening للأمن — 2026-10-13
+
+**SOURCE HARDENING ONLY — NOT DEPLOYED — NOT LIVE-VERIFIED.**
+
+- الفرع `review/runtime-authz-hardening-20261013` يبدأ من Runtime main `51661818dcb7699d0f2b0d359f5e6da76b69a9ac`. مرجع QA `2a70735e5b609998590b3fae6bc28ae13c92b522` منفصل؛ لم يُستورد منه QA wrapper أوترحيل. Docs-only drift في main يُقبل دون Rebase/Merge أوتغيير Base.
+- مراجعة أمنية مستقلة **APPROVED** للمصدر المحلي: SRC-01/SRC-02/SRC-03/SRC-04 **CLOSED**؛ لا اعتماد نشر أوأمان حي من هذه النتيجة.
+- approve request يعيد فحص `transactions.close` / `transactions.reopen` / `transactions.set_due_date` / `transactions.change_responsible` قبل أي Mutation أوتمرير، مع role/scope/visibility/state والسلامة. Explicit User Deny لا يتجاوزه act_all أومستوى الرئيس؛ reject لا ينفذ فعل الطلب. cancel بقي بعقد role/scope الحالي؛ لا Permission جديدة أو Workflow جديد.
+- أخطاء طبقات user_roles/role_permissions/account_migration_users/account_permission_overrides/user_permissions تفشل مغلقة بلا permissions جزئية أوتفاصيل DB للعميل. precedence محفوظة: role grants ثم account overrides ثم user overrides.
+- revise_action يبقي صاحب الإجراء المخوّل مع visibility/custody/state ؛ route_exec_assistant يتطلب permission و executive role و visible/open و actual assistant ؛ delete_hard يبقي permission ويتحقق من scope/open وعدم بدء workflow وعدم وجود routes/actions/assignments وصحة count reads قبل الكتابة.
+- session-logout لا يعيد success مع missing/malformed credentials أو invalid session أو provider/network failure ؛ success بعداستجابة Auth/logout المطلوبة 204 فقط. لا rawproviderbody أو tokens فيالسجل/الاستجابة.
+- Focused regression **150 passed /0 failed /0 skipped**:119 hardening +6 logout +24 existingprevalidation +1 existingfeedback.93 negatives لها snapshot كاملة متطابقة و zero writeintents. المراجع نفذ 150 نفسها وأضاف 23 حالة مستقلة ناجحة (19 negative إضافية).22 logoutprobes ضمن 6 namedcases ، لا تُجمع كاختبارات إضافية. Source/typecheck و secret scan و diff checks ناجحة.
+- الأدلة synthetic transport: handlers و SDK المثبتة الأصلية مع`--deny-net` وبياناتمصطنعة فقط. لا Native Auth/DB/RLS/E2E/Load أوإعادة Accounts226/Provenance162/Durable14/Lifecycle82/دورة 57/GenuineF3.
+- Edge الحية unchanged ؛ source-reader/workspace-editor=KEEP/NOCHANGE ، والثلاث stubs=KEEP_TEMPORARILY. `EDGE_RUNTIME_DRIFT_01=OPEN` حتى Logs/consumerproof أوقرارفيصلمنفصل. فيصل و finance_manager دونتغيير.
+
+### Decision note — Leaked Password Protection
+
+الحالةالمزوّدة **WARN / DISABLED / unchanged**. لا خياراختير ولا إعدادتغيّر.
+- **Option A:** Enable before provisioning47. توليد temporary-password قويةعشوائيةمستقلةيبقىلازمًا؛ compromisedcandidate قدتُرفض. يحتاجالإعدادالحيقرارفيصل وفحصخطةالمشروع/نسخة Auth فيمرحلةمخوّلة.
+- **Option B:** Keep disabled مع compensating policy صريحة:عشوائيةمستقلةغيرمعادة، custody بالذاكرة، forcedchange ضمنالعقد، privateone-timedelivery ،منع credentialfiles/logs ،وقبولالمخاطرالمتبقية. هذهسياسةمقترحة،لاادعاءتنفيذحي.
+- Executor فيمرجع QA المنفصل يستخدم makePassword و candidate بالذاكرة و receipts `can_retry_create:false`. توليد candidate أوليةقبل dispatch موجود؛ automaticreplacement خاص بـ pwned/weak_password غيرمثبت. بعد UnknownCREATE يحفظالعملية/candidate في quarantine ،ولا CREATE جديد. تبديل candidate بعد dispatch يحتاجرفضًامثبتًا+absence/reconciliation مخوّلة+transition معتمد؛غيرمطبقأومختبرهنا. لا SafeRetryreadiness مستنتجةمنتفعيلالإعداد.
+
+### Performance / readiness — لا تنفيذ
+
+- المقترحان `account_password_operations(actor_id)` و`transaction_read_state(user_id)` = **PERFORMANCE_IMPROVEMENT_NOT_BLOCKER**. لا Index/Migration أوحذف لأيمن 18 unusedindexes.
+- RealAuthprovisioning **BLOCKED**: privilegedunmanagedEdge/oldauthority ؛ executingrelease/runtime/RPCparity ؛ FullMigration200=BLOCKED_BY_DESIGN ؛ قرار LeakedProtection ؛عدموجودتفويض Live. مصدرمصلحلايعني Production مصلحة.
+- المسموحبعدالمراجعة دفعالفرعالمحددبرسالة `[CF-Pages-Skip]` فقط. لا PR/Mergemain أو Deploy/Supabasewrites/Authcreation/reset أوقديم/E2E/Load/Productionwrite.
+
+
 
 ## متابعة المساعد وتبسيط خانات المدة — منشور ومتحقق 2026-10-12
 

@@ -1,6 +1,22 @@
 # Handoff — استلام المشروع في أي محادثة جديدة
 
-آخر تحديث: 2026-10-12
+آخر تحديث: 2026-10-13
+
+## استلام Source hardening المحلي — 2026-10-13
+
+**SOURCE HARDENING ONLY / NOT DEPLOYED / NOT LIVE-VERIFIED.**
+
+- المصدر `review/runtime-authz-hardening-20261013` من main Runtime `51661818dcb7699d0f2b0d359f5e6da76b69a9ac`؛ QA review `2a70735e5b609998590b3fae6bc28ae13c92b522` مرجعمنفصل لا Base تنفيذيبديل.
+- SRC-01/02/03/04 CLOSED مصدرًا؛ Independent security review APPROVED.150 focusednamedtests ناجحة، 0failed/0skipped ؛ 93negative snapshots كاملةو zero writeintents. المراجع أعاد 150 وأضاف 23 حالةمستقلةناجحة؛لا Native/Livedeliveryclaim.
+- Explicit Deny نافذعلى approve/forwarding حتىمع act_all/CEO ؛أخطاءالاستعلاماتالخمس failclosed و precedence محفوظة. Scope/state/historical-author/actualassistant/deleteprechecks محمية؛ logout لايدعي revocation دون 204.
+- cancel يحتفظبعقد role/scope الحالي؛لمتُنشأ transactions.cancel أو Workflow جديدة. التفاصيلوالـ DecisionNote في`docs/PROJECT_STATE.md`،والمواصفاتالمعتمدةلمتتغير.
+- source-reader/workspace-editor KEEP/NOCHANGE ؛ account-bootstrap/auth-login/auth-complete KEEP_TEMPORARILY ؛ EDGE_RUNTIME_DRIFT_01=OPEN. لا Disable/Delete/Deploy أواتصالقديم.
+- LeakedPasswordProtection WARN/DISABLED/unchanged ؛ OptionAenablebefore47 أو OptionBcompensatingpolicy بقرارفيصل. Executorcandidate فيالذاكرة،لكن automatic compromised-candidate replacement غيرمثبت؛لا retry بعد unknownCREATE.
+- الفهرسان PERFORMANCE_IMPROVEMENT_NOT_BLOCKER ؛لا Index/Migration/unused-indexdeletion. FullMigration200 BLOCKED_BY_DESIGN و Productionactivation NOTAUTHORIZED.
+- RealAuthprovisioning BLOCKED حتىحسم unmanagedprivilegedEdge و executingrelease/runtime/RPCparity وقرار passwordsetting وتفويضمرحلةحية. لا reset فيصل/أي account أو Auth/E2E/Load منهذاالتسليم.
+- لا Merge/Rebase لمطاردة Docs-onlymain ؛افحص Runtime/Test/Supabase drift قبل Push وتوقفإذاوجد. المصدرالمحليالمصلحلميغيّر Production.
+
+
 
 ## متابعة المساعد وتبسيط خانات المدة — منشور ومتحقق 2026-10-12
 

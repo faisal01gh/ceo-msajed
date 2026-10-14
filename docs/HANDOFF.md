@@ -1,5 +1,20 @@
 # Handoff — استلام المشروع في أي محادثة جديدة
 
+## 2026-10-15 — متابعة QA الذاتية: قيد أداة الاعتماد، لا نقص التفويض
+
+- main عند البدء `7ecebe788a3497abaf9d1275e2ce60ab2b014ed7`؛ الفرع القائم `docs/qa-secure-session-boundary-20261014` عند `25b0474367e906c7153f5bf185928b9827377126`. لا إعادة نشر أو تحقق شامل للأجزاء المغلقة. هذه المتابعة بعد منتصف الليل السعودي، رغم اسم مرفق التفويض المؤرخ2026-10-14.
+- تفويض فيصل الأحدث يسمح باستعمال الاعتماد القائم وReset أخير لـQA المحدد وحده، وإنشاء QA معزول فقط بآلية آمنة معتمدة، دون أي خطوة يدوية منه. هذا التفويض يتقدم على القيود التاريخية السابقة ولا يعمم على حسابات أخرى.
+- وُجد حقل اعتماد قائم غير فارغ لـ`test_admin_employee` في ملف التسليم الخاص (تطابق واحد من8). لم تختبر صلاحيته ولم يطبع/ينسخ إلى الأدلة أوClipboard أوGit. UID المتوقع `44dfab74-53ec-4def-bdb6-fe6aad4f4d87`؛ لا هوية جلسة مثبتة.
+- الخزينة الحالية لا تعرض اعتماد QA؛ أدوات الحفظ المتاحة تتطلب masked user input ولا تعرض مسار استيراد ذاتي معتمد. لا فتح prompt أو طلب يدوي جديد ولا تجاوز للأداة. الحاجز `AUTONOMOUS_SECURE_CREDENTIAL_IMPORT_UNAVAILABLE_NO_USER_PROMPT_ALLOWED`، وليس غياب صلاحية Business أو خطأ كلمة مرور مثبتًا.
+- **لم ينفذ Reset**: لا يعالج حاجز الإدخال المستقل، ولا يمكن استيفاء شرط حفظ كلمته فورًا بالخزينة بالمسار المتاح دون تدخل يدوي. لا توليد/تغيير لكلمة أوUID/email/role/permission/scope/profile/registry.
+- Login لم يرسل، جلسات جديدة0. المسارات المحمية كلها0 عينة وجميع الإحصاءات unavailable؛ Role/Scope/Permission/IDOR/out-of-scope/Logout invalidation NOT TESTED. لا Bottleneck جديد مثبت. أدلة الهوية السابقة قبل الدخول محفوظة ولا تعد اختبارًا حيًا جديدًا.
+- `DETAILS = BLOCKED_BY_NO_ISOLATED_QA_RECORD`؛ لا فتح Details حقيقية ولا إنشاء/حذف QA. لا إدخال لسجل مصطنع في ترقيم أوWorkflow الأعمال لمجرد استكمال Checklist.
+- آثار هذه المتابعة: real business writes0؛ Auth create/reset/change0؛ QA created/removed0؛ migrations/indexes0؛ Edge/Cloudflare deployments0؛ Faisal touched=no؛ Old system accessed=no. المقترحات PROPOSED_NOT_APPLIED وMigration200 BLOCKED_BY_DESIGN_NOT_PENDING؛ verify_jwt/runtime دون تغيير.
+- توحيد التوثيق على الفرع نفسه؛ التفاصيل في `docs/LIVE_VERIFICATION_2026-10-14.md`. **الحكم BLOCKED**. المطلوب تقنيًا capability آمنة ذاتية لاستيراد/حقن الاعتماد، لا موافقة جديدة ولا طلب خطوة يدوية في هذا التسليم.
+
+## Historical — earlier QA continuation
+
+
 ## 2026-10-14 — أحدث متابعة QA: الأهلية مثبتة، المسار الآمن للاعتماد محجوب
 
 - تفويض فيصل الأخير يسمح باستخدام حساب QA موجود Password-ready وحفظه الآمن؛ التفويض **ليس ناقصًا**. main المقروء `7ecebe788a3497abaf9d1275e2ce60ab2b014ed7` لم يتغير، ولا إعادة تحقق أو نشر للأجزاء المنجزة.

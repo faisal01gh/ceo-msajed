@@ -1,5 +1,124 @@
 # Live verification — 2026-10-14 (Saudi Arabia, UTC+03:00)
 
+## 2026-10-15 — Latest autonomous QA continuation: tool-capability blocker
+
+Observed at `2026-10-15T01:17:24.793571+03:00` (Saudi Arabia, UTC+03:00). The source authorization was received under a 2026-10-14 attachment name; this continuation is already **2026-10-15 locally**. This section supersedes earlier same-file credential instructions without rewriting their historical evidence.
+
+The new explicit authorization permits existing private QA credential use, a last-resort reset of only `test_admin_employee` / `test_admin_employee@msajed.local` / expected UID `44dfab74-53ec-4def-bdb6-fe6aad4f4d87`, and minimal QA record creation only through an approved safe isolation mechanism. It prohibits requiring a manual user step. Authorization is not missing; no reset/QA creation approval is requested again.
+
+### Credential discovery and exact capability boundary
+
+The authorized private Desktop handoff still contains eight rows and exactly one matching username with a nonempty password field. The row was inspected in memory only and cleared; no password was printed, sent to the page, copied to clipboard, written to evidence or Git, or submitted to Auth. **An existing credential was found; its validity was not tested.**
+
+The current exposed secure-vault tools list two non-QA items and no login for the canonical app. No 1Password or Bitwarden source is available. `browser_vault_save_login` accepts only a label and collects a password through masked user input; `hermes vault add --help` exposes only the interactive kind selector. Official vault documentation was consulted. No supported autonomous credential-import route is available in these exposed tools. This is a scoped capability finding, not a claim that every Hermes version/extension lacks all possible import features. The vault store and tool implementation were not patched or bypassed.
+
+No save prompt or manual-action question was opened in this continuation. No ordinary browser/desktop/terminal input was used for secrets. The browser remains at the canonical login with the QA username only and no password. **No login was submitted and no session was created.**
+
+**Reset was not attempted.** A reset would not solve this independent injection limitation, and its required immediate secure-vault storage could not be fulfilled by the available tools without prohibited manual input. The current password was not proved invalid; no password was generated merely to mutate the account without a usable custody/login path. UID/email/roles/permissions/scope/profile/registry were not changed.
+
+Current blocker: **`AUTONOMOUS_SECURE_CREDENTIAL_IMPORT_UNAVAILABLE_NO_USER_PROMPT_ALLOWED`**. Resolution requires an approved autonomous secure credential-import/injection capability, not another business authorization, an account reset, a personal-session fallback, a security-setting change or a manual password request. No user action is requested by this handoff.
+
+### Actual acceptance and effects
+
+Post-login UID/username/role/scope/profile/registry/effective-permission proof: **NOT OBTAINED**. The detailed employee identity and grants below remain earlier provider pre-login evidence, not a refreshed inventory or authenticated acceptance.
+
+| Protected path | Samples | min / avg / p50 / p95 / p99 / max |
+|---|---:|---|
+| Login → first usable protected screen | 0 | unavailable; no login submitted |
+| List | 0 | unavailable |
+| Tabs | 0 | unavailable |
+| Pagination | 0 | unavailable |
+| Search | 0 | unavailable |
+| Filters | 0 | unavailable |
+| «بياناتي» | 0 | unavailable |
+| Details | 0 | unavailable; BLOCKED_BY_NO_ISOLATED_QA_RECORD |
+
+Authenticated Role/Administrative Scope/Permission enforcement, IDOR negative and out-of-scope read, Logout and previous-session invalidation remain **NOT TESTED**. No new security failure or performance bottleneck is asserted. No end-to-end/network/Edge/DB/rendering timing split exists for this run, and preserved150/150 local tests were neither rerun nor promoted into live acceptance.
+
+The earlier zero owned-record counts are prior evidence, not a new record inventory. Because no authenticated QA session could be obtained, this continuation did not admit creation of a fixture into the ordinary real-number/workflow path. No existing Details was opened; no QA record was created or removed. Conditional permission to create a safely isolated record is not permission to import archived QA activation/Migration200 or use ordinary live transaction sequences as test isolation.
+
+This continuation: Auth reset/create/password/role/permission changes0; Auth sessions created0; QA records created0/removed0; **real business writes0**; DB migrations/index changes0; Edge deployments0; Cloudflare deployments0; Old system accessed=no; Faisal application account touched=no. `verify_jwt` and runtime source were unchanged. These are actions of this continuation, not a fresh full-provider inventory/parity check. The performance migrations `20261013190000_read_performance.sql`, `20261013190100_fk_indexes.sql` and three indexes remain **PROPOSED_NOT_APPLIED**; `Migration200 = BLOCKED_BY_DESIGN_NOT_PENDING`.
+
+Documentation uses the existing `docs/qa-secure-session-boundary-20261014` branch and its prior accepted content; it does not create a conflicting replacement report. Publication/merge and Cloudflare skip effects must be read back independently. Source/Frontend/Edge acceptance remains preserved rather than rerun.
+
+Original sanitized capability receipt: `C:/Users/FAiSAL/ceo-msajed-qa-checkpoints/qa-autonomous-credential-boundary-20261014T221712Z/AUTONOMOUS_QA_CREDENTIAL_CAPABILITY_BOUNDARY.json`; raw UTF-8 SHA-256 `90496b10352647937b7904d37b3a342b0ec8089a48d3637e1aac7a3cebb7603a`. Only credential presence booleans and allowed identifiers are recorded; no password/hash/token or private source contents are included.
+
+Current release verdict: **BLOCKED**.
+
+### Read-only reconfirmation and recovered documentation — 2026-10-15 01:20 Saudi Arabia
+
+The duplicate authorization was reconciled with the existing uncommitted documentation instead of starting a second QA account/reset workflow. Fresh inspection again found exactly one selected username among eight private handoff rows, no QA vault login, and no installed external password manager. The canonical browser form contains only `test_admin_employee`, has no password, and has no protected shell; no login submission occurred. No credential value was returned to the model or copied into evidence. A memory-only comparison found zero private-password literal matches in the documentation diff. Prior database identity and source/deployment evidence remain prior evidence, not refreshed session acceptance.
+
+Reconfirmation receipt (outside Git): `C:/Users/FAiSAL/ceo-msajed-qa-checkpoints/qa-autonomous-credential-boundary-20261014T221712Z/AUTONOMOUS_QA_RECONFIRMATION_NO_LOGIN.json`; observed UTC `2026-10-14T22:20:25.217030+00:00`; raw UTF-8 SHA-256 `6bb34c1d07c9f65c0a86eda41dcb9003ee448ae6aca1b1366c439f4ee95fe5fe`. All protected sample counts remain zero and the verdict remains **BLOCKED**. No reset, user prompt, business write, QA creation/deletion, migration or runtime deployment was used to bypass the missing secure credential mechanism.
+
+## Historical — 2026-10-14 QA secure-session boundary
+
+
+## Latest continuation — existing QA authorized; secure credential injection unavailable
+
+This section supersedes the earlier same-day credential/resume state below. GitHub main was read at `7ecebe788a3497abaf9d1275e2ce60ab2b014ed7` and was unchanged; no accepted Frontend/Cloudflare/Edge/source tests were repeated. The user's later explicit authorization permits exactly one existing manual, password-ready QA account and secure-vault storage for that account only. Authorization is **not missing**; credential injection remains unavailable.
+
+### Current pre-login QA identity proof (not authenticated-session proof)
+
+Read-only native SQL in the exact new project `msajed-ceo-erp` / `movzojtnkkmdsjhmlgtq` returned `transaction_read_only=on` at `2026-10-14T09:16:20.166892+00:00`. Eight manual QA users remain present; four pass the active/confirmed/not-banned/canonical-link/password-ready gates. The least-privileged eligible account was selected, not a real staff identity:
+
+| Field | Verified pre-login value |
+|---|---|
+| Username / registry key | `test_admin_employee` |
+| Auth UID | `44dfab74-53ec-4def-bdb6-fe6aad4f4d87` |
+| Auth email | `test_admin_employee@msajed.local` |
+| Ownership | `manual_test=true`; existing `owned_manual_job=a0d99b8f` |
+| Profile / registry | `profiles.id=Auth UID`; `account_migration_users.migrated_user_id=Auth UID`; both logins equal the expected username |
+| State | Auth confirmed and not banned; profile active; registry eligible; both forced-password flags false |
+| Role | `employee`, primary; no additional roles |
+| Administrative organization | مساعد الرئيس التنفيذي للشؤون الإدارية والمالية |
+| Departments / active memberships | إدارة الموارد البشرية (primary member); الإدارة القانونية (member) |
+| Current effective permissions, derived from observed grants and unchanged source precedence | `transactions.create`, `transactions.raise_manager`; no account/user overrides; not a live enforcement test |
+
+The second native read-only response at `2026-10-14T09:21:24.827834+00:00` confirmed role/memberships/grants. The selected username occurs exactly once among the eight rows in the private QA handoff. No password was printed, placed in command arguments, copied to clipboard, evidence or Git, or entered with ordinary browser/desktop tools.
+
+### Exact current credential boundary
+
+The canonical login page was opened in the isolated QA browser, and only the proven username was filled. `browser_vault_list` returned no login for `https://ceo-msajed.pages.dev`. One newly authorized `browser_vault_save_login` request for this QA alone returned **`save_declined`**. No repeat prompt, password submit, alternate ordinary secret input, account creation/reset, permission change or personal-account fallback followed. The private handoff's existing password was not tested. This does not prove invalid credentials or a failed product login.
+
+**Blocker: `QA_SECURE_CREDENTIAL_INJECTION_UNAVAILABLE_VAULT_SAVE_DECLINED`.** No browser QA session was created; its UID cannot be asserted. All identity facts above are provider/database pre-login proof only. Existing user authorization is sufficient, but it cannot substitute for a credential saved through the secure masked UI. Resume with the same proven account securely available in the vault, recheck current readiness, sign in once, verify the actual session UID/email/profile/registry/role/scope before any other test, then stop on any mismatch. Do not request another business authorization, use a real account, create/reset a substitute or bypass the credential mechanism.
+
+### Isolated record and protected acceptance
+
+The selected QA has zero transactions created by its UID, zero with its UID responsible, zero assignment-target rows by UID/login, and zero routes to/from its login. No isolated owned QA transaction was proved. **`DETAILS = BLOCKED_BY_NO_ISOLATED_QA_RECORD`**. No Details request or record creation was used to bypass this boundary.
+
+| Requested path | Actual result | Samples | min / avg / p50 / p95 / p99 / max |
+|---|---|---:|---|
+| Login → first usable protected screen | NOT TESTED; no credential submitted | 0 | unavailable |
+| List | BLOCKED by secure QA session prerequisite | 0 | unavailable |
+| Tabs | BLOCKED by secure QA session prerequisite | 0 | unavailable |
+| Pagination | BLOCKED by secure QA session prerequisite | 0 | unavailable |
+| Search | BLOCKED by secure QA session prerequisite | 0 | unavailable |
+| Filters | BLOCKED by secure QA session prerequisite | 0 | unavailable |
+| «بياناتي» | BLOCKED by secure QA session prerequisite | 0 | unavailable |
+| Details | BLOCKED_BY_NO_ISOLATED_QA_RECORD; also no session | 0 | unavailable |
+
+Authenticated role/scope enforcement, IDOR negative case, cross-administration non-disclosure, invalid/expired QA session and logout/session invalidation remain **NOT TESTED**, not PASS or observed security failures. No mutation was attempted. No new performance loop or public remeasurement was substituted for protected acceptance. No authenticated bottleneck is proved; end-to-end/network/Edge/DB/rendering layer measurements are all unavailable for this continuation. Preserved local150/150 results are not live Auth acceptance.
+
+### Effects and evidence
+
+This continuation: real business writes0; Auth create/reset/password/role/permission changes0; Auth sessions created0; QA data created0; DB migrations/index changes0; Edge deployments0; Cloudflare deployments0; Faisal application account touched=no; old system accessed=no. Read-only metadata queries and an unsaved/native SQL query workspace are distinct from business mutations. Documentation publication is not a runtime deployment; any Cloudflare skip event must be verified separately before claiming no build/deploy.
+
+`20261013190000_read_performance.sql`, `20261013190100_fk_indexes.sql` and all three proposed indexes remain **PROPOSED_NOT_APPLIED**. `Migration200 = BLOCKED_BY_DESIGN_NOT_PENDING`. Prior Edge drift/disposition remains open without reopening excluded functions.
+
+Sanitized original receipts reside outside Git at `C:/Users/FAiSAL/ceo-msajed-qa-checkpoints/authenticated-qa-20261014/`; they contain no passwords or session tokens:
+
+| Receipt | SHA-256 (raw UTF-8 file bytes) |
+|---|---|
+| `CURRENT_MANUAL_QA_READONLY_PROOF.json` | `5f256a7adefec34e0ba812b85f2690acbe0e5fbd0fb2fe91af0ae0c7a0506d87` |
+| `QA_CURRENT_PERMISSIONS_AND_RECORD_COUNTS.json` | `4dafe4369b26642f2eea9e4929e87410df12cba4619fc9eae276489e180ec3ac` |
+| `QA_SECURE_VAULT_BOUNDARY_ACTUAL.json` | `7134e8f7f2f04be8cce7a63e072460c6ee77bc9365171d0bf5cdb9fb9cc63226` |
+
+Current release verdict remains **BLOCKED**. New evidence closes account-selection/eligibility uncertainty only; it does not close actual session identity, role/scope/IDOR/session enforcement, protected performance or Details isolation.
+
+## Historical — earlier 2026-10-14 live-source continuation
+
+
 ## Current acceptance: BLOCKED
 
 The release merge is complete and its unchanged frontend remains the previously verified Production frontend. The correct authorized native Chrome session restored Supabase access; this is **not** the previously denied assistant CLI/browser session. One approved backend performance payload was deployed and read back. Authenticated performance and full live permission/role acceptance remain unverified; this report does not declare `RELEASE VERIFIED`.

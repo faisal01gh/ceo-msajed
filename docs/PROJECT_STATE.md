@@ -1,5 +1,33 @@
 # حالة المشروع الحالية
 
+## 2026-10-15 — متابعة QA الذاتية: قيد أداة الاعتماد، لا نقص التفويض
+
+- main عند البدء `7ecebe788a3497abaf9d1275e2ce60ab2b014ed7`؛ الفرع القائم `docs/qa-secure-session-boundary-20261014` عند `25b0474367e906c7153f5bf185928b9827377126`. لا إعادة نشر أو تحقق شامل للأجزاء المغلقة. هذه المتابعة بعد منتصف الليل السعودي، رغم اسم مرفق التفويض المؤرخ2026-10-14.
+- تفويض فيصل الأحدث يسمح باستعمال الاعتماد القائم وReset أخير لـQA المحدد وحده، وإنشاء QA معزول فقط بآلية آمنة معتمدة، دون أي خطوة يدوية منه. هذا التفويض يتقدم على القيود التاريخية السابقة ولا يعمم على حسابات أخرى.
+- وُجد حقل اعتماد قائم غير فارغ لـ`test_admin_employee` في ملف التسليم الخاص (تطابق واحد من8). لم تختبر صلاحيته ولم يطبع/ينسخ إلى الأدلة أوClipboard أوGit. UID المتوقع `44dfab74-53ec-4def-bdb6-fe6aad4f4d87`؛ لا هوية جلسة مثبتة.
+- الخزينة الحالية لا تعرض اعتماد QA؛ أدوات الحفظ المتاحة تتطلب masked user input ولا تعرض مسار استيراد ذاتي معتمد. لا فتح prompt أو طلب يدوي جديد ولا تجاوز للأداة. الحاجز `AUTONOMOUS_SECURE_CREDENTIAL_IMPORT_UNAVAILABLE_NO_USER_PROMPT_ALLOWED`، وليس غياب صلاحية Business أو خطأ كلمة مرور مثبتًا.
+- **لم ينفذ Reset**: لا يعالج حاجز الإدخال المستقل، ولا يمكن استيفاء شرط حفظ كلمته فورًا بالخزينة بالمسار المتاح دون تدخل يدوي. لا توليد/تغيير لكلمة أوUID/email/role/permission/scope/profile/registry.
+- Login لم يرسل، جلسات جديدة0. المسارات المحمية كلها0 عينة وجميع الإحصاءات unavailable؛ Role/Scope/Permission/IDOR/out-of-scope/Logout invalidation NOT TESTED. لا Bottleneck جديد مثبت. أدلة الهوية السابقة قبل الدخول محفوظة ولا تعد اختبارًا حيًا جديدًا.
+- `DETAILS = BLOCKED_BY_NO_ISOLATED_QA_RECORD`؛ لا فتح Details حقيقية ولا إنشاء/حذف QA. لا إدخال لسجل مصطنع في ترقيم أوWorkflow الأعمال لمجرد استكمال Checklist.
+- آثار هذه المتابعة: real business writes0؛ Auth create/reset/change0؛ QA created/removed0؛ migrations/indexes0؛ Edge/Cloudflare deployments0؛ Faisal touched=no؛ Old system accessed=no. المقترحات PROPOSED_NOT_APPLIED وMigration200 BLOCKED_BY_DESIGN_NOT_PENDING؛ verify_jwt/runtime دون تغيير.
+- توحيد التوثيق على الفرع نفسه؛ التفاصيل في `docs/LIVE_VERIFICATION_2026-10-14.md`. **الحكم BLOCKED**. المطلوب تقنيًا capability آمنة ذاتية لاستيراد/حقن الاعتماد، لا موافقة جديدة ولا طلب خطوة يدوية في هذا التسليم.
+
+## Historical — earlier QA continuation
+
+
+## 2026-10-14 — أحدث متابعة QA: الأهلية مثبتة، المسار الآمن للاعتماد محجوب
+
+- تفويض فيصل الأخير يسمح باستخدام حساب QA موجود Password-ready وحفظه الآمن؛ التفويض **ليس ناقصًا**. main المقروء `7ecebe788a3497abaf9d1275e2ce60ab2b014ed7` لم يتغير، ولا إعادة تحقق أو نشر للأجزاء المنجزة.
+- إثبات حي داخل `BEGIN READ ONLY`: `test_admin_employee` / UID `44dfab74-53ec-4def-bdb6-fe6aad4f4d87` / `test_admin_employee@msajed.local`؛ manual_test ومملوك للتسليم اليدوي، Auth confirmed/not-banned، profile active والروابط canonical صحيحة، registry eligible، وكلا علمي forced-change=false. الاختيار من الأربعة الجاهزين وبأقل دور `employee`، لا حساب حقيقي.
+- النطاق المثبت قبل الدخول: إدارة الموارد البشرية والإدارة القانونية، ضمن مساعد الرئيس التنفيذي للشؤون الإدارية والمالية؛ العضويات member. الصلاحيات الحالية المشتقة من grants بلا overrides: `transactions.create` و`transactions.raise_manager`. **هذا ليس إثبات هوية جلسة ولا اختبار enforcement**.
+- لا login محفوظ لأصل التطبيق في الخزينة. محاولة حفظ آمنة جديدة للحساب المحدد فقط أعادت `save_declined`؛ لا إعادة طلب أو إدخال بديل للأسرار، ولا إرسال login. الحاجز الدقيق `QA_SECURE_CREDENTIAL_INJECTION_UNAVAILABLE_VAULT_SAVE_DECLINED`، لا غياب تفويض أو عدم صلاحية الحساب. كلمة الملف الخاص لم تختبر ولم تطبع/تنسخ للأدلة أوClipboard.
+- صفر سجلات معاملات أنشأها/يتولى مسؤوليتها QA المحدد، وصفر assignment-targets/routes له؛ لا سجل QA مملوك معزول مثبت. `DETAILS = BLOCKED_BY_NO_ISOLATED_QA_RECORD`؛ لم تفتح تفاصيل حقيقية ولم تنشأ بيانات بديلة.
+- جميع مسارات الأداء المحمية0 عينة؛ min/avg/p50/p95/p99/max unavailable. Role/Scope/IDOR/invalid-session/logout invalidation المصادق عليها NOT TESTED. لا Bottleneck مثبت ولا حكم قبول أمني من150/150 المحلية المحفوظة.
+- آثار هذه المتابعة: real business writes0؛ Auth create/reset/change0؛ جلسات جديدة0؛ QA data0؛ migrations/index changes0؛ Edge/Cloudflare deployments0؛ Faisal touched=no؛ Old system accessed=no. SQL المقترحان والفهارس PROPOSED_NOT_APPLIED، وMigration200 BLOCKED_BY_DESIGN_NOT_PENDING. تغير التوثيق لا يعني نشر Runtime.
+- الاستئناف: توفير الاعتماد الموجود لنفس QA عبر الخزينة الآمنة، إعادة تحقق readiness ثم إثبات actual session UID قبل الاختبارات؛ بعدها30 عينة لكل مسار متاح. Details تبقى محجوبة حتى إثبات سجل QA معزول. لا إنشاء/reset أو تغيير صلاحيات.
+- التفاصيل وبصمات الأدلة: `docs/LIVE_VERIFICATION_2026-10-14.md`. **الحكم الحالي BLOCKED**؛ المقاطع السابقة أدناه تاريخية لهذه المتابعة.
+
+
 ## 2026-10-14 — الحالة الحاكمة بعد التحقق الحي: BLOCKED
 
 - Runtime معتمد من main `f3762ca8301650aa719f0dcb15171cc2d80f95e7`؛ الدمج ونشر Cloudflare السابقان منجزان. لا تعديل أو إعادة نشر Frontend في هذه المتابعة؛ deployment `ed1ced44-bc74-4583-b273-feb623a28a8e` وcache `20261013-release-closure-1` يبقيان دليلًا سابقًا محفوظًا، لا اختبارًا معادًا.

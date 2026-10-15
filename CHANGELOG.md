@@ -1,5 +1,24 @@
 # Changelog
 
+## Current closure — 2026-10-15 — Authenticated Preview QA: DO_NOT_MERGE
+
+- أضيف التقرير الواحد `docs/AUTHENTICATED_PREVIEW_QA_2026-10-15.md` ووصلت به الحالة/Handoff وLive verification، دون Runtime/test/config/schema edits أو تشغيل اختبارات المنتج في مهمة التوثيق.
+- تفويض Credential QA داخل الذاكرة يلغي حاجز QA Vault/delivery وتعليمات الاستئناف القديمة؛ لا يغيّر استبعاد فيصل أو `FAISAL_LOGIN = BLOCKED_BY_SECURE_CREDENTIAL_DELIVERY`. الأجسام التالية تاريخية محفوظة، لا حواجز حالية بديلة.
+- سجّل Preview الفعلي `https://b2067617.ceo-msajed.pages.dev` من `75291c8dfcf95b4d1ba34cea05dc641d67ecd252`، وparity الواجهة/SW وقراءات حفظ PR #4/Production/Pages. Backend مشترك؛ CORS الحي يمنع Preview، لا إصلاح Backend أو إعدادات. لا source bug repair في هذه الجولة.
+- الهوية قبل الدخول مثبتة؛ recovery/own-change تصميم مشروع بشروط لا native admission. لا Reset/Recovery/Provisioning/Login أو جلسة جديدة؛ protected samples=0، statistics=null، لا authenticated security acceptance. invalid-token my_profile401 العام محفوظ كرفض محدود وليس expired/logout PASS.
+- `DETAILS = BLOCKED_BY_NO_APPROVED_ISOLATED_QA_FIXTURE`؛ `LOAD_50X50 = BLOCKED_BY_NO_ISOLATED_LOAD_ENVIRONMENT`؛ `Migration200 = BLOCKED_BY_DESIGN_NOT_PENDING`؛ SQL/index proposals `PROPOSED_NOT_APPLIED`. Cleanup `NOT_APPLICABLE_NO_OWNED_SESSION_OR_FIXTURE_CREATED`.
+- الحكم `DO_NOT_MERGE`؛ فحص الأسرار ومراجعة المحتوى والنشر التوثيقي وقراءات الحفظ بوابات exact-commit مستقلة، لا يستنتجها هذا المصدر لنفسه ولا يعدّها live acceptance. تبقى Production والدمج غير مأذونين مهما قُبل التوثيق.
+
+## Historical bodies — تُحفظ أدناه أدلة الجولات السابقة دون إعادة اعتماد QA blockers الملغاة
+
+## 2026-10-15 — حالة دخول فيصل المعتمدة واستمرار العمل المستقل
+
+- `FAISAL_LOGIN = BLOCKED_BY_SECURE_CREDENTIAL_DELIVERY` لحساب `faisal` / UID `0a1df502-9232-4ef5-af2d-df585ad7f187` في المشروع الجديد فقط. لا Reset ما دامت قناة التسليم الآمنة غير متاحة، ولا إعادة محاولة دخول أو استخدام حسابه في QA/Load أو تغيير UID/Email/Role/Permissions/Scope/Profile.
+- موافقة فيصل على هذا الحاجز ليست سببًا لتعليق المشروع: تستمر الأعمال المستقلة عن جلسة التطبيق المصادق عليها. لا خطوات يدوية مطلوبة الآن، ولا تغيير لحكم QA المحجوب أو اصطناع PASS للمسارات غير المختبرة.
+- مرجع الحالة وحدود المصدر: `docs/auth/FAISAL_LOGIN_STATUS.md`. لا فتح للنظام القديم، لا Business write، لا Migration/Index apply أو نشر بسبب تسجيل هذه الحالة.
+- استُكملت قراءتا المصدر المستقلتان وأُصلحت محليًا أربع ملاحظات واجهة وخمس ملاحظات خلفية باختبارات فعلية معزولة. الخلفية والواجهة وعقد الاختبار المجمّع معتمدة بمراجعات مستقلة للمصدر/الاختبارات المحلية والاصطناعية فقط؛ لا يشمل ذلك قبول التشغيل الحي أو النشر. التقرير المحدود: `docs/NON_AUTHENTICATED_CONTINUATION_2026-10-15.md`. هذا ليس قبول QA حيًا ولا نشرًا.
+
+
 ## 2026-10-15 — تنبيهات القطاعات وتحسين أمان تشغيل النظام القديم
 
 - النظام القديم فقط: إضافة جرس 🔔 للمهام والمعاملات الجديدة في واجهة القطاعات، مع خط أساس أولي وعدم إعادة التنبيه بعد إغلاقه.

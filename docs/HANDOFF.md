@@ -1,5 +1,24 @@
 # Handoff — استلام المشروع في أي محادثة جديدة
 
+## Current — إقفال جولة Preview QA 2026-10-15: DO_NOT_MERGE
+
+- المرجع الحالي الواحد: `docs/AUTHENTICATED_PREVIEW_QA_2026-10-15.md`؛ يغلب تعليمات QA القديمة أدناه دون حذف أجسامها التاريخية. تفويض الذاكرة المؤقتة يلغي اشتراط Vault/تسليم Credential الـQA، ولا يلغي `FAISAL_LOGIN = BLOCKED_BY_SECURE_CREDENTIAL_DELIVERY` أو استبعاد حساب فيصل.
+- الفرع `qa/authenticated-preview-20261015` من exact `75291c8dfcf95b4d1ba34cea05dc641d67ecd252`؛ main بداية الجولة `b346b046300a33601288e569d17249cd2632a8d2` ولم تُدمج أي تغييرات لاحقة منه. PR #4 مثبت، مفتوح وغير مدموج وauto-merge off وفق قراءات الحفظ، وحالته `REVIEWED / READY BUT NOT AUTHORIZED TO PUBLISH`.
+- Preview فعلي غير Production: `https://b2067617.ceo-msajed.pages.dev`؛ بايتات الواجهة وSW مثبتة، لكن Backend تشغيلي مشترك. CORS الحي لا يقبل Origin الـPreview؛ لا إصلاح Backend/config أو تجاوز Origin. هوية QA مثبتة قبل الدخول فقط، لا Reset/Provisioning/Recovery/Login أو جلسة جديدة.
+- الاسترداد الأصلي ثم own-change عبر Endpoint المنتج القائم تصميم مشروع ومراجع بشروط، لا قبول تنفيذ ولا حاجة لتفويض مستخدم جديد؛ parity/سلطة Auth والحفظ المؤقت/آثار hooks والتنبيهات/executor المراجع ما زالت بوابات غير مثبتة.
+- protected samples=0 وكل min/avg/p50/p95/p99/max=null؛ Role/Permission/Scope/IDOR غير منفذة. مجس invalid-token العام لـmy_profile أعاد401 دون identity payload، وليس قبول expired/stale/logout لجلسة حقيقية. `DETAILS = BLOCKED_BY_NO_APPROVED_ISOLATED_QA_FIXTURE`؛ `LOAD_50X50 = BLOCKED_BY_NO_ISOLATED_LOAD_ENVIRONMENT`.
+- `DO_NOT_MERGE`: لا قبول حي مصادق عليه. Cleanup `NOT_APPLICABLE_NO_OWNED_SESSION_OR_FIXTURE_CREATED` وليس Logout PASS. `Migration200 = BLOCKED_BY_DESIGN_NOT_PENDING` والمقترحات `PROPOSED_NOT_APPLIED`. قبول التوثيق وفحص الأسرار ورفع الفرع وقراءات الحفظ بوابات مستقلة مرتبطة بالـcommit ومراجعة exact-hash، وليست قبول تشغيل أو إذن Merge/Production؛ لا يستنتج هذا الملف SHA/PR/CI لنفسه.
+
+## Historical bodies — الحالات التالية محفوظة؛ تعليمات QA Vault/delivery ملغاة للجولة الحالية
+
+## 2026-10-15 — حالة دخول فيصل المعتمدة واستمرار العمل المستقل
+
+- `FAISAL_LOGIN = BLOCKED_BY_SECURE_CREDENTIAL_DELIVERY` لحساب `faisal` / UID `0a1df502-9232-4ef5-af2d-df585ad7f187` في المشروع الجديد فقط. لا Reset ما دامت قناة التسليم الآمنة غير متاحة، ولا إعادة محاولة دخول أو استخدام حسابه في QA/Load أو تغيير UID/Email/Role/Permissions/Scope/Profile.
+- موافقة فيصل على هذا الحاجز ليست سببًا لتعليق المشروع: تستمر الأعمال المستقلة عن جلسة التطبيق المصادق عليها. لا خطوات يدوية مطلوبة الآن، ولا تغيير لحكم QA المحجوب أو اصطناع PASS للمسارات غير المختبرة.
+- مرجع الحالة وحدود المصدر: `docs/auth/FAISAL_LOGIN_STATUS.md`. لا فتح للنظام القديم، لا Business write، لا Migration/Index apply أو نشر بسبب تسجيل هذه الحالة.
+- استُكملت قراءتا المصدر المستقلتان وأُصلحت محليًا أربع ملاحظات واجهة وخمس ملاحظات خلفية باختبارات فعلية معزولة. الخلفية والواجهة وعقد الاختبار المجمّع معتمدة بمراجعات مستقلة للمصدر/الاختبارات المحلية والاصطناعية فقط؛ لا يشمل ذلك قبول التشغيل الحي أو النشر. التقرير المحدود: `docs/NON_AUTHENTICATED_CONTINUATION_2026-10-15.md`. هذا ليس قبول QA حيًا ولا نشرًا.
+
+
 ## 2026-10-15 — تطوير مواعيد الاجتماعات في المتابعة اليومية
 
 - النظام القديم فقط: أضيف لكل اجتماع زر نسخ واتساب مستقل بالصيغة المعتمدة: اسم الاجتماع، التاريخ الميلادي والهجري، يوم الاجتماع، وقت الاجتماع، الموقع، والحضور من قبلهم عند وجود أسماء فقط.

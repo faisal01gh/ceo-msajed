@@ -14,6 +14,7 @@ let session=null;
 let directoryData={users:[],units:[],me:null};
 let listData={rows:[],total:0,page:1,page_size:50,counters:{}};
 let currentSection="transactions";
+let sectionGeneration=0;
 let currentTab="";
 let sessionPermissions=[];
 let permissionsData=null;
@@ -579,6 +580,8 @@ function sectionSidebar(active){
 async function wireSectionSidebar(){
   document.querySelectorAll("[data-section]").forEach(b=>b.onclick=async()=>{
     const section=b.dataset.section;
+    const owner=session,sectionId=++sectionGeneration;
+    const current=()=>session===owner&&sectionId===sectionGeneration;
     try{
     if(section==="transactions"){
       currentSection="transactions";
@@ -586,21 +589,26 @@ async function wireSectionSidebar(){
       return;
     }
     if(section==="profile"){
-      await loadProfile();
+      await loadProfile(sectionId);
+      if(!current())return;
       currentSection="profile";
       renderProfileApp();
       return;
     }
     if(section==="permissions"&&canManagePermissions()){
-      await loadPermissions();
+      await loadPermissions(sectionId);
+      if(!current())return;
       currentSection="permissions";
       renderPermissionsApp();
     }
-    }catch{showNotice("تعذر تحميل القسم. تحقق من الاتصال ثم حاول مرة أخرى.")}
+    }catch{if(current())showNotice("تعذر تحميل القسم. تحقق من الاتصال ثم حاول مرة أخرى.")}
   });
 }
-async function loadProfile(){
-  profileData=await rpc("my_profile");
+async function loadProfile(sectionId=null){
+  const owner=session;
+  const profile=await rpc("my_profile");
+  if(session!==owner||(sectionId!==null&&sectionId!==sectionGeneration))return;
+  profileData=profile;
 }
 async function credentialCommand(fn,token,password,operationId,targetKey){
   return post(fn,{access_token:token,new_password:password,operation_id:operationId,...(targetKey?{target_key:targetKey}:{})},false);
@@ -681,9 +689,12 @@ function renderProfileApp(){
     }catch{showNotice("تعذر حفظ البريد الإلكتروني. تحقق منه ثم حاول مرة أخرى.");save.disabled=false}
   };
 }
-async function loadPermissions(){
+async function loadPermissions(sectionId=null){
   if(!canManagePermissions())throw new Error("forbidden");
-  permissionsData=await rpc("permissions_admin_snapshot",{p_section:permissionsSection});
+  const owner=session;
+  const permissions=await rpc("permissions_admin_snapshot",{p_section:permissionsSection});
+  if(session!==owner||(sectionId!==null&&sectionId!==sectionGeneration))return;
+  permissionsData=permissions;
   const users=permissionsData.users||[];
   if(!permissionsSelectedUser||!users.some(u=>u.canonical_key===permissionsSelectedUser)){
     permissionsSelectedUser=users[0]?.canonical_key||"";
@@ -989,7 +1000,7 @@ async function refresh(){
     const committed=await pending;
     if(!committed||session!==owner||listId!==listGeneration||bootId!==bootGeneration)return;
     const proven=bootPrerequisites?.owner===owner&&bootPrerequisites.bootId===bootId&&bootPrerequisites.ready;
-    const target=host||((proven&&document.getElementById("tableHost"))||null);
+    const target=host?.isConnected?host:((proven&&document.getElementById("tableHost"))||null);
     if(currentSection==="transactions"&&target?.isConnected&&(!bootPrerequisites||proven))renderListOnly();
   }
   catch{
@@ -1079,9 +1090,10 @@ function renderPager(){
   const h=document.getElementById("pagerHost"),total=Number(listData.total||0),size=Number(listData.page_size||50);
   const pages=Math.max(1,Math.ceil(total/size));
   if(pages<=1){h.innerHTML="";return}
-  h.innerHTML=`<div class="pager"><button class="btn btn-soft" id="prevPage" ${page<=1?"disabled":""}>السابق</button><span>${page} / ${pages}</span><button class="btn btn-soft" id="nextPage" ${page>=pages?"disabled":""}>التالي</button></div>`;
-  document.getElementById("prevPage").onclick=async()=>{if(page>1){page--;await refresh()}};
-  document.getElementById("nextPage").onclick=async()=>{if(page<pages){page++;await refresh()}};
+  const displayedPage=Number(listData.page)||1;
+  h.innerHTML=`<div class="pager"><button class="btn btn-soft" id="prevPage" ${displayedPage<=1?"disabled":""}>السابق</button><span>${displayedPage} / ${pages}</span><button class="btn btn-soft" id="nextPage" ${displayedPage>=pages?"disabled":""}>التالي</button></div>`;
+  document.getElementById("prevPage").onclick=async()=>{if(displayedPage>1){page=displayedPage-1;await refresh()}};
+  document.getElementById("nextPage").onclick=async()=>{if(displayedPage<pages){page=displayedPage+1;await refresh()}};
 }
 const modalStack=[];
 let modalSerial=0;
@@ -1961,7 +1973,7 @@ function excelXml(rows){
   return '<?xml version="1.0"?><?mso-application progid="Excel.Sheet"?><Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"><Styles><Style ss:ID="Body"><Alignment ss:Horizontal="Right" ss:Vertical="Center"/><Font ss:FontName="Arial" ss:Size="11"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E5E7EB"/></Borders></Style><Style ss:ID="Header"><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Font ss:FontName="Arial" ss:Size="11" ss:Bold="1" ss:Color="#FFFFFF"/><Interior ss:Color="#0E7490" ss:Pattern="Solid"/></Style><Style ss:ID="Section"><Alignment ss:Horizontal="Right"/><Font ss:FontName="Arial" ss:Size="12" ss:Bold="1" ss:Color="#0B2E4F"/><Interior ss:Color="#EAF4F8" ss:Pattern="Solid"/></Style></Styles><Worksheet ss:Name="المعاملات"><Table><Column ss:Width="45"/><Column ss:Width="105"/><Column ss:Width="220"/><Column ss:Width="160"/><Column ss:Width="160"/><Column ss:Width="110"/><Column ss:Width="110"/><Column ss:Width="110"/><Column ss:Width="130"/>'+body+'</Table><WorksheetOptions xmlns="urn:schemas-microsoft-com:office:excel"><DisplayRightToLeft/></WorksheetOptions></Worksheet></Workbook>';
 }
 function exportListExcel(){
-  const rows=[["م","رقم المعاملة","عنوان المعاملة","الإدارة المسؤولة","مسؤول المعاملة","الأولوية","الحالة","عدد الأيام","آخر تحديث"],...(listData.rows||[]).map((r,i)=>[i+1+(page-1)*Number(listData.page_size||50),r.number,r.title,r.responsible_unit_name||"",r.responsible_name||"",r.priority,r.status,r.days,fmtDate(r.last_activity_at)])];
+  const rows=[["م","رقم المعاملة","عنوان المعاملة","الإدارة المسؤولة","مسؤول المعاملة","الأولوية","الحالة","عدد الأيام","آخر تحديث"],...(listData.rows||[]).map((r,i)=>[i+1+((Number(listData.page)||1)-1)*Number(listData.page_size||50),r.number,r.title,r.responsible_unit_name||"",r.responsible_name||"",r.priority,r.status,r.days,fmtDate(r.last_activity_at)])];
   download("المعاملات.xls","application/vnd.ms-excel;charset=utf-8",excelXml(rows));
 }
 function exportTransactionExcel(d){
@@ -1983,7 +1995,7 @@ function printHtml(title,body){
   w.document.close();w.focus();setTimeout(()=>w.print(),200);
 }
 function printList(){
-  const rows=(listData.rows||[]).map((r,i)=>'<tr><td>'+esc(i+1+(page-1)*Number(listData.page_size||50))+'</td><td>'+esc(r.number)+'</td><td>'+esc(r.title)+'</td><td>'+esc(r.responsible_unit_name||"")+'</td><td>'+esc(r.priority)+'</td><td>'+esc(r.status)+'</td></tr>').join("");
+  const rows=(listData.rows||[]).map((r,i)=>'<tr><td>'+esc(i+1+((Number(listData.page)||1)-1)*Number(listData.page_size||50))+'</td><td>'+esc(r.number)+'</td><td>'+esc(r.title)+'</td><td>'+esc(r.responsible_unit_name||"")+'</td><td>'+esc(r.priority)+'</td><td>'+esc(r.status)+'</td></tr>').join("");
   printHtml("المعاملات",'<h1>المعاملات</h1><table><thead><tr><th>م</th><th>رقم المعاملة</th><th>العنوان</th><th>الإدارة</th><th>الأولوية</th><th>الحالة</th></tr></thead><tbody>'+rows+'</tbody></table>');
 }
 function printTransaction(d){
@@ -1997,6 +2009,11 @@ function printTransaction(d){
 }
 async function logout(){
   const token=session?.token;
+  clearSession();
+  for(const dialog of [...modalStack].reverse())dialog.remove();
+  directoryData={users:[],units:[],me:null};
+  listData={rows:[]};sessionPermissions=[];permissionsData=null;profileData=null;
+  currentSection="transactions";currentTab="";loginView();
   if(token){
     try{
       await fetchJson(CONFIG.supabaseUrl+"/auth/v1/logout",{
@@ -2005,10 +2022,6 @@ async function logout(){
       },8000);
     }catch{}
   }
-  clearSession();
-  directoryData={users:[],units:[],me:null};
-  listData={rows:[]};sessionPermissions=[];permissionsData=null;profileData=null;
-  currentSection="transactions";currentTab="";loginView();
 }
 
 root.addEventListener("click",e=>{

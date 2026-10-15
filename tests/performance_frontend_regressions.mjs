@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import {spawnSync} from 'node:child_process';
 import {repo,artifactRoot,acorn,hash,environment,login,measure} from './performance_frontend_fixture.mjs';
 
 const label=process.argv[2]||'GREEN';
@@ -18,9 +19,39 @@ await check('formatters are reused outside row render calls',()=>{
     assert(!(node.type==='NewExpression'&&node.callee?.object?.name==='Intl'&&node.callee?.property?.name==='DateTimeFormat'),'per-row Intl formatter allocation');
   });
 });
-await check('security and bootstrap functions are byte-identical to BEFORE',()=>{
+await check('security and bootstrap functions retain baseline outside reviewed ownership consumers',()=>{
+  // These exact consumers are behavior-checked below against real app.js/DOM.
+  const ownershipConsumers=new Set(['refresh','logout','loadPermissions']);
   const names=['login','signInNew','boot','loadList','refresh','rpc','post','refreshAuthSession','fetchJson','saveSession','loadSession','clearSession','logout','hasTxPerm','canManagePermissions','loadPermissions','renderPermissionsApp','renderPermissionGrid','credentialCommand','openOwnPasswordChange','acknowledgeTransactionSeen','openDetails'];
-  for(const name of names){const old=baselineAst.body.find(n=>n.id?.name===name),current=fn(name);assert.equal(hash(source.slice(current.start,current.end)),hash(baseline.slice(old.start,old.end)),`changed protected function: ${name}`);}
+  for(const name of names){
+    if(ownershipConsumers.has(name))continue;
+    const old=baselineAst.body.find(n=>n.id?.name===name),current=fn(name);
+    assert.equal(hash(source.slice(current.start,current.end)),hash(baseline.slice(old.start,old.end)),`changed protected function: ${name}`);
+  }
+});
+await check('reviewed ownership consumers pass current-source offline DOM regressions',()=>{
+  const python=process.env.FRONTEND_OWNERSHIP_PYTHON;
+  assert.ok(python,'FRONTEND_OWNERSHIP_PYTHON must select the prepared fixture Python');
+  const output=path.join(artifactRoot,`${label}-ownership-regressions.json`);
+  const harness=path.join(repo,'tests/frontend_navigation_races.py');
+  const result=spawnSync(python,[harness,'--output',output],{
+    encoding:'utf8',timeout:120000,
+    env:{...process.env,CHROMIUM_EXECUTABLE_PATH:process.env.FRONTEND_CHROMIUM||process.env.CHROMIUM_EXECUTABLE_PATH||''}
+  });
+  fs.writeFileSync(path.join(artifactRoot,`${label}-ownership-stdout.txt`),result.stdout||'');
+  fs.writeFileSync(path.join(artifactRoot,`${label}-ownership-stderr.txt`),result.stderr||'');
+  assert.equal(result.status,0,'owned DOM regression failed; inspect retained ownership stderr/JSON');
+  const receipt=JSON.parse(fs.readFileSync(output,'utf8'));
+  assert.equal(receipt.appSha256,hash(source));
+  assert.equal(receipt.harnessSha256,hash(fs.readFileSync(harness)));
+  assert.ok(receipt.testsRun>=20);
+  assert.equal(receipt.passed,receipt.testsRun);
+  assert.equal(receipt.failures,0);assert.equal(receipt.errors,0);
+  assert.equal(receipt.externalRequestCount,0);assert.deepEqual(receipt.pageErrors,[]);
+  for(const name of ['test_fe003_refresh_renders_replacement_transactions_host',
+    'test_fe001_details_complete_during_pending_logout','test_nav_permissions_completed_owner_handoff']){
+    assert.ok(receipt.scenarios.some(s=>s.name.endsWith('.'+name)&&s.status==='passed'),`missing ownership replacement: ${name}`);
+  }
 });
 await check('public configuration preserved by AST hash only',()=>{
   const config=tree=>tree.body.find(n=>n.type==='VariableDeclaration'&&n.declarations[0]?.id?.name==='CONFIG');

@@ -1,5 +1,17 @@
 # Live verification — 2026-10-14 (Saudi Arabia, UTC+03:00)
 
+## Current supersession — Preview QA round 2026-10-15: DO_NOT_MERGE
+
+The single current closure is `docs/AUTHENTICATED_PREVIEW_QA_2026-10-15.md`. All prior bodies below are preserved historical evidence. Their QA Vault/import/delivery prerequisite and resume instructions are superseded by the latest explicit in-memory-only QA credential authority; they are not current QA blockers. Faisal remains excluded with `FAISAL_LOGIN = BLOCKED_BY_SECURE_CREDENTIAL_DELIVERY`.
+
+Actual non-Production frontend Preview `https://b2067617.ceo-msajed.pages.dev` is bound to candidate `75291c8dfcf95b4d1ba34cea05dc641d67ecd252` on `qa/authenticated-preview-20261015`; no later main was adopted and frozen PR #4 was not changed. The exact frontend HTTP/SW evidence is real, but the backend remains shared and actual Preview-Origin CORS preflights do not admit it. No permitted shared-backend repair, credential generation, recovery/reset/provisioning/login or owned session acquisition followed. Recovery → genuine exact-QA session → unchanged product own-change is a legitimate design with explicit still-unmet execution gates, not native admission or a demand for new user approval.
+
+The public-ingress invalid-token `my_profile` probe did return401 with `identityPayloadPresent=false` (`invalidSession.status=401`). This narrow observed rejection is not genuine owned expired/stale-session or logout/revocation acceptance; those remain `NOT_RUN_NO_GENUINE_OWNED_SESSION`. Fresh QA identity evidence is pre-login only. All seven requested protected measurement series and conditional Details have actual samples0 and min/avg/p50/p95/p99/max=null; historical local tests were not rerun or promoted into current CI/live acceptance.
+
+`DETAILS = BLOCKED_BY_NO_APPROVED_ISOLATED_QA_FIXTURE`; `LOAD_50X50 = BLOCKED_BY_NO_ISOLATED_LOAD_ENVIRONMENT`. Cleanup is `NOT_APPLICABLE_NO_OWNED_SESSION_OR_FIXTURE_CREATED`, not logout PASS. `Migration200 = BLOCKED_BY_DESIGN_NOT_PENDING`; SQL/index proposals remain `PROPOSED_NOT_APPLIED`. The new transactions settings read establishes the legacy-secret JWT toggle Off only, not fresh version39/source parity. Documentation approval, secret scanning, publication and preservation are separate exact-commit gates; this source file does not self-attest its future SHA/PR/skip effect or promote documentation approval to native acceptance. Recommendation: **DO_NOT_MERGE**.
+
+## Historical bodies — superseded current-state/resume wording retained as audit history
+
 ## 2026-10-15 — Latest autonomous QA continuation: tool-capability blocker
 
 Observed at `2026-10-15T01:17:24.793571+03:00` (Saudi Arabia, UTC+03:00). The source authorization was received under a 2026-10-14 attachment name; this continuation is already **2026-10-15 locally**. This section supersedes earlier same-file credential instructions without rewriting their historical evidence.

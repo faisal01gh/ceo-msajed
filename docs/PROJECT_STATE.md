@@ -1,5 +1,16 @@
 # حالة المشروع الحالية
 
+## Current — 2026-10-15: Preview موجود؛ Authenticated acceptance محجوبة
+
+- المرجع الحاكم لهذه الجولة: `docs/AUTHENTICATED_PREVIEW_QA_2026-10-15.md`؛ يحل محل حواجز QA Vault/delivery القديمة وتعليمات استئنافها أدناه، مع حفظ الأجسام التاريخية. الاستثناء يسمح Credential QA مؤقتًا داخل الذاكرة؛ فيصل مستبعد وحالته `FAISAL_LOGIN = BLOCKED_BY_SECURE_CREDENTIAL_DELIVERY` لم تتغير.
+- QA branch `qa/authenticated-preview-20261015` / base `75291c8dfcf95b4d1ba34cea05dc641d67ecd252`؛ لا تبنّي main أحدث. PR #4 يبقى `REVIEWED / READY BUT NOT AUTHORIZED TO PUBLISH`؛ مفتوح/unmerged/automerge off وفق الدليل المحفوظ.
+- `https://b2067617.ceo-msajed.pages.dev` نشر Preview واحد مثبت بحد خمسة ملفات Git-LF، وHTTP/SW مقروءان. ليس Backend معزولًا؛ CORS الفعلي يمنع Origin المطلوب ولا إذن لتغيير Backend/config. الحساب `test_admin_employee` / UID `44dfab74-53ec-4def-bdb6-fe6aad4f4d87` ثبت pre-login فقط؛ Auth changes/sessions created=0.
+- تصميم recovery → genuine QA session → unchanged product own-change مقبول بشروط، لا قبول تنفيذ. لا تخلط مطابقة ثلاثة SQL hashes أو إعداد Verify JWT Off مع full deployed closure/version parity؛ بوابات سلطة Auth والآثار وexecutor ما زالت مفتوحة.
+- `DO_NOT_MERGE`: protected journeys/security غير مثبتة، actual samples=0 والإحصاءات كلهاnull. invalid-token public my_profile=401 دون identity payload دليل محدود؛ genuine expired/stale/logout invalidation غير منفذ. Details والحمل لهما حاجزا `BLOCKED_BY_NO_APPROVED_ISOLATED_QA_FIXTURE` و`BLOCKED_BY_NO_ISOLATED_LOAD_ENVIRONMENT` المستقلان.
+- لا Business/Auth/DDL/Production write؛ لا old-system/Faisal access؛ مع نشر Preview المأذون والتمييز عن SQL saved-draft metadata. Cleanup غير منطبق بلا owned session/fixture، لا Logout PASS. `Migration200 = BLOCKED_BY_DESIGN_NOT_PENDING`؛ SQL/index proposals `PROPOSED_NOT_APPLIED`. قبول المحتوى وفحص الأسرار والنشر وقراءات الحفظ تُثبت بصورة مستقلة بالـcommit المدفوع وأدلة exact-hash، ولا تحول هذا التوثيق إلى قبول Runtime أو إذن Production.
+
+## Historical bodies — الحالات التالية ليست current QA؛ تعليمات Vault/delivery للـQA ملغاة
+
 ## 2026-10-15 — حالة دخول فيصل المعتمدة واستمرار العمل المستقل
 
 - `FAISAL_LOGIN = BLOCKED_BY_SECURE_CREDENTIAL_DELIVERY` لحساب `faisal` / UID `0a1df502-9232-4ef5-af2d-df585ad7f187` في المشروع الجديد فقط. لا Reset ما دامت قناة التسليم الآمنة غير متاحة، ولا إعادة محاولة دخول أو استخدام حسابه في QA/Load أو تغيير UID/Email/Role/Permissions/Scope/Profile.

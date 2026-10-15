@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import test from 'node:test';
-const expectedVersion = '20261013-release-closure-1';
+const expectedVersion = '20261015-noauth-guards-1';
 const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 const source = readFileSync(new URL('../service-worker.js', import.meta.url), 'utf8');
 const handlers = new Map();

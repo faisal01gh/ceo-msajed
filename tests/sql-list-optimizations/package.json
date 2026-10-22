@@ -1,0 +1,9 @@
+{
+  "name": "sql-list-optimizations-regression",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {"node": "26.7.0"},
+  "devDependencies": {"@electric-sql/pglite": "0.5.9"},
+  "dependencyCompatibility": "Use the existing approved public-fs-constants adaptation via --pglite-module. Do not install or disable permissions."
+}

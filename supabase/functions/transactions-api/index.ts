@@ -19,6 +19,7 @@ type Who={
   dept_names:string[];
   user_id:string|null;
   session_id?:string;
+  denied_permissions?:string[];
   permissions:string[];
 };
 
@@ -85,6 +86,7 @@ async function effectivePermissions(who:Who){
   const {data:rps,error:roleError}=rolePermissions;
   if(roleError)throw new Error("permissions_unavailable");
   const enabled=new Set<string>((rps||[]).map((x:any)=>String(x.permission_code)));
+  const denied=new Set<string>();
 
   if(accountError)throw new Error("permissions_unavailable");
   if(acct?.canonical_key){
@@ -92,8 +94,8 @@ async function effectivePermissions(who:Who){
     if(error)throw new Error("permissions_unavailable");
     for(const x of aos||[]){
       const code=String(x.permission_code);
-      if(x.effect==="allow")enabled.add(code);
-      if(x.effect==="deny")enabled.delete(code);
+      if(x.effect==="allow"){enabled.add(code);denied.delete(code)}
+      if(x.effect==="deny"){enabled.delete(code);denied.add(code)}
     }
   }
 
@@ -102,10 +104,11 @@ async function effectivePermissions(who:Who){
     if(error)throw new Error("permissions_unavailable");
     for(const x of ups||[]){
       const code=String(x.permission_code);
-      if(x.effect==="allow")enabled.add(code);
-      if(x.effect==="deny")enabled.delete(code);
+      if(x.effect==="allow"){enabled.add(code);denied.delete(code)}
+      if(x.effect==="deny"){enabled.delete(code);denied.add(code)}
     }
   }
+  Object.defineProperty(who,"denied_permissions",{value:[...denied],enumerable:false,writable:true});
   return [...enabled];
 }
 function hasPerm(who:Who,code:string){
@@ -337,6 +340,7 @@ function closeRequestTarget(who:Who,access:any){
   return "ceo";
 }
 function canRaiseCeo(who:Who,access:any){
+  if(arr(who.denied_permissions).includes("transactions.raise_ceo"))return false;
   if(!access?.tx||access.tx.status!=="open"||access.tx.current_level==="ceo"||!access.flags?.visible)return false;
   if(!canAct(who,access.tx,access.flags))return false;
   if(hasPerm(who,"transactions.raise_ceo"))return true;
@@ -370,12 +374,12 @@ async function notifyExec(txId:string,event:string,title:string,body:string|null
   for(const x of xs)await notify(x.login_name,x.display_name,txId,event,title,body);
 }
 async function completeActive(txId:string){
-  const {data:as}=await db.from("transaction_assignments").select("id").eq("transaction_id",txId).eq("status","active");
+  const {data:as}=await db.from("transaction_assignments").select("id").eq("transaction_id",txId).eq("status","active").throwOnError();
   const ids=(as||[]).map((x:any)=>x.id);
   if(ids.length){
     const now=new Date().toISOString();
-    await db.from("transaction_assignment_targets").update({active:false,completed_at:now}).in("assignment_id",ids).eq("active",true);
-    await db.from("transaction_assignments").update({status:"completed",completed_at:now}).in("id",ids);
+    await db.from("transaction_assignment_targets").update({active:false,completed_at:now}).in("assignment_id",ids).eq("active",true).throwOnError();
+    await db.from("transaction_assignments").update({status:"completed",completed_at:now}).in("id",ids).throwOnError();
   }
 }
 async function addAssignment(txId:string,unitId:string|null,type:string,directive:string,targets:string[],visibility:string|null,who:Who){
@@ -484,20 +488,20 @@ async function txAccess(who:Who,id:string){
 }
 async function closeTx(who:Who,tx:any,reason:string){
   const now=new Date().toISOString();
-  const {data:p}=await db.from("transaction_periods").select("id,started_at").eq("transaction_id",tx.id).is("ended_at",null).order("cycle_no",{ascending:false}).limit(1).maybeSingle();
+  const {data:p}=await db.from("transaction_periods").select("id,started_at").eq("transaction_id",tx.id).is("ended_at",null).order("cycle_no",{ascending:false}).limit(1).maybeSingle().throwOnError();
   if(p?.id){
     const days=Math.max(1,Math.floor((Date.now()-new Date(p.started_at).getTime())/86400000)+1);
-    await db.from("transaction_periods").update({ended_at:now,duration_days:days}).eq("id",p.id);
+    await db.from("transaction_periods").update({ended_at:now,duration_days:days}).eq("id",p.id).throwOnError();
   }
   await completeActive(tx.id);
-  await db.from("transactions").update({status:"closed",closed_at:now,closed_reason:reason,updated_at:now,last_activity_at:now}).eq("id",tx.id);
+  await db.from("transactions").update({status:"closed",closed_at:now,closed_reason:reason,updated_at:now,last_activity_at:now}).eq("id",tx.id).throwOnError();
   await history(tx.id,"closed",who,reason);
 }
 async function reopenTx(who:Who,tx:any,reason:string){
   const now=new Date().toISOString();
-  const {data:p}=await db.from("transaction_periods").select("cycle_no").eq("transaction_id",tx.id).order("cycle_no",{ascending:false}).limit(1).maybeSingle();
-  await db.from("transaction_periods").insert({transaction_id:tx.id,cycle_no:Number(p?.cycle_no||0)+1,started_at:now});
-  await db.from("transactions").update({status:"open",closed_at:null,updated_at:now,last_activity_at:now}).eq("id",tx.id);
+  const {data:p}=await db.from("transaction_periods").select("cycle_no").eq("transaction_id",tx.id).order("cycle_no",{ascending:false}).limit(1).maybeSingle().throwOnError();
+  await db.from("transaction_periods").insert({transaction_id:tx.id,cycle_no:Number(p?.cycle_no||0)+1,started_at:now}).throwOnError();
+  await db.from("transactions").update({status:"open",closed_at:null,updated_at:now,last_activity_at:now}).eq("id",tx.id).throwOnError();
   await history(tx.id,"reopened",who,reason);
 }
 async function createRequest(who:Who,tx:any,type:string,reason:string,extra:any={}){
@@ -615,13 +619,16 @@ Deno.serve(async(req:Request)=>{
       if(directoryReads[2].status==="rejected")throw directoryReads[2].reason;
       const access=directoryReads[2].value;
       if(!access||!access.flags.visible)return out(req,{error:"forbidden"},403);
-      const [[{data:versions},{data:actionNotes}],{data:actions},{data:routes},{data:requests},{data:historyRows},{data:periods},{data:links},{data:assignments}]=await Promise.all([
+      const [actionDetails,...detailResults]=await Promise.all([
         (async()=>{
-          const actionIds=(await db.from("transaction_actions").select("id").eq("transaction_id",id)).data?.map((x:any)=>x.id)||[];
-          return await Promise.all([
+          const ids=await db.from("transaction_actions").select("id").eq("transaction_id",id);
+          if(ids.error)return {error:ids.error,versions:null,actionNotes:null};
+          const actionIds=(ids.data||[]).map((x:any)=>x.id);
+          const [versions,notes]=await Promise.all([
             db.from("transaction_action_versions").select("*").in("action_id",actionIds.length?actionIds:["00000000-0000-0000-0000-000000000000"]).order("version_no"),
             db.from("transaction_action_notes").select("*").in("action_id",actionIds.length?actionIds:["00000000-0000-0000-0000-000000000000"]).order("created_at")
           ]);
+          return {error:versions.error||notes.error,versions:versions.data,actionNotes:notes.data};
         })(),
         db.from("transaction_actions").select("*").eq("transaction_id",id).order("created_at"),
         db.from("transaction_routes").select("*").eq("transaction_id",id).order("created_at"),
@@ -631,6 +638,9 @@ Deno.serve(async(req:Request)=>{
         db.from("transaction_links").select("*").eq("transaction_id",id).order("created_at"),
         db.from("transaction_assignments").select("*,transaction_assignment_targets(*)").eq("transaction_id",id).order("created_at")
       ]);
+      for(const r of [actionDetails,...detailResults])if(r.error)throw r.error;
+      const {versions,actionNotes}=actionDetails;
+      const [actions,routes,requests,historyRows,periods,links,assignments]=detailResults.map(r=>r.data);
       const latestMovement=access.routes.filter((r:any)=>r.route_type!=="ceo_view"&&["completed","accepted"].includes(r.status))
         .sort((a:any,b:any)=>new Date(a.created_at).getTime()-new Date(b.created_at).getTime()||String(a.id).localeCompare(String(b.id))).at(-1);
       const replySource=who.role==="assistant"&&hasPerm(who,"transactions.reply_raise")&&access.tx.status==="open"&&
@@ -700,7 +710,7 @@ Deno.serve(async(req:Request)=>{
         current_level:lvl,close_level:lvl==="employee"?"manager":lvl,created_by_name:who.display_name
       }).select("*").single();
       if(error)throw error;
-      await db.from("transaction_periods").insert({transaction_id:tx.id,cycle_no:1,started_at:tx.created_at});
+      await db.from("transaction_periods").insert({transaction_id:tx.id,cycle_no:1,started_at:tx.created_at}).throwOnError();
       await history(tx.id,"created",who,"إنشاء معاملة");
       return out(req,{ok:true,row:tx});
     }
@@ -711,9 +721,9 @@ Deno.serve(async(req:Request)=>{
       const {data:row,error}=await db.from("transaction_actions").insert({
         transaction_id:id,actor_name:who.display_name,action_text:text,status:"recorded"
       }).select("*").single();if(error)throw error;
-      await db.from("transaction_action_versions").insert({action_id:row.id,version_no:1,body:text,actor_name:who.display_name});
+      await db.from("transaction_action_versions").insert({action_id:row.id,version_no:1,body:text,actor_name:who.display_name}).throwOnError();
       await history(id,"action",who,text);
-      await db.from("transactions").update({last_activity_at:new Date().toISOString(),updated_at:new Date().toISOString()}).eq("id",id);
+      await db.from("transactions").update({last_activity_at:new Date().toISOString(),updated_at:new Date().toISOString()}).eq("id",id).throwOnError();
       return out(req,{ok:true,row});
     }
 
@@ -753,8 +763,8 @@ Deno.serve(async(req:Request)=>{
       const a=await txAccess(who,act.transaction_id);if(!a)return out(req,{error:"not_found"},404);
       if(!a.flags.visible||!canAct(who,a.tx,a.flags))return out(req,{error:"forbidden"},403);
       const v=Number(act.current_version||1)+1;
-      await db.from("transaction_action_versions").insert({action_id:actionId,version_no:v,body:text,actor_name:who.display_name});
-      await db.from("transaction_actions").update({action_text:text,current_version:v,status:"recorded",updated_at:new Date().toISOString()}).eq("id",actionId);
+      await db.from("transaction_action_versions").insert({action_id:actionId,version_no:v,body:text,actor_name:who.display_name}).throwOnError();
+      await db.from("transaction_actions").update({action_text:text,current_version:v,status:"recorded",updated_at:new Date().toISOString()}).eq("id",actionId).throwOnError();
       await history(act.transaction_id,"action_revised",who,text,{action_id:actionId,version:v});
       return out(req,{ok:true});
     }
@@ -776,7 +786,7 @@ Deno.serve(async(req:Request)=>{
         responsible_login_name:target.login_name,responsible_name:target.display_name,
         current_level:level(target.role),migration_status:"ready",workflow_started:true,
         updated_at:now,last_activity_at:now
-      }).eq("id",id);
+      }).eq("id",id).throwOnError();
       await history(id,"legacy_context_resolved",who,"تهيئة سياق المعاملة القديمة",{
         unit:unit.name,responsible:target.display_name,title
       });
@@ -791,7 +801,7 @@ Deno.serve(async(req:Request)=>{
       const m=await managerFor(who);if(!m)return out(req,{error:"manager_not_found"},409);
       await completeActive(id);
       await addRoute(id,"raise",who,m,{raise_reason:reason,proposed_decision:proposed});
-      await db.from("transactions").update({current_level:"manager",close_level:higherLevel(a.tx.close_level,"manager"),workflow_started:true,updated_at:new Date().toISOString(),last_activity_at:new Date().toISOString()}).eq("id",id);
+      await db.from("transactions").update({current_level:"manager",close_level:higherLevel(a.tx.close_level,"manager"),workflow_started:true,updated_at:new Date().toISOString(),last_activity_at:new Date().toISOString()}).eq("id",id).throwOnError();
       await history(id,"raise_manager",who,reason,{proposed_decision:proposed,to:m.display_name});
       await notify(m.login_name,m.display_name,id,"route",a.tx.title,reason);
       return out(req,{ok:true});
@@ -806,7 +816,7 @@ Deno.serve(async(req:Request)=>{
       const unit=allUnits.find((u:any)=>u.id===unitId);
       const mine=new Set(unique([who.dept_name,...who.dept_names].filter(Boolean)));
       if(!unit||!mine.has(unit.name))return out(req,{error:"forbidden_scope"},403);
-      const a=await txAccess(who,id);if(!a||!a.flags.visible)return out(req,{error:"forbidden"},403);
+      const a=await txAccess(who,id);if(!a||!canAct(who,a.tx,a.flags))return out(req,{error:"forbidden"},403);
       const d=await directory();
       for(const login of targets){
         const u=d.find((x:any)=>x.login_name===login);if(!u)return out(req,{error:"invalid_target"},400);
@@ -815,7 +825,7 @@ Deno.serve(async(req:Request)=>{
       await completeActive(id);
       await addAssignment(id,unitId,"responsible",directive,targets,null,who);
       await addRoute(id,"directive",who,{unit_id:unitId,name:unit?.name||"",display_name:targets.join("، ")},{directive,meta:{targets}});
-      await db.from("transactions").update({responsible_unit_id:unitId,current_level:"employee",close_level:higherLevel(a.tx.close_level,"manager"),workflow_started:true,migration_status:"ready",updated_at:new Date().toISOString(),last_activity_at:new Date().toISOString()}).eq("id",id);
+      await db.from("transactions").update({responsible_unit_id:unitId,current_level:"employee",close_level:higherLevel(a.tx.close_level,"manager"),workflow_started:true,migration_status:"ready",updated_at:new Date().toISOString(),last_activity_at:new Date().toISOString()}).eq("id",id).throwOnError();
       await history(id,"directive_employee",who,directive,{targets,unit:unit?.name||""});
       return out(req,{ok:true});
     }
@@ -828,7 +838,7 @@ Deno.serve(async(req:Request)=>{
       const asst=await assistantForOrg(who.org_name,who);if(!asst)return out(req,{error:"assistant_not_found"},409);
       await completeActive(id);
       await addRoute(id,"raise",who,asst,{raise_reason:reason,proposed_decision:proposed});
-      await db.from("transactions").update({current_level:"assistant",close_level:higherLevel(a.tx.close_level,"assistant"),workflow_started:true,migration_status:"ready",updated_at:new Date().toISOString(),last_activity_at:new Date().toISOString()}).eq("id",id);
+      await db.from("transactions").update({current_level:"assistant",close_level:higherLevel(a.tx.close_level,"assistant"),workflow_started:true,migration_status:"ready",updated_at:new Date().toISOString(),last_activity_at:new Date().toISOString()}).eq("id",id).throwOnError();
       await history(id,"raise_assistant",who,reason,{proposed_decision:proposed,to:asst.display_name});
       await notify(asst.login_name,asst.display_name,id,"route",a.tx.title,reason);
       return out(req,{ok:true});
@@ -869,7 +879,7 @@ Deno.serve(async(req:Request)=>{
       await addAssignment(id,responsibleUnit,"responsible",directive,responsibleTargets,null,who);
       for(const s of resolvedSupports)await addAssignment(id,s.unitId,"supporting",s.directive,s.targets,null,who);
       await addRoute(id,"directive",who,{unit_id:responsibleUnit,name:""},{directive,meta:{responsible_targets:responsibleTargets,supporting:supports}});
-      await db.from("transactions").update({responsible_unit_id:responsibleUnit,current_level:"employee",close_level:higherLevel(a.tx.close_level,"assistant"),workflow_started:true,migration_status:"ready",updated_at:new Date().toISOString(),last_activity_at:new Date().toISOString()}).eq("id",id);
+      await db.from("transactions").update({responsible_unit_id:responsibleUnit,current_level:"employee",close_level:higherLevel(a.tx.close_level,"assistant"),workflow_started:true,migration_status:"ready",updated_at:new Date().toISOString(),last_activity_at:new Date().toISOString()}).eq("id",id).throwOnError();
       await history(id,"assistant_scope_route",who,directive,{responsible_targets:responsibleTargets,supporting:supports});
       return out(req,{ok:true});
     }
@@ -900,10 +910,10 @@ Deno.serve(async(req:Request)=>{
       const now=new Date().toISOString();
       await db.from("transaction_routes").update({
         status:approve?"accepted":"rejected",rejection_reason:approve?null:reason,decided_at:now,to_name:who.display_name
-      }).eq("id",routeId);
+      }).eq("id",routeId).throwOnError();
       if(approve){
         await completeActive(tx.id);
-        await db.from("transactions").update({current_level:"assistant",close_level:"ceo",workflow_started:true,updated_at:now,last_activity_at:now}).eq("id",tx.id);
+        await db.from("transactions").update({current_level:"assistant",close_level:"ceo",workflow_started:true,updated_at:now,last_activity_at:now}).eq("id",tx.id).throwOnError();
         await history(tx.id,"assistant_transfer_accepted",who,r.transfer_reason||"",{from:r.from_name});
       }else await history(tx.id,"assistant_transfer_rejected",who,reason,{from:r.from_name});
       await notify(r.from_login_name,r.from_name,tx.id,approve?"transfer_accepted":"transfer_rejected",tx.title,approve?null:reason);
@@ -916,7 +926,7 @@ Deno.serve(async(req:Request)=>{
       const a=await txAccess(who,id);if(!a||!a.flags.visible||!canRaiseCeo(who,a))return out(req,{error:"forbidden"},403);
       await completeActive(id);
       await addRoute(id,"raise",who,{name:"الرئيس التنفيذي"},{raise_reason:reason,proposed_decision:proposed});
-      await db.from("transactions").update({current_level:"ceo",close_level:"ceo",workflow_started:true,ceo_attention:false,updated_at:new Date().toISOString(),last_activity_at:new Date().toISOString()}).eq("id",id);
+      await db.from("transactions").update({current_level:"ceo",close_level:"ceo",workflow_started:true,ceo_attention:false,updated_at:new Date().toISOString(),last_activity_at:new Date().toISOString()}).eq("id",id).throwOnError();
       await history(id,"raise_ceo",who,"تم رفع المعاملة للرئيس التنفيذي",{reason,requested:proposed,proposed_decision:proposed});
       await notifyExec(id,"raise_ceo",a.tx.title,reason);
       return out(req,{ok:true});
@@ -932,7 +942,7 @@ Deno.serve(async(req:Request)=>{
       const target=await account(toLogin);if(!target||target.role!=="assistant")return out(req,{error:"invalid_target"},400);
       await completeActive(id);
       await addRoute(id,"directive",who,target,{directive,meta:isExec(who.role)?{directive_owner:"الرئيس التنفيذي",entered_by:who.display_name}:{}});
-      await db.from("transactions").update({current_level:"assistant",close_level:"ceo",workflow_started:true,migration_status:"ready",ceo_attention:false,updated_at:new Date().toISOString(),last_activity_at:new Date().toISOString()}).eq("id",id);
+      await db.from("transactions").update({current_level:"assistant",close_level:"ceo",workflow_started:true,migration_status:"ready",ceo_attention:false,updated_at:new Date().toISOString(),last_activity_at:new Date().toISOString()}).eq("id",id).throwOnError();
       await history(id,"exec_to_assistant",who,directive,{to:target.display_name});
       await notify(target.login_name,target.display_name,id,"route",a.tx.title,directive);
       return out(req,{ok:true});
@@ -954,7 +964,7 @@ Deno.serve(async(req:Request)=>{
       await completeActive(id);
       await addAssignment(id,unitId,"direct",directive,targets,visibility,who);
       await addRoute(id,"direct_assign",who,{unit_id:unitId,name:unit.name},{directive,visibility_scope:visibility,meta:isExec(who.role)?{targets,directive_owner:"الرئيس التنفيذي",entered_by:who.display_name}:{targets}});
-      await db.from("transactions").update({responsible_unit_id:unitId,current_level:"employee",close_level:isExec(who.role)?"ceo":"assistant",workflow_started:true,migration_status:"ready",ceo_attention:false,updated_at:new Date().toISOString(),last_activity_at:new Date().toISOString()}).eq("id",id);
+      await db.from("transactions").update({responsible_unit_id:unitId,current_level:"employee",close_level:isExec(who.role)?"ceo":"assistant",workflow_started:true,migration_status:"ready",ceo_attention:false,updated_at:new Date().toISOString(),last_activity_at:new Date().toISOString()}).eq("id",id).throwOnError();
       await history(id,"direct_assign",who,directive,{targets,visibility_scope:visibility});
       return out(req,{ok:true});
     }
@@ -963,7 +973,7 @@ Deno.serve(async(req:Request)=>{
       const id=clean(b.transaction_id);if(!id)return out(req,{error:"missing"},400);
       const a=await txAccess(who,id);if(!a||!a.flags.visible)return out(req,{error:"forbidden"},403);
       if(!hasPerm(who,"transactions.ceo_view"))return out(req,{error:"forbidden"},403);
-      await db.from("transactions").update({ceo_attention:true,updated_at:new Date().toISOString()}).eq("id",id);
+      await db.from("transactions").update({ceo_attention:true,updated_at:new Date().toISOString()}).eq("id",id).throwOnError();
       await addRoute(id,"ceo_view",who,{name:"الرئيس التنفيذي"},{});
       await history(id,"ceo_view_marked",who,"إطلاع الرئيس التنفيذي");
       await notifyExec(id,"ceo_view",a.tx.title,null);
@@ -977,7 +987,7 @@ Deno.serve(async(req:Request)=>{
       const old=clean(a.tx.subject);
       if(old===subject)return out(req,{ok:true,unchanged:true});
       const now=new Date().toISOString();
-      await db.from("transactions").update({subject:subject||null,updated_at:now,last_activity_at:now}).eq("id",id);
+      await db.from("transactions").update({subject:subject||null,updated_at:now,last_activity_at:now}).eq("id",id).throwOnError();
       await history(id,"subject_changed",who,"تم تعديل موضوع المعاملة",{old_subject:old,new_subject:subject});
       return out(req,{ok:true});
     }
@@ -998,7 +1008,7 @@ Deno.serve(async(req:Request)=>{
       await db.from("transactions").update({
         responsible_unit_id:unitId,responsible_user_id:target.user_id,responsible_login_name:target.login_name,responsible_name:target.display_name,
         updated_at:now,last_activity_at:now
-      }).eq("id",id);
+      }).eq("id",id).throwOnError();
       await history(id,"responsible_unit_changed",who,"تم تغيير الإدارة المسؤولة",{
         old_unit:oldUnit,new_unit:unit.name,old_responsible:oldResponsible,new_responsible:target.display_name
       });
@@ -1012,7 +1022,7 @@ Deno.serve(async(req:Request)=>{
       if(!reason)return out(req,{error:"reason_required"},400);
       const a=await txAccess(who,id);if(!a||!a.flags.visible||!canAct(who,a.tx,a.flags)||!hasPerm(who,"transactions.change_priority"))return out(req,{error:"forbidden"},403);
       const old=a.tx.priority;
-      await db.from("transactions").update({priority,updated_at:new Date().toISOString(),last_activity_at:new Date().toISOString()}).eq("id",id);
+      await db.from("transactions").update({priority,updated_at:new Date().toISOString(),last_activity_at:new Date().toISOString()}).eq("id",id).throwOnError();
       await history(id,"priority_changed",who,"تم تغيير أولوية المعاملة",{old_priority:old,new_priority:priority,reason});
       return out(req,{ok:true});
     }
@@ -1020,10 +1030,11 @@ Deno.serve(async(req:Request)=>{
     if(action==="set_due_date"){
       const id=clean(b.transaction_id),due=clean(b.due_at);
       const a=await txAccess(who,id);if(!a||!a.flags.visible||!canSetDue(who,a.tx,a.flags)||!hasPerm(who,"transactions.set_due_date"))return out(req,{error:"forbidden"},403);
+      if(a.tx.status!=="open")return out(req,{error:"invalid_state"},409);
       const d=due?new Date(due):null;if(d&&Number.isNaN(d.getTime()))return out(req,{error:"bad_date"},400);
       const oldDue=a.tx.due_at||null;
       const nextDue=d?d.toISOString():null;
-      await db.from("transactions").update({due_at:nextDue,updated_at:new Date().toISOString()}).eq("id",id);
+      await db.from("transactions").update({due_at:nextDue,updated_at:new Date().toISOString()}).eq("id",id).throwOnError();
       await history(id,"due_date_changed",who,nextDue?"تم تعيين تاريخ استحقاق المعاملة":"تمت إزالة تاريخ استحقاق المعاملة",{old_due_at:oldDue,new_due_at:nextDue});
       return out(req,{ok:true});
     }
@@ -1049,8 +1060,9 @@ Deno.serve(async(req:Request)=>{
         const row=await createRequest(who,a.tx,"change_responsible",reason,{meta:{to_login:toLogin,to_name:target.display_name}});
         return out(req,{ok:true,requested:true,row});
       }
+      if(a.tx.status!=="open")return out(req,{error:"invalid_state"},409);
       const old=a.tx.responsible_name||a.tx.responsible_login_name||"";
-      await db.from("transactions").update({responsible_user_id:target.user_id,responsible_login_name:target.login_name,responsible_name:target.display_name,updated_at:new Date().toISOString(),last_activity_at:new Date().toISOString()}).eq("id",id);
+      await db.from("transactions").update({responsible_user_id:target.user_id,responsible_login_name:target.login_name,responsible_name:target.display_name,updated_at:new Date().toISOString(),last_activity_at:new Date().toISOString()}).eq("id",id).throwOnError();
       await history(id,"responsible_changed",who,"تم تغيير مسؤول المعاملة",{old_responsible:old,new_responsible:target.display_name,reason});
       await notify(target.login_name,target.display_name,id,"responsible_changed",a.tx.title,reason);
       return out(req,{ok:true});
@@ -1059,6 +1071,7 @@ Deno.serve(async(req:Request)=>{
     if(action==="close"){
       const id=clean(b.transaction_id),reason=clean(b.reason);if(!reason)return out(req,{error:"reason_required"},400);
       const a=await txAccess(who,id);if(!a||!a.flags.visible||!canClose(who,a)||!hasPerm(who,"transactions.close"))return out(req,{error:"forbidden"},403);
+      if(a.tx.status!=="open")return out(req,{error:"invalid_state"},409);
       await closeTx(who,a.tx,reason);return out(req,{ok:true});
     }
     if(action==="request_close"){
@@ -1072,6 +1085,7 @@ Deno.serve(async(req:Request)=>{
     if(action==="reopen"){
       const id=clean(b.transaction_id),reason=clean(b.reason);if(!reason)return out(req,{error:"reason_required"},400);
       const a=await txAccess(who,id);if(!a||!a.flags.visible||!canClose(who,a)||!hasPerm(who,"transactions.reopen"))return out(req,{error:"forbidden"},403);
+      if(a.tx.status!=="closed")return out(req,{error:"invalid_state"},409);
       if(a.tx.origin==="legacy"&&(!a.tx.responsible_unit_id||!a.tx.responsible_login_name)){
         const unitId=clean(b.responsible_unit_id),login=clean(b.responsible_login_name);
         if(!unitId||!login)return out(req,{error:"legacy_context_required"},409);
@@ -1080,7 +1094,7 @@ Deno.serve(async(req:Request)=>{
         await db.from("transactions").update({
           responsible_unit_id:unitId,responsible_login_name:target.login_name,responsible_name:target.display_name,
           current_level:level(target.role),workflow_started:true,migration_status:"ready"
-        }).eq("id",id);
+        }).eq("id",id).throwOnError();
         a.tx.responsible_unit_id=unitId;a.tx.responsible_login_name=target.login_name;a.tx.responsible_name=target.display_name;
         a.tx.current_level=level(target.role);a.tx.workflow_started=true;a.tx.migration_status="ready";a.tx.migration_status="ready";
       }
@@ -1104,7 +1118,7 @@ Deno.serve(async(req:Request)=>{
       const a=await txAccess(who,id);if(!a||!a.flags.visible||(who.role==="assistant_secretary"&&!canAct(who,a.tx,a.flags)&&!hasPerm(who,"transactions.act_all")))return out(req,{error:"forbidden"},403);
       if(hasPerm(who,"transactions.act_all")){
         await completeActive(id);
-        await db.from("transactions").update({status:"cancelled",cancelled_at:new Date().toISOString(),cancelled_reason:reason,updated_at:new Date().toISOString()}).eq("id",id);
+        await db.from("transactions").update({status:"cancelled",cancelled_at:new Date().toISOString(),cancelled_reason:reason,updated_at:new Date().toISOString()}).eq("id",id).throwOnError();
         await history(id,"cancelled",who,reason);return out(req,{ok:true,direct:true});
       }
       const row=await createRequest(who,a.tx,"cancel",reason);return out(req,{ok:true,row});
@@ -1150,7 +1164,7 @@ Deno.serve(async(req:Request)=>{
             await db.from("transactions").update({
               responsible_unit_id:unitId,responsible_login_name:target.login_name,responsible_name:target.display_name,
               current_level:level(target.role),workflow_started:true,migration_status:"ready"
-            }).eq("id",a.tx.id);
+            }).eq("id",a.tx.id).throwOnError();
             a.tx.responsible_unit_id=unitId;a.tx.responsible_login_name=target.login_name;a.tx.responsible_name=target.display_name;
             a.tx.current_level=level(target.role);a.tx.workflow_started=true;
           }
@@ -1158,11 +1172,11 @@ Deno.serve(async(req:Request)=>{
         }
         else if(r.request_type==="cancel"){
           await completeActive(a.tx.id);
-          await db.from("transactions").update({status:"cancelled",cancelled_at:now,cancelled_reason:r.reason,updated_at:now}).eq("id",a.tx.id);
+          await db.from("transactions").update({status:"cancelled",cancelled_at:now,cancelled_reason:r.reason,updated_at:now}).eq("id",a.tx.id).throwOnError();
           await history(a.tx.id,"cancelled",who,r.reason);
         }else if(r.request_type==="extension"){
           if(!canSetDue(who,a.tx,a.flags))return out(req,{error:"forbidden"},403);
-          await db.from("transactions").update({due_at:r.requested_due_at,updated_at:now}).eq("id",a.tx.id);
+          await db.from("transactions").update({due_at:r.requested_due_at,updated_at:now}).eq("id",a.tx.id).throwOnError();
           await history(a.tx.id,"extension_approved",who,r.reason,{due_at:r.requested_due_at});
         }else if(r.request_type==="change_responsible"){
           const toLogin=clean(r.meta?.to_login),target=await responsibleTarget(toLogin);
@@ -1172,14 +1186,14 @@ Deno.serve(async(req:Request)=>{
             (who.role==="assistant"&&a.tx.current_level!=="ceo"&&target.org_name===who.org_name);
           if(!direct)return out(req,{error:"forbidden"},403);
           const oldResponsible=a.tx.responsible_name||a.tx.responsible_login_name||"";
-          await db.from("transactions").update({responsible_user_id:target.user_id,responsible_login_name:target.login_name,responsible_name:target.display_name,updated_at:now,last_activity_at:now}).eq("id",a.tx.id);
+          await db.from("transactions").update({responsible_user_id:target.user_id,responsible_login_name:target.login_name,responsible_name:target.display_name,updated_at:now,last_activity_at:now}).eq("id",a.tx.id).throwOnError();
           await history(a.tx.id,"responsible_changed",who,"تم تغيير مسؤول المعاملة",{old_responsible:oldResponsible,new_responsible:target.display_name,reason:r.reason});
         }
       }
       await db.from("transaction_requests").update({
         status:approve?"approved":"rejected",decided_by_login_name:who.login_name,decided_by_name:who.display_name,
         decision_reason:decisionReason||null,decided_at:now
-      }).eq("id",requestId);
+      }).eq("id",requestId).throwOnError();
       await history(a.tx.id,approve?"request_approved":"request_rejected",who,decisionReason||r.reason,{request_id:requestId,type:r.request_type});
       await notify(r.requested_by_login_name,r.requested_by_name,a.tx.id,approve?"request_approved":"request_rejected",a.tx.title,decisionReason||null);
       return out(req,{ok:true});
@@ -1200,8 +1214,8 @@ Deno.serve(async(req:Request)=>{
       await db.from("audit_log").insert({
         actor_id:null,event_type:"hard_delete",entity_type:"transaction",entity_id:id,
         detail:"حذف نهائي لمعاملة لم يبدأ سيرها",meta:{actor_login:who.login_name,actor_name:who.display_name,actor_role:who.role,number:tx.number,title:tx.title}
-      });
-      await db.from("transactions").delete().eq("id",id);
+      }).throwOnError();
+      await db.from("transactions").delete().eq("id",id).throwOnError();
       return out(req,{ok:true});
     }
 

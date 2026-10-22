@@ -1,0 +1,122 @@
+[
+    {
+        "path":  "admit-implementation.txt",
+        "sha256":  "f950879d31cddf9de9dcc6a34cb659bf9f1eeefdacfd9a5e47c039bd3d76a457",
+        "bytes":  311
+    },
+    {
+        "path":  "admit.mjs",
+        "sha256":  "21e53f7d7d39b530752656063889e9ea66cfccb4b1afc11034243dc940429dec",
+        "bytes":  262
+    },
+    {
+        "path":  "admit.test.mjs",
+        "sha256":  "12c3bc5e1ae782733cc9ef43d18ae82f3b45756277c375bde7a74bc0241593e3",
+        "bytes":  445
+    },
+    {
+        "path":  "common.mjs",
+        "sha256":  "d83ad127a814f636de7a1ce196a8c4b8be95207d0a3705d726f467bba5c6eb8f",
+        "bytes":  317
+    },
+    {
+        "path":  "config.mjs",
+        "sha256":  "094978be8e53e7472ada449e67e997a8535e7aa7793e424b1a860bb603a83aa3",
+        "bytes":  998
+    },
+    {
+        "path":  "differential.mjs",
+        "sha256":  "5a7a1c7ec0d95a0288caed8ed72bb95146d7363964865f37867ca7620ac981f9",
+        "bytes":  4975
+    },
+    {
+        "path":  "focused.mjs",
+        "sha256":  "8d5ec9a73f60a709f2e88f633b46632adee1325b25427865c282dbb097f0a309",
+        "bytes":  7133
+    },
+    {
+        "path":  "offline-guard.mjs",
+        "sha256":  "a1d4db4e347b0cf74c2926c7721776eeab8f22d994ba4702f6334c8d3208b856",
+        "bytes":  617
+    },
+    {
+        "path":  "package.json",
+        "sha256":  "666fd970e9ea5bd5add158a7faa752b633d3a2bb56638a7e9238fead7148ca67",
+        "bytes":  349
+    },
+    {
+        "path":  "provenance.json",
+        "sha256":  "68e15822cc4e2c0f155104418c1644d193cb7a8ad03862b317832ef85e8c6cbb",
+        "bytes":  14068
+    },
+    {
+        "path":  "README.md",
+        "sha256":  "6e46db39ee84799326fac40f972b7fe1ef48ebb905123be9665de4a6efba4b7b",
+        "bytes":  3861
+    },
+    {
+        "path":  "retained-acceptance.json",
+        "sha256":  "0587097e318f25ff4ca42ca375c55974026fd200cb41c01fced5330ed62007ef",
+        "bytes":  3266
+    },
+    {
+        "path":  "run.mjs",
+        "sha256":  "79c8a493e061790e422eefe61ab5630cbe3c6ad392331da31d51d2504edd6b89",
+        "bytes":  2837
+    },
+    {
+        "path":  "source-pins.json",
+        "sha256":  "a90a9dfa6a7dfbc0145f159291f2c083709585089cf559b783aaf34a42c6ff6a",
+        "bytes":  7431
+    },
+    {
+        "path":  "fixture/fixture-adapter.mjs",
+        "sha256":  "301e5ce785a49db8a5f48d5f3bcfd9532a708d0d89714e56466544f710e29c88",
+        "bytes":  14925
+    },
+    {
+        "path":  "fixture/oracle-setup.mjs",
+        "sha256":  "e22f608c60f247b848b21c3def2e687e9541f945469b2b8cf3a0d38af612eb5c",
+        "bytes":  8508
+    },
+    {
+        "path":  "fixture/roster.json",
+        "sha256":  "b07266a16157f345b834ae3e47159889f53033bc213da6b202cc9977f51a7908",
+        "bytes":  3267
+    },
+    {
+        "path":  "fixture/shape.mjs",
+        "sha256":  "f7e8a6ba5f8a2c8580e4041ceead60f528750cade9932fa9ac031a98de97d0f5",
+        "bytes":  6351
+    },
+    {
+        "path":  "fixture/frozen/BEFORE_NATIVE_app_private_account_permission_effective.sql",
+        "sha256":  "9ceed04a16e31ec16e224134bebdf4fa5515394aefc8c7bfc1d6df7881385175",
+        "bytes":  837
+    },
+    {
+        "path":  "fixture/frozen/BEFORE_NATIVE_app_private_list_transactions_current.sql",
+        "sha256":  "2f847228d9386770dbab25b1074a69877ab9f77b0c908bba0c4ff10279e5b9d9",
+        "bytes":  1552
+    },
+    {
+        "path":  "fixture/frozen/BEFORE_NATIVE_app_private_transaction_feedback_flags.sql",
+        "sha256":  "a35f97c40d3d358c6ba3bdb2121750275a417d1f7e02409ae0f78988630812a5",
+        "bytes":  11280
+    },
+    {
+        "path":  "fixture/frozen/BEFORE_NATIVE_list_my_transactions.sql",
+        "sha256":  "9946a90d00cb0e4a1d67dd321293fad9b371d1d257b2e60456dd33554873c973",
+        "bytes":  716
+    },
+    {
+        "path":  "fixture/frozen/BEFORE_NATIVE_public_list_transactions_internal.sql",
+        "sha256":  "d059bba046f481dd55bfff5b9d7800a4d426a7c14b7e1faccf42fc537afcb1b8",
+        "bytes":  9437
+    },
+    {
+        "path":  "fixture/frozen/BEFORE_NATIVE_public_user_context_internal.sql",
+        "sha256":  "a393c2a67e78b7217f95de17da611b41b63a28684ae3e75b55e26a1c12d00389",
+        "bytes":  1501
+    }
+]

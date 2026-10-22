@@ -1,0 +1,18 @@
+import fs from 'node:fs';import path from 'node:path';import assert from 'node:assert/strict';import {createHash} from 'node:crypto';
+import {verifySources} from './admit.mjs';import {repoRoot,packageRoot,outputDir,enginePath} from './config.mjs';
+assert.equal(process.version,'v26.7.0');assert(process.permission);for(const name of ['child','worker','addons','wasi'])assert(!process.permission.has(name));
+const pins=JSON.parse(fs.readFileSync(path.join(packageRoot,'source-pins.json')));
+verifySources(pins.repo,n=>{const f=path.join(repoRoot,n);assert(fs.lstatSync(f).isFile()&&!fs.lstatSync(f).isSymbolicLink());return fs.readFileSync(f);});
+const actual=fs.readdirSync(path.join(repoRoot,'supabase/migrations')).filter(n=>n.endsWith('.sql')&&n<'20261013').sort();assert.deepEqual(actual,pins.repo.map(p=>path.basename(p.path)).filter(n=>n<'20261013').sort());
+const inventory=JSON.parse(fs.readFileSync(path.join(packageRoot,'PACKAGE_MANIFEST.json')));verifySources(inventory,n=>fs.readFileSync(path.join(packageRoot,n)));
+const engine=JSON.parse(fs.readFileSync(path.resolve(enginePath,'../../package.json')));assert.equal(engine.version,'0.5.9');
+fs.mkdirSync(outputDir,{recursive:true});
+const save=(n,x)=>fs.writeFileSync(path.join(outputDir,n),JSON.stringify(x,null,2));
+save('execution.json',{status:'RUNNING',argv:[process.execPath,...process.execArgv,...process.argv.slice(1)],sourcesVerifiedBeforeDatabase:true,sourceCount:pins.repo.length,engineVersion:engine.version});
+await import('./focused.mjs');if(process.exitCode)throw Error('focused failed');
+await import('./differential.mjs');if(process.exitCode)throw Error('differential failed');
+const read=n=>JSON.parse(fs.readFileSync(path.join(outputDir,n)));
+const f=read('focused-result.json'),d=read('differential-verdict.json');assert.equal(f.status,'PASS');assert.equal(d.status,'PASS');
+save('case-inventory.json',{list:read('after-96.json').cases.map(x=>x.name),sameBackend:read('after-same-backend.json').map(x=>x.name),scope:f.namedCases,catalog:d.catalog,preservation:['all function metadata and definitions','relations','columns','policies','roles','memberships','constraints','indexes','triggers','namespaces','types','defaults','defaultACL','settings','all synthetic fixture table data','idempotence','inverse']});
+save('execution.json',{status:'SOURCE_OFFLINE_PASS',argv:[process.execPath,...process.execArgv,...process.argv.slice(1)],sourcesVerifiedBeforeDatabase:true,sourceCount:pins.repo.length,counts:{list:96,listExecutions:192,sameBackend:24,sameBackendExecutions:48,scope:8,scopeExecutions:16,databasesClosed:4},databaseClosure:'All four awaited finally close() calls completed before this record',nativeAcceptance:false,fullfive53:'retained; not repeated'});
+console.log('PORTABLE_SQL_TESTS_EOF SOURCE_OFFLINE_PASS 96+24+8; four databases closed');

@@ -1,0 +1,1 @@
+Source admission is tested in admit.test.mjs. Missing and wrong-hash inputs reject before SQL. The original unimplemented loader produced a genuine assertion RED; the implementation then passed the same focused tests. Existing SQL assertions and their original RED/GREEN are preserved separately by provenance.

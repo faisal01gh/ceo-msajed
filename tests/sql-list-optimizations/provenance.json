@@ -1,0 +1,307 @@
+{
+  "schema": 1,
+  "sourceInputs": [
+    {
+      "path": "work/official-release-payload-20261020/supabase/migrations/20261002141915_transactions_foundation_indexes.sql",
+      "bytes": 2199,
+      "sha256": "e25d9a3ebb78ecc3714b9dc8bc4cfe7729fc296be83f09facc81a9b0ffc24891"
+    },
+    {
+      "path": "work/official-release-payload-20261020/supabase/migrations/20261002_transactions_foundation.sql",
+      "bytes": 29097,
+      "sha256": "6559f1ec024d15b4aa09f1e5bb3072858dbd5e2033711cb4647ed4498a09b3dc"
+    },
+    {
+      "path": "work/official-release-payload-20261020/supabase/migrations/20261003150203_transactions_runtime_extensions.sql",
+      "bytes": 9096,
+      "sha256": "a7e46e4fe17ea267c9c669a76311f5e2f2abcd427e036121e0bfcbd177fd9300"
+    },
+    {
+      "path": "work/official-release-payload-20261020/supabase/migrations/20261003153412_transaction_action_decision_actor.sql",
+      "bytes": 95,
+      "sha256": "11227b30e74873d54e1e9ff94023e9d599430080c607a26c2681f1552c50f1d2"
+    },
+    {
+      "path": "work/official-release-payload-20261020/supabase/migrations/20261003153805_legacy_auth_directory.sql",
+      "bytes": 610,
+      "sha256": "05b926f9b2a16566fd025a85756246cff7b9de57fea64fae176b3b0a4c84f06c"
+    },
+    {
+      "path": "work/official-release-payload-20261020/supabase/migrations/20261003155140_legacy_open_review_state.sql",
+      "bytes": 337,
+      "sha256": "df1d79152155796ccbf0721f7a6e1cb8e291cece76ae0e2816ba9f7c2ed6cbd1"
+    },
+    {
+      "path": "work/official-release-payload-20261020/supabase/migrations/20261003165841_active_account_migration_registry.sql",
+      "bytes": 7299,
+      "sha256": "dc48f7d03ce68415231f0ab2cd11b10fdc9e77013a470ff2d33d6d23a70186ad"
+    },
+    {
+      "path": "work/official-release-payload-20261020/supabase/migrations/20261003170538_resolve_open_legacy_transaction_context.sql",
+      "bytes": 8261,
+      "sha256": "a6ae0aafeb72eb91f1e79561a91223aefaed067e6cc49ee4320138dca7d5016d"
+    },
+    {
+      "path": "work/official-release-payload-20261020/supabase/migrations/20261003170945_fast_transaction_listing_rpc.sql",
+      "bytes": 11318,
+      "sha256": "97752d16a29ac1f2ea4f816dc294e1abbd62da7f5056be4b28269ee0d2f86668"
+    },
+    {
+      "path": "work/official-release-payload-20261020/supabase/migrations/20261003175332_reconcile_precreated_active_accounts.sql",
+      "bytes": 1567,
+      "sha256": "e4a1fb628ef9141c4d7237ef9c5344f86f88a1e5ca0edbb02cc3dd36e72ab0ab"
+    },
+    {
+      "path": "work/official-release-payload-20261020/supabase/migrations/20261003175846_fast_user_context_rpc.sql",
+      "bytes": 1665,
+      "sha256": "136917db4ea601c8f7a758d1b4be3d7d833a65aa7d0ccfc2f3d4e4021b5feb1f"
+    },
+    {
+      "path": "work/official-release-payload-20261020/supabase/migrations/20261003180229_direct_authenticated_transaction_reads.sql",
+      "bytes": 6568,
+      "sha256": "d8c12202ae4239f1cf5b13143f97351c7bb3f105094ee678fba626df95482c30"
+    },
+    {
+      "path": "work/official-release-payload-20261020/supabase/migrations/20261003180434_slim_transaction_listing_payload.sql",
+      "bytes": 11323,
+      "sha256": "f9f7eea7b30f2aff0c8238374222e0c85fc7224fbd8dd816dba80701493a7078"
+    },
+    {
+      "path": "work/official-release-payload-20261020/supabase/migrations/20261003180502_migration_role_indexes.sql",
+      "bytes": 222,
+      "sha256": "03e4d7c98cb3a72570ff8f4376f9c34df32bc91e0a099f5fd662ff994b1fb946"
+    },
+    {
+      "path": "work/official-release-payload-20261020/supabase/migrations/20261004174500_permissions_transactions_section.sql",
+      "bytes": 9629,
+      "sha256": "c29a94b554b162facf64b35d81c5636fd0ddf0422b6b0ec55308fb7f9b2686c2"
+    },
+    {
+      "path": "work/official-release-payload-20261020/supabase/migrations/20261004195600_full_editable_transaction_permissions.sql",
+      "bytes": 26965,
+      "sha256": "3cb14b7b85b5a0702f42d64bc0ac197d55dde86bd7b5f72ecad9b6e54464e7cb"
+    },
+    {
+      "path": "work/official-release-payload-20261020/supabase/migrations/20261004201800_remove_generic_transaction_assign.sql",
+      "bytes": 182,
+      "sha256": "435f3002a631d6317f814bd4badd53ea03c5dcab56e2aff4598686521159dbe7"
+    },
+    {
+      "path": "work/official-release-payload-20261020/supabase/migrations/20261004202500_harden_permissions_rpc_boundary.sql",
+      "bytes": 2745,
+      "sha256": "48b2f4d57403bf2c6a68954d55f271da33332c16198bb7524a6401faf8525491"
+    },
+    {
+      "path": "work/official-release-payload-20261020/supabase/migrations/20261004203200_permissions_invoker_wrappers.sql",
+      "bytes": 3810,
+      "sha256": "45bcee021d7d71f3647bf36c4883b10dc31581c784e15201d9711f81f44d265c"
+    },
+    {
+      "path": "work/official-release-payload-20261020/supabase/migrations/20261004210000_full_staff_registry_profiles.sql",
+      "bytes": 36075,
+      "sha256": "62eff6d7a860517cad546b12532d5b43d92d25c633cf222bd3af20eda37d62de"
+    },
+    {
+      "path": "work/official-release-payload-20261020/supabase/migrations/20261004211500_transaction_action_notes.sql",
+      "bytes": 938,
+      "sha256": "daf3a2da3689579090947899c7fe932247973cd7c6c774fd8a41376ceea5af81"
+    },
+    {
+      "path": "work/official-release-payload-20261020/supabase/migrations/20261004212500_profile_admin_name.sql",
+      "bytes": 2062,
+      "sha256": "71df4c824051afa7a37ec4100ada374269fb55ba853608d6044945505e6bc078"
+    },
+    {
+      "path": "work/official-release-payload-20261020/supabase/migrations/20261004213500_profile_permission_setter.sql",
+      "bytes": 5361,
+      "sha256": "2bb48be70a7b54501785e8f2d3e27d3cd76d510cb61464981353890872af0e4d"
+    },
+    {
+      "path": "work/official-release-payload-20261020/supabase/migrations/20261004214500_hide_job_titles_from_directory.sql",
+      "bytes": 714,
+      "sha256": "84322924e1ed33ce22ff801ce3a7abad00d49805176ab2f5390227266dbf2afc"
+    },
+    {
+      "path": "work/official-release-payload-20261020/supabase/migrations/20261005182000_transaction_detail_edit_permissions.sql",
+      "bytes": 668,
+      "sha256": "701ce20317f378ec4eff435d30b179040c7afa45e113c6557ebbc5bb22ffdd15"
+    },
+    {
+      "path": "work/official-release-payload-20261020/supabase/migrations/20261005185500_english_login_usernames.sql",
+      "bytes": 1525,
+      "sha256": "9c4de788bb6e5aab77e19b94e6166530a2207369f632d0550e0878dde8f88e21"
+    },
+    {
+      "path": "work/official-release-payload-20261020/supabase/migrations/20261005191000_first_name_login_usernames.sql",
+      "bytes": 3025,
+      "sha256": "0ffd058fa1488b2a5e671fd854f9a39d3fcff17ecf14c124aa6c5fd7b44e06ac"
+    },
+    {
+      "path": "work/official-release-payload-20261020/supabase/migrations/20261005200000_password_operations_and_safe_provisioning.sql",
+      "bytes": 40853,
+      "sha256": "008028c31b80a4e130cca3036e8428111b7ea9f1dd91d12fbb77ad450c60c240"
+    },
+    {
+      "path": "work/official-release-payload-20261020/supabase/migrations/20261006193000_transaction_custody_read_state.sql",
+      "bytes": 28182,
+      "sha256": "12e269bd371fcad1760caa803c013552c0f46c9239708577a27a33fc11f5dc33"
+    },
+    {
+      "path": "work/official-release-payload-20261020/supabase/migrations/20261006194500_transaction_assistant_reply.sql",
+      "bytes": 9562,
+      "sha256": "d70602489453eaddcee18e05f282ba71d8b753035673b305619f95b0b60e810b"
+    },
+    {
+      "path": "work/official-release-payload-20261020/supabase/migrations/20261007190000_transaction_executive_custody.sql",
+      "bytes": 11508,
+      "sha256": "baf72f1102f7d0d5eab1f033ad9adae6fcec270f043f8647b39419485aee4195"
+    },
+    {
+      "path": "work/official-release-payload-20261020/supabase/migrations/20261013190200_list_requester_context.sql",
+      "bytes": 20911,
+      "sha256": "553cd6dcc1ed5e0a76feb33f8e1c6b5ed8f488f8156e22e0aff2553373c67c4c"
+    },
+    {
+      "path": "work/official-release-payload-20261020/supabase/migrations/20261018182622_list_feedback_context_fusion.sql",
+      "bytes": 10735,
+      "sha256": "38f346d7a0ef7fb720dcc013b21a584093a40cb2e452e1363e15f49b14711440"
+    },
+    {
+      "path": "work/official-release-payload-20261020/supabase/migrations/20261020193505_list_statement_plan_reuse.sql",
+      "bytes": 9545,
+      "sha256": "331d8dedef334352d14ce370b159571f99f5c0817a3a30bb6f7e9c532e709cc8"
+    },
+    {
+      "path": "work/official-release-payload-20261020/supabase/migrations/20261021194858_list_set_based_feedback_flags.sql",
+      "bytes": 21645,
+      "sha256": "08ee4406f9bc4c36125c783655d3a3012cd14a6d6875e93b45537f0d5128dea4"
+    },
+    {
+      "path": "work/list-set-based-flags-r1/common.mjs",
+      "bytes": 417,
+      "sha256": "b1b201d9dfe68c34e4fa78fbbb603d00d787d4c478682b962bd855686dbd5037"
+    },
+    {
+      "path": "work/list-set-based-flags-r1/oracle.mjs",
+      "bytes": 3397,
+      "sha256": "b6f2e0ac0d383048aacb73845f5ea1212e35d36512e4b2492dad639b0228dee4"
+    },
+    {
+      "path": "work/list-set-based-flags-r1/adapt53.mjs",
+      "bytes": 4154,
+      "sha256": "cd454388f1eaf1c3ea587e5123bced7e35180c9f800d24f212a21a8e00ccbed2"
+    },
+    {
+      "path": "evidence/list-set-based-flags-r1/IMPLEMENTATION_VERDICT.json",
+      "bytes": 16939,
+      "sha256": "5a28bbe1d4c024ac93c3ac901cd197cfceed342e256f1954681358d631d0b938"
+    },
+    {
+      "path": "evidence/list-set-based-flags-spec-r1/SPEC_VERDICT.json",
+      "bytes": 30302,
+      "sha256": "9de6eacd57871a06063258ed623450209dc06fda4c3a357a7bf08ddf88052b9b"
+    },
+    {
+      "path": "evidence/list-set-based-flags-quality-r1/QUALITY_VERDICT.json",
+      "bytes": 51720,
+      "sha256": "fcca976efe1277ac759b242e9c11f087bf27fb2982df335c0c1088c0973b5634"
+    },
+    {
+      "path": "work/list-set-based-flags-r1/fixture/inputs/repo/tests/performance_backend_sql_shape.mjs",
+      "bytes": 6351,
+      "sha256": "f7e8a6ba5f8a2c8580e4041ceead60f528750cade9932fa9ac031a98de97d0f5"
+    },
+    {
+      "path": "work/official-release-payload-20261020/tests/performance_backend_sql_shape.mjs",
+      "bytes": 6277,
+      "sha256": "2ba7b0f7a62f10122fb5f7b41fdcfc2b8bfdee25550529a3e67480d594fcb8ea"
+    },
+    {
+      "path": "work/list-set-based-flags-r1/fixture/inputs/frozen-before/BEFORE_NATIVE_app_private_account_permission_effective.sql",
+      "bytes": 837,
+      "sha256": "9ceed04a16e31ec16e224134bebdf4fa5515394aefc8c7bfc1d6df7881385175"
+    },
+    {
+      "path": "work/list-set-based-flags-r1/fixture/inputs/frozen-before/BEFORE_NATIVE_app_private_list_transactions_current.sql",
+      "bytes": 1552,
+      "sha256": "2f847228d9386770dbab25b1074a69877ab9f77b0c908bba0c4ff10279e5b9d9"
+    },
+    {
+      "path": "work/list-set-based-flags-r1/fixture/inputs/frozen-before/BEFORE_NATIVE_app_private_transaction_feedback_flags.sql",
+      "bytes": 11280,
+      "sha256": "a35f97c40d3d358c6ba3bdb2121750275a417d1f7e02409ae0f78988630812a5"
+    },
+    {
+      "path": "work/list-set-based-flags-r1/fixture/inputs/frozen-before/BEFORE_NATIVE_list_my_transactions.sql",
+      "bytes": 716,
+      "sha256": "9946a90d00cb0e4a1d67dd321293fad9b371d1d257b2e60456dd33554873c973"
+    },
+    {
+      "path": "work/list-set-based-flags-r1/fixture/inputs/frozen-before/BEFORE_NATIVE_public_list_transactions_internal.sql",
+      "bytes": 9437,
+      "sha256": "d059bba046f481dd55bfff5b9d7800a4d426a7c14b7e1faccf42fc537afcb1b8"
+    },
+    {
+      "path": "work/list-set-based-flags-r1/fixture/inputs/frozen-before/BEFORE_NATIVE_public_user_context_internal.sql",
+      "bytes": 1501,
+      "sha256": "a393c2a67e78b7217f95de17da611b41b63a28684ae3e75b55e26a1c12d00389"
+    },
+    {
+      "path": "work/list-set-based-flags-r1/fixture/inputs/implementation-r1/original-named-roster.json",
+      "bytes": 3267,
+      "sha256": "b07266a16157f345b834ae3e47159889f53033bc213da6b202cc9977f51a7908"
+    },
+    {
+      "path": "work/list-set-based-flags-r1/fixture/oracle-setup.mjs",
+      "bytes": 9097,
+      "sha256": "e9e95994b99328fe1c9956913bd562d42cf2c6af24c802bbd7487a15620f4de6"
+    },
+    {
+      "path": "work/list-set-based-flags-r1/fixture/fixture-adapter.mjs",
+      "bytes": 15514,
+      "sha256": "6e70fff12265e4c6466cf1a99abdfae20e9861f204780e1e070aef65082387a9"
+    },
+    {
+      "path": "work/list-set-based-flags-r1/focused.mjs",
+      "bytes": 7174,
+      "sha256": "c9bd580b4bfe35c50d28fd4ddc12ec084f2bb131f6b22fa81bd3052382b30aa7"
+    },
+    {
+      "path": "work/list-set-based-flags-r1/differential.mjs",
+      "bytes": 5228,
+      "sha256": "49a64aff14b9a62c94dccc6d8fa285826ad186024859345704a99dccd289d220"
+    }
+  ],
+  "transformations": [
+    {
+      "source": "work/list-set-based-flags-r1/fixture/oracle-setup.mjs",
+      "destination": "fixture/oracle-setup.mjs",
+      "sourceSHA256": "e9e95994b99328fe1c9956913bd562d42cf2c6af24c802bbd7487a15620f4de6",
+      "portableSHA256": "e22f608c60f247b848b21c3def2e687e9541f945469b2b8cf3a0d38af612eb5c",
+      "exactInverse": true
+    },
+    {
+      "source": "work/list-set-based-flags-r1/fixture/fixture-adapter.mjs",
+      "destination": "fixture/fixture-adapter.mjs",
+      "sourceSHA256": "6e70fff12265e4c6466cf1a99abdfae20e9861f204780e1e070aef65082387a9",
+      "portableSHA256": "301e5ce785a49db8a5f48d5f3bcfd9532a708d0d89714e56466544f710e29c88",
+      "exactInverse": true
+    },
+    {
+      "source": "work/list-set-based-flags-r1/focused.mjs",
+      "destination": "focused.mjs",
+      "sourceSHA256": "c9bd580b4bfe35c50d28fd4ddc12ec084f2bb131f6b22fa81bd3052382b30aa7",
+      "portableSHA256": "8d5ec9a73f60a709f2e88f633b46632adee1325b25427865c282dbb097f0a309",
+      "exactInverse": true
+    },
+    {
+      "source": "work/list-set-based-flags-r1/differential.mjs",
+      "destination": "differential.mjs",
+      "sourceSHA256": "49a64aff14b9a62c94dccc6d8fa285826ad186024859345704a99dccd289d220",
+      "portableSHA256": "5a7a1c7ec0d95a0288caed8ed72bb95146d7363964865f37867ca7620ac981f9",
+      "exactInverse": true
+    }
+  ],
+  "fixture": "Exact accepted synthetic generators; canonicalShape extracts DDL/function closure and never replays seed DML; frozen6 before C53553 then remaining actual repository migrations.",
+  "retained": "retained-acceptance.json"
+}

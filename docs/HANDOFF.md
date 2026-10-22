@@ -1,3 +1,14 @@
+## 2026-10-22 — isolated list-optimization RC verification
+
+- Base main: `208ffad347a04a7bbbdcc48c5689d289f4070521`; new review scope `review/rc-list-optimizations-20261022`. No Production deployment or main merge is authorized.
+- **LOAD_50X50 PASS: 2500/2500 native HTTP200, 0 HTTP504/transport/unknown, peak2500, exit0/bothEOF, 50 logout204/global0.** Pool/timeouts unchanged; historical failed rounds retained.
+- Native post-load Auth/scope/IDOR/RLS, owned Details/seen and 30 complete API samples passed. Four fresh current-main desktop/mobile six-gate journeys and six actual T1/T2 fault cases passed; same-pair/SID, supported logout and old-pair denial verified. Twenty-four stage geometry observations have zero missing/overflow/clipping/hit misses. Cache and CPU/RAM unavailable coverage are explicitly qualified.
+- Four accepted SQL migrations, reviewed Edge parity transfer and portable25file package are included. Actual-destination128named/256executions/fourDBclosures and full-five/whole53 source/security evidence accepted; independent source SPEC/QUALITY retained. Official read-only Splinter33INFO/0WARN/0ERROR, no speculative DDL.
+- Complete factual report: `docs/verification/20261022-isolated-list-optimizations.md` and its machine-readable summary. Fresh Deno remains NOT_RUN with preserved denial; historical SDK counts and old840 UI samples are not rebranded fresh.
+- Full finalized-payload/staged-object secret scans, final independent review and remote Git parity are separate mandatory publication gates; this entry does not predict their results. Existing incoming documentation below is preserved unchanged.
+
+---
+
 # Handoff — استلام المشروع في أي محادثة جديدة
 
 ## 2026-10-22 — استعادة إجراءات فهد وحماية الاعتماد في النظام القديم

@@ -1,0 +1,95 @@
+{
+  "implementation": {
+    "source": "evidence/list-set-based-flags-r1/IMPLEMENTATION_VERDICT.json",
+    "sha256": "5a28bbe1d4c024ac93c3ac901cd197cfceed342e256f1954681358d631d0b938",
+    "status": "SOURCE_OFFLINE_PASS",
+    "red": {
+      "exitCode": 1,
+      "selectedHelperEntries": 120,
+      "physicalTransactions": 120,
+      "payloadTwin": true,
+      "inverse": true
+    },
+    "green": {
+      "exitCode": 0,
+      "selectedHelperEntries": 0,
+      "physicalTransactions": 120,
+      "payloadTwin": true,
+      "inverse": true
+    },
+    "whole53": {
+      "status": "PASS",
+      "before": 53,
+      "after": 53,
+      "restored": 53,
+      "unchangedOtherFunctions": 52,
+      "changedFunction": "public.list_transactions_internal",
+      "allowedSemanticFields": [
+        "body"
+      ],
+      "derivedDefinitionChanged": true,
+      "all53OtherMetadataPreserved": true,
+      "sourceOwnedRelationsRolesACLDataUnchanged": true,
+      "emptyDataTables": 29,
+      "inverseRestoresAll53LF": true,
+      "inverseRestoresAll53Raw": true,
+      "candidateSHA256": "08ee4406f9bc4c36125c783655d3a3012cd14a6d6875e93b45537f0d5128dea4",
+      "inverseSHA256": "331d8dedef334352d14ce370b159571f99f5c0817a3a30bb6f7e9c532e709cc8",
+      "helperBodyLFSHA256": "53e4c4b0f0b63630ebd5354456c98083af41293dbfea6d41b2a129e45d85127f",
+      "functionsCompared": 53,
+      "relationsCompared": 20,
+      "compilerExitCode": 0,
+      "canonicalExpectedCatalog": "Original immutable compiler catalog plus accepted source-only installed53 catalog",
+      "acceptedBodyConvention": "LF; raw candidate/inverse preservation also exact"
+    },
+    "groups": [
+      {
+        "group": "transaction_feedback_sql",
+        "exitCode": 0,
+        "physicalEOF": true,
+        "namedCases": 21,
+        "logSHA256": "2e43ea17349fa981b00360f1c3808e962683c303f05da85d2c225b2d21def507"
+      },
+      {
+        "group": "transaction_assistant_reply_sql",
+        "exitCode": 0,
+        "physicalEOF": true,
+        "namedCases": 8,
+        "logSHA256": "1a439722b6dea13bacb2325910c81617982e19cc4550c5dea16399c8f3516ae9"
+      },
+      {
+        "group": "transaction_assistant_reply_regressions",
+        "exitCode": 0,
+        "physicalEOF": true,
+        "namedCases": 10,
+        "logSHA256": "572249f8da3a9f8c9a99a1042ed865ded62f1e25cb47324523b7205892a1d753"
+      },
+      {
+        "group": "transaction_feedback_cross_layer",
+        "exitCode": 0,
+        "physicalEOF": true,
+        "namedCases": 0,
+        "logSHA256": "cedab58593c6a9c78d42106812092b313f93a42fe37668f5b5c8a64dd5e424c1"
+      },
+      {
+        "group": "transaction_executive_custody",
+        "exitCode": 0,
+        "physicalEOF": true,
+        "namedCases": 48,
+        "logSHA256": "f97b42bfd3f41258ec627130276105ef45bde45c4c42c539205afcc4bb43fa1d"
+      }
+    ]
+  },
+  "spec": {
+    "source": "evidence/list-set-based-flags-spec-r1/SPEC_VERDICT.json",
+    "sha256": "9de6eacd57871a06063258ed623450209dc06fda4c3a357a7bf08ddf88052b9b",
+    "status": "PASS",
+    "approved": true
+  },
+  "quality": {
+    "source": "evidence/list-set-based-flags-quality-r1/QUALITY_VERDICT.json",
+    "sha256": "fcca976efe1277ac759b242e9c11f087bf27fb2982df335c0c1088c0973b5634",
+    "status": "PASS",
+    "approved": true
+  }
+}

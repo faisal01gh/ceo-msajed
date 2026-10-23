@@ -1,0 +1,903 @@
+{
+  "classification": "EXACT_FINAL_RUNTIME_SQL_SOURCE_PARITY",
+  "acceptedPR": 6,
+  "acceptedCommit": "0178c717f8a58accda6ffedb61cff223b97af238",
+  "acceptedBase": "208ffad347a04a7bbbdcc48c5689d289f4070521",
+  "finalBase": "b88698c5a2073386408197afd5391e7fea704343",
+  "incomingMainChanges": [
+    "CHANGELOG.md",
+    "docs/HANDOFF.md",
+    "docs/tasks/APPROVAL_INTEGRITY_2026-10-22.md",
+    "docs/tasks/AUTOSAVE_INCIDENT_2026-10-22.md",
+    "docs/tasks/LEGACY_INVENTORY.md"
+  ],
+  "incomingMainRuntimeChanges": [],
+  "runtimeClosureFiles": [
+    {
+      "path": ".gitignore",
+      "sha256": "52e3db33d8e895f26fdb547332c26688e438eb6954e374ed77a82990fe3a2825",
+      "gitBlobSHA": "24c9e3fd85ef64ebdce9b3dbfd10fcfc1d9f2300",
+      "bytes": 188,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "_headers",
+      "sha256": "a63417f19548385ef39aa507e5d1e304f9f54398244aa08ed42e813ad3f557b2",
+      "gitBlobSHA": "0d7672d1b3461cae6e7698774995d7aa7af188a4",
+      "bytes": 376,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "app.js",
+      "sha256": "9eb630d2680158cf8cbd3a4e7bd8c7d22370d294cd2a3e1f1564acb4a9b9efb9",
+      "gitBlobSHA": "15d30c0abe72de01a1928621b497d10a8774c345",
+      "bytes": 145252,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "data/staff/staff-original.json",
+      "sha256": "a44391706ca603d374898fefef592e4179eb729081c01870831f5ccb7f51b739",
+      "gitBlobSHA": "0becc65640e1a3f5808cbbf37a18b5477ceb2676",
+      "bytes": 16716,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "index.html",
+      "sha256": "3b4595ab3472315eb0bc4313f1b2c4f6f5ac3d524d30918996067cc4aed68202",
+      "gitBlobSHA": "451a758927cd342d54b1b1bf3c1d98a51c04a8f2",
+      "bytes": 1020,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "scripts/performance_load_harness.mjs",
+      "sha256": "1bb1b3f48707310fb4818ddbaab5d4c816da14360786cb339ccc9eeaaf31b032",
+      "gitBlobSHA": "690a6d14e973d1140a8f16a0915fc85ba84bf819",
+      "bytes": 23266,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "service-worker.js",
+      "sha256": "c34048db1683e3b811beca0931126c930461f5871aaf73d835a7c07aabba2cc3",
+      "gitBlobSHA": "6612a6fb687f15d13f19af8908abd790daedaa61",
+      "bytes": 1276,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "styles.css",
+      "sha256": "94729954aa430def71ece3a4599826f89c696776e7fc8fb4726217a76cb4af52",
+      "gitBlobSHA": "1c4d13ed2c581bf00e3a51ac9126838659064e45",
+      "bytes": 34415,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "supabase/functions/_shared/password-command.ts",
+      "sha256": "ce773248df943f7d6ee5a65c8f36049b30ac28e842aaa7714c6c07178645b9fb",
+      "gitBlobSHA": "4a21614f1dcb47e3f4ec0b8f5b966e268fe64964",
+      "bytes": 5624,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "supabase/functions/_shared/password-port.ts",
+      "sha256": "274e38c57ac51dca9db52bbaa6fa78cda7371e10e6971d80b7fda68cc5437e59",
+      "gitBlobSHA": "838f951a77ee5db6a28b15195dfa65e3a6683b4c",
+      "bytes": 3993,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "supabase/functions/account-activate/index.ts",
+      "sha256": "937ca657de7d6b9a249b42322a4f737dc2bcff613d9cdafd3b1798e015848be2",
+      "gitBlobSHA": "82ab7e11b57681489e0d703de8498e593cc21c18",
+      "bytes": 708,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "supabase/functions/account-admin-reset-password/index.ts",
+      "sha256": "9eefb5b48a136e24ba843eee200aa2b6c603ee985e5659a2b1f7dd411d8024a0",
+      "gitBlobSHA": "b00f2dfee2e31143f08fcf638c8a4a287715bd77",
+      "bytes": 270,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "supabase/functions/account-confirm-password/index.ts",
+      "sha256": "e30b54ed91dda86097efb9fc734e21060f804fba5a017fef6ed5b7dd8c1da151",
+      "gitBlobSHA": "6ee8fb43513c4637fa6adae4e03390dfcc797321",
+      "bytes": 270,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "supabase/functions/account-resolve/index.ts",
+      "sha256": "0613fe7c3efc4bb9276e17e46ab355a7913a8fce8bffba532f221301a9f8c406",
+      "gitBlobSHA": "7a48faf0b2739ab145dcb832a8a80e8506c42654",
+      "bytes": 2493,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "supabase/functions/legacy-login/index.ts",
+      "sha256": "937ca657de7d6b9a249b42322a4f737dc2bcff613d9cdafd3b1798e015848be2",
+      "gitBlobSHA": "82ab7e11b57681489e0d703de8498e593cc21c18",
+      "bytes": 708,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "supabase/functions/legacy-read/index.ts",
+      "sha256": "937ca657de7d6b9a249b42322a4f737dc2bcff613d9cdafd3b1798e015848be2",
+      "gitBlobSHA": "82ab7e11b57681489e0d703de8498e593cc21c18",
+      "bytes": 708,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "supabase/functions/session-logout/index.ts",
+      "sha256": "9b8c9e5dc5de772011159dd7123353c2b56c9a6f01df1b4ebe3848586500d370",
+      "gitBlobSHA": "33429a32c778bb9c2afa7428d349ca087dfc30e2",
+      "bytes": 2085,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "supabase/functions/transactions-api/index.ts",
+      "sha256": "466c7ee28c45425c9fdb882e6c184345565d6b345731dc6302dadf35a7bb189c",
+      "gitBlobSHA": "ad8ee8e2d94e304bec3cbbc681ac3022eb93fcb3",
+      "bytes": 80653,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "supabase/migrations/20261002141915_transactions_foundation_indexes.sql",
+      "sha256": "e25d9a3ebb78ecc3714b9dc8bc4cfe7729fc296be83f09facc81a9b0ffc24891",
+      "gitBlobSHA": "bc0dab0b1280153e85a51a69e60c20e22223b65d",
+      "bytes": 2199,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "supabase/migrations/20261002_transactions_foundation.sql",
+      "sha256": "6559f1ec024d15b4aa09f1e5bb3072858dbd5e2033711cb4647ed4498a09b3dc",
+      "gitBlobSHA": "a4943affecc288af4328959dd3830393b6273578",
+      "bytes": 29097,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "supabase/migrations/20261003150203_transactions_runtime_extensions.sql",
+      "sha256": "a7e46e4fe17ea267c9c669a76311f5e2f2abcd427e036121e0bfcbd177fd9300",
+      "gitBlobSHA": "2dd348df5451f3a7cd89f7d67ae8f261f7d84ef5",
+      "bytes": 9096,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "supabase/migrations/20261003153412_transaction_action_decision_actor.sql",
+      "sha256": "11227b30e74873d54e1e9ff94023e9d599430080c607a26c2681f1552c50f1d2",
+      "gitBlobSHA": "d0b3ddae99d7b9f29933ec7b47f952a09413d208",
+      "bytes": 95,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "supabase/migrations/20261003153805_legacy_auth_directory.sql",
+      "sha256": "05b926f9b2a16566fd025a85756246cff7b9de57fea64fae176b3b0a4c84f06c",
+      "gitBlobSHA": "0c15944adb365c438741e113956650839cddd079",
+      "bytes": 610,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "supabase/migrations/20261003155140_legacy_open_review_state.sql",
+      "sha256": "df1d79152155796ccbf0721f7a6e1cb8e291cece76ae0e2816ba9f7c2ed6cbd1",
+      "gitBlobSHA": "4e8d1b9e3250d7308916ccc54d92797fc1b76a4a",
+      "bytes": 337,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "supabase/migrations/20261003165841_active_account_migration_registry.sql",
+      "sha256": "dc48f7d03ce68415231f0ab2cd11b10fdc9e77013a470ff2d33d6d23a70186ad",
+      "gitBlobSHA": "1c52df38d55dbfd7c32c0c61e78d2f1513756121",
+      "bytes": 7299,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "supabase/migrations/20261003170538_resolve_open_legacy_transaction_context.sql",
+      "sha256": "a6ae0aafeb72eb91f1e79561a91223aefaed067e6cc49ee4320138dca7d5016d",
+      "gitBlobSHA": "081c184b7a132c4772aeb070c5eb1d382df3d78e",
+      "bytes": 8261,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "supabase/migrations/20261003170945_fast_transaction_listing_rpc.sql",
+      "sha256": "97752d16a29ac1f2ea4f816dc294e1abbd62da7f5056be4b28269ee0d2f86668",
+      "gitBlobSHA": "aa42fcf3fd2b2d9fa55ed65937d637d3fc21bb62",
+      "bytes": 11318,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "supabase/migrations/20261003175332_reconcile_precreated_active_accounts.sql",
+      "sha256": "e4a1fb628ef9141c4d7237ef9c5344f86f88a1e5ca0edbb02cc3dd36e72ab0ab",
+      "gitBlobSHA": "0a9939ff4e7823991308f7fadf40b1e26a5c77cc",
+      "bytes": 1567,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "supabase/migrations/20261003175846_fast_user_context_rpc.sql",
+      "sha256": "136917db4ea601c8f7a758d1b4be3d7d833a65aa7d0ccfc2f3d4e4021b5feb1f",
+      "gitBlobSHA": "8f57cf4e5fa06cc61ebc6c04a89d101837a54ded",
+      "bytes": 1665,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "supabase/migrations/20261003180229_direct_authenticated_transaction_reads.sql",
+      "sha256": "d8c12202ae4239f1cf5b13143f97351c7bb3f105094ee678fba626df95482c30",
+      "gitBlobSHA": "b498c4ed5e3ac7646c0f7f47b9852f536a0baa73",
+      "bytes": 6568,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "supabase/migrations/20261003180434_slim_transaction_listing_payload.sql",
+      "sha256": "f9f7eea7b30f2aff0c8238374222e0c85fc7224fbd8dd816dba80701493a7078",
+      "gitBlobSHA": "a53ba22161d9f5d0de42a55347bc75816ccc6c0d",
+      "bytes": 11323,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "supabase/migrations/20261003180502_migration_role_indexes.sql",
+      "sha256": "03e4d7c98cb3a72570ff8f4376f9c34df32bc91e0a099f5fd662ff994b1fb946",
+      "gitBlobSHA": "dca1e79c93fea4e704c4de9eb83bceb2a972324a",
+      "bytes": 222,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "supabase/migrations/20261004174500_permissions_transactions_section.sql",
+      "sha256": "c29a94b554b162facf64b35d81c5636fd0ddf0422b6b0ec55308fb7f9b2686c2",
+      "gitBlobSHA": "39cafa1accc52fe2731c72ae43633c3559c8b583",
+      "bytes": 9629,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "supabase/migrations/20261004195600_full_editable_transaction_permissions.sql",
+      "sha256": "3cb14b7b85b5a0702f42d64bc0ac197d55dde86bd7b5f72ecad9b6e54464e7cb",
+      "gitBlobSHA": "fa262072414b056c322cab64f17fb14eab72dd4c",
+      "bytes": 26965,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "supabase/migrations/20261004201800_remove_generic_transaction_assign.sql",
+      "sha256": "435f3002a631d6317f814bd4badd53ea03c5dcab56e2aff4598686521159dbe7",
+      "gitBlobSHA": "ca1e0c4031fc424c8671a33118b8a09082fd04cf",
+      "bytes": 182,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "supabase/migrations/20261004202500_harden_permissions_rpc_boundary.sql",
+      "sha256": "48b2f4d57403bf2c6a68954d55f271da33332c16198bb7524a6401faf8525491",
+      "gitBlobSHA": "a1cb78f081160e8a3e0fe344fb5046fff0e24f9f",
+      "bytes": 2745,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "supabase/migrations/20261004203200_permissions_invoker_wrappers.sql",
+      "sha256": "45bcee021d7d71f3647bf36c4883b10dc31581c784e15201d9711f81f44d265c",
+      "gitBlobSHA": "a5910331445daec6c66dce5f828d6e8b3e83a52b",
+      "bytes": 3810,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "supabase/migrations/20261004210000_full_staff_registry_profiles.sql",
+      "sha256": "62eff6d7a860517cad546b12532d5b43d92d25c633cf222bd3af20eda37d62de",
+      "gitBlobSHA": "7d6062b30252470c5d234201e79edc960a6a9755",
+      "bytes": 36075,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "supabase/migrations/20261004211500_transaction_action_notes.sql",
+      "sha256": "daf3a2da3689579090947899c7fe932247973cd7c6c774fd8a41376ceea5af81",
+      "gitBlobSHA": "3d286d809b42fa5a019554ed3b6ee83beee000c1",
+      "bytes": 938,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "supabase/migrations/20261004212500_profile_admin_name.sql",
+      "sha256": "71df4c824051afa7a37ec4100ada374269fb55ba853608d6044945505e6bc078",
+      "gitBlobSHA": "0c2cd5d755523ab14039684b4ba4ef02412caab6",
+      "bytes": 2062,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "supabase/migrations/20261004213500_profile_permission_setter.sql",
+      "sha256": "2bb48be70a7b54501785e8f2d3e27d3cd76d510cb61464981353890872af0e4d",
+      "gitBlobSHA": "cf42ad2423c9cea47d4cc093575143c17588e505",
+      "bytes": 5361,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "supabase/migrations/20261004214500_hide_job_titles_from_directory.sql",
+      "sha256": "84322924e1ed33ce22ff801ce3a7abad00d49805176ab2f5390227266dbf2afc",
+      "gitBlobSHA": "b7067ea5b24d46781cc2e8ae7d883a3597d251ab",
+      "bytes": 714,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "supabase/migrations/20261005182000_transaction_detail_edit_permissions.sql",
+      "sha256": "701ce20317f378ec4eff435d30b179040c7afa45e113c6557ebbc5bb22ffdd15",
+      "gitBlobSHA": "2751408358451fa2073589b5dbddebf5a3f73f25",
+      "bytes": 668,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "supabase/migrations/20261005185500_english_login_usernames.sql",
+      "sha256": "9c4de788bb6e5aab77e19b94e6166530a2207369f632d0550e0878dde8f88e21",
+      "gitBlobSHA": "8ef6d2bbec96ac6196664efcb348b54b4a0c4e1f",
+      "bytes": 1525,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "supabase/migrations/20261005191000_first_name_login_usernames.sql",
+      "sha256": "0ffd058fa1488b2a5e671fd854f9a39d3fcff17ecf14c124aa6c5fd7b44e06ac",
+      "gitBlobSHA": "916ddc318fbcf801d50443290909ab7c62c40b06",
+      "bytes": 3025,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "supabase/migrations/20261005200000_password_operations_and_safe_provisioning.sql",
+      "sha256": "008028c31b80a4e130cca3036e8428111b7ea9f1dd91d12fbb77ad450c60c240",
+      "gitBlobSHA": "ddd098ee370e027e3a2775715553ec0bd725720d",
+      "bytes": 40853,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "supabase/migrations/20261006193000_transaction_custody_read_state.sql",
+      "sha256": "12e269bd371fcad1760caa803c013552c0f46c9239708577a27a33fc11f5dc33",
+      "gitBlobSHA": "0be4112edc53f4980ba461bc02709bd53cdb6965",
+      "bytes": 28182,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "supabase/migrations/20261006194500_transaction_assistant_reply.sql",
+      "sha256": "d70602489453eaddcee18e05f282ba71d8b753035673b305619f95b0b60e810b",
+      "gitBlobSHA": "02a3a760877ab2f1f5cf563effe05b19df22b04d",
+      "bytes": 9562,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "supabase/migrations/20261007190000_transaction_executive_custody.sql",
+      "sha256": "baf72f1102f7d0d5eab1f033ad9adae6fcec270f043f8647b39419485aee4195",
+      "gitBlobSHA": "543b5811726b637e126fc52f778ba51b2f73b76a",
+      "bytes": 11508,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "supabase/migrations/20261013190000_read_performance.sql",
+      "sha256": "e3745b46798cae6a4a36fa848de3034989eaea8bb72cd71423189d22792eedae",
+      "gitBlobSHA": "622e33482a0f47a618f1a07b38f8e9e421bd8ab6",
+      "bytes": 695,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "supabase/migrations/20261013190100_fk_indexes.sql",
+      "sha256": "e7c31c5207c19256b72f8bab1aae561af08f09a6c7eb72eb5ce2c1d24a4f5746",
+      "gitBlobSHA": "3994f376ca7ab1c3cc8b4d8812c7ab9ed065a92c",
+      "bytes": 4154,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "supabase/migrations/20261013190200_list_requester_context.sql",
+      "sha256": "553cd6dcc1ed5e0a76feb33f8e1c6b5ed8f488f8156e22e0aff2553373c67c4c",
+      "gitBlobSHA": "a1b8492c0d523f58514f6a9e20d650763368ee8b",
+      "bytes": 20911,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "supabase/migrations/20261018182622_list_feedback_context_fusion.sql",
+      "sha256": "38f346d7a0ef7fb720dcc013b21a584093a40cb2e452e1363e15f49b14711440",
+      "gitBlobSHA": "4ef0aa9e8d060fd34b5810243bca7600542b47ea",
+      "bytes": 10735,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "supabase/migrations/20261020193505_list_statement_plan_reuse.sql",
+      "sha256": "331d8dedef334352d14ce370b159571f99f5c0817a3a30bb6f7e9c532e709cc8",
+      "gitBlobSHA": "2e8945c18b1cf6e086959c4ffc6eb2e67e7a46ae",
+      "bytes": 9545,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "supabase/migrations/20261021194858_list_set_based_feedback_flags.sql",
+      "sha256": "08ee4406f9bc4c36125c783655d3a3012cd14a6d6875e93b45537f0d5128dea4",
+      "gitBlobSHA": "773480dd530e6140d26592960b77da1325c6ba56",
+      "bytes": 21645,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "tests/client_bootstrap_interleavings.py",
+      "sha256": "209d45d684a929d6d93d8b06df21f722efb277d7c421600771e5580945b18a8c",
+      "gitBlobSHA": "a987f88f0996863d5aa8b8e6ae041250103379e4",
+      "bytes": 17472,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "tests/client_clipboard.py",
+      "sha256": "f6729dfb6a29b0a05b99f76ef60220cad71938604c24ce692aee7a89c8e3b019",
+      "gitBlobSHA": "482c4e77d7a900e9f7d4e521540dda4cf51694de",
+      "bytes": 4753,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "tests/client_session_ownership.mjs",
+      "sha256": "386fabcd194333460e1009e8bc0114ddd5dd131b41610bd97987b30c882a6079",
+      "gitBlobSHA": "e644ebddb5333a4e42d048e23f274830c11aa650",
+      "bytes": 24641,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "tests/password_command_test.ts",
+      "sha256": "af28f6e9c80427fb4a763033ade6d3e7ace33ef2bd730748f33422f8fc8a8aea",
+      "gitBlobSHA": "993ef1afe279dbe91a78b335797da9d4b5bbc404",
+      "bytes": 4777,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "tests/password_component.py",
+      "sha256": "789dcaf3d584713c2a588b5bff4f1c4f1471bc68c1908b696eb59d87b5b09d77",
+      "gitBlobSHA": "3ccc6136c4118efd37b60e40e58f1868ad91c522",
+      "bytes": 7134,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "tests/password_edge_test.ts",
+      "sha256": "088206660bd1808657c9ce5303247ed230de6cb70251703b65478a2d2333e2e8",
+      "gitBlobSHA": "acd5c105f67eb7e5962272cd5b22b3af3dc5f628",
+      "bytes": 1936,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "tests/password_security_sql.mjs",
+      "sha256": "3a12473031b787b1e61d82c7a63a34ce0ab0216e7cde89951ad6631ca62b302e",
+      "gitBlobSHA": "a0e72b1be540c4ba60a8c1c51b3bc81e35f1aa49",
+      "bytes": 21614,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "tests/password_security_sql_cases.mjs",
+      "sha256": "aba5d0d49e6631f476665d44ddda83c31396ae8d2afff8b43e280ff13623f6a2",
+      "gitBlobSHA": "c94bbe8a475a682b797fb732b585cf4e82e6eaa9",
+      "bytes": 17192,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "tests/password_transaction_gate.py",
+      "sha256": "ae0b720efa07d158ba81ee22b56eeb53d3134d76a0ec0b07b1cfd61d6b65fac5",
+      "gitBlobSHA": "0ac40963e4a2bbb650f8facb02db1fc32ad8284b",
+      "bytes": 645,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "tests/password_transport.py",
+      "sha256": "d64ac712c52e404d7e0ba718ebfb77fdf5783e462ff5de2f9513a2a9be79ae1d",
+      "gitBlobSHA": "ae62df487f89867d4af2cc1ab2e42bbd8b29ed83",
+      "bytes": 5636,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "tests/performance_asset_cache_test.mjs",
+      "sha256": "5a49d0e0c0e4130ccabf8664ebcea896d391abad14535e83f3e76c2e5829f697",
+      "gitBlobSHA": "b200fb696ce26fd7c1d490b928893cf2e8f6d60d",
+      "bytes": 2149,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "tests/performance_backend_loopback_test.ts",
+      "sha256": "d915889f9e41a7cd91897613fd76209e57b44d48050c2d49b0dcb0d63486d8c5",
+      "gitBlobSHA": "cb3b86e211915edd32663739a89d25a03c571f23",
+      "bytes": 16199,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "tests/performance_backend_sql_shape.mjs",
+      "sha256": "2ba7b0f7a62f10122fb5f7b41fdcfc2b8bfdee25550529a3e67480d594fcb8ea",
+      "gitBlobSHA": "e71ee07a32f557f61f3eb708258495110cf260a4",
+      "bytes": 6277,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "tests/performance_backend_test.ts",
+      "sha256": "f9719903a7c818d7c84e77bc8f6e36037383df6fed4473b3c165e9aaede09752",
+      "gitBlobSHA": "603fe22ebc9fb5ef297ff15a596d6d004b822120",
+      "bytes": 15192,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "tests/performance_fk_index_equivalence_test.mjs",
+      "sha256": "bb1b4d6130d90d4b627e1325cc66370634ff9e2df19d24ea0613674ded703afd",
+      "gitBlobSHA": "9bea72a08eb2047c7dc51a089cb4ce09bfa8a4ac",
+      "bytes": 10037,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "tests/performance_frontend_benchmark.mjs",
+      "sha256": "7ecc072507edd94611664ab888f11240536cf805a83a3ee6af8c08983cdf3321",
+      "gitBlobSHA": "eb3ad0a3b848fbc96cb961783456a626b8c8f310",
+      "bytes": 5929,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "tests/performance_frontend_fixture.mjs",
+      "sha256": "649fa734864e9a3d281a6bf847400ff0c6e9bb9c8a4dd7e1ded6303f0e0c11eb",
+      "gitBlobSHA": "2fa28fce2d807f747e2709e1e08dd83810d48f0f",
+      "bytes": 10681,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "tests/performance_frontend_regressions.mjs",
+      "sha256": "9144e6503e94e2af1d171a25430f7b7bde588e0a1ebb72c066129f9ab378fe4d",
+      "gitBlobSHA": "c08376ddacf21e104fb17d48f6d7ab090ced381c",
+      "bytes": 21851,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "tests/performance_load_preparation_test.mjs",
+      "sha256": "da2baa19fedb09c22eb891fb13fd7e690c7dc12920f503d622fb483285d77365",
+      "gitBlobSHA": "62f3796881ae36d00736d09c614b92b8638eba26",
+      "bytes": 24886,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "tests/performance_sql_benchmark.mjs",
+      "sha256": "00a80732a13fd2cfdc095654034b7a82b4f65cc03842d18be81170c50ebb39b6",
+      "gitBlobSHA": "fe91a01cdabcba8542946a3a707d5426e7fca819",
+      "bytes": 15173,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "tests/runtime_authz_hardening_test.ts",
+      "sha256": "d85edde418293600aaec27490839489a09c4b6cc5c0b08a2c00670f2ae9f85a6",
+      "gitBlobSHA": "a9ff741037c7791029870a4bda663b615700c3dc",
+      "bytes": 27732,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "tests/session_logout_hardening_test.ts",
+      "sha256": "1ac50c2697c45162694dbb39237e3acd3afa5147e681dd33017255342dedd6cb",
+      "gitBlobSHA": "4d531c562618c1e280a55f8772caa1bba1ec5339",
+      "bytes": 10001,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "tests/sql-list-optimizations/PACKAGE_MANIFEST.json",
+      "sha256": "a41ee490858693d9877ffd78b0f7316991cd3d502bba7bb1b823be73906b0f3f",
+      "gitBlobSHA": "22a4fae2955e3ee5fce924404845661a0d0cf453",
+      "bytes": 4250,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "tests/sql-list-optimizations/admit-implementation.txt",
+      "sha256": "f950879d31cddf9de9dcc6a34cb659bf9f1eeefdacfd9a5e47c039bd3d76a457",
+      "gitBlobSHA": "8d6cc247cbed9ae963b226985acab2d05704b0c4",
+      "bytes": 311,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "tests/sql-list-optimizations/admit.mjs",
+      "sha256": "21e53f7d7d39b530752656063889e9ea66cfccb4b1afc11034243dc940429dec",
+      "gitBlobSHA": "d75a8b7dbc56705a786edbf1b87a6eff9bdf16f5",
+      "bytes": 262,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "tests/sql-list-optimizations/admit.test.mjs",
+      "sha256": "12c3bc5e1ae782733cc9ef43d18ae82f3b45756277c375bde7a74bc0241593e3",
+      "gitBlobSHA": "d081346f2b8bb03793272350734ea17aa0476895",
+      "bytes": 445,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "tests/sql-list-optimizations/common.mjs",
+      "sha256": "d83ad127a814f636de7a1ce196a8c4b8be95207d0a3705d726f467bba5c6eb8f",
+      "gitBlobSHA": "1252f5a3ed8f1261762861a9f6cb8022084d85d6",
+      "bytes": 317,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "tests/sql-list-optimizations/config.mjs",
+      "sha256": "094978be8e53e7472ada449e67e997a8535e7aa7793e424b1a860bb603a83aa3",
+      "gitBlobSHA": "d2841c5a90fff152b227657ec5ff41dd4da11f80",
+      "bytes": 998,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "tests/sql-list-optimizations/differential.mjs",
+      "sha256": "5a7a1c7ec0d95a0288caed8ed72bb95146d7363964865f37867ca7620ac981f9",
+      "gitBlobSHA": "2efd1ec48ef59f1d4c7943798b86f3036a0454df",
+      "bytes": 4975,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "tests/sql-list-optimizations/fixture/fixture-adapter.mjs",
+      "sha256": "301e5ce785a49db8a5f48d5f3bcfd9532a708d0d89714e56466544f710e29c88",
+      "gitBlobSHA": "4f8b6957977f91d377c4fee337be139223d85ec9",
+      "bytes": 14925,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "tests/sql-list-optimizations/fixture/frozen/BEFORE_NATIVE_app_private_account_permission_effective.sql",
+      "sha256": "9ceed04a16e31ec16e224134bebdf4fa5515394aefc8c7bfc1d6df7881385175",
+      "gitBlobSHA": "35bb51ddb144f10cf8694ef581fb9fae1c34a380",
+      "bytes": 837,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "tests/sql-list-optimizations/fixture/frozen/BEFORE_NATIVE_app_private_list_transactions_current.sql",
+      "sha256": "2f847228d9386770dbab25b1074a69877ab9f77b0c908bba0c4ff10279e5b9d9",
+      "gitBlobSHA": "5ca34bec3c3282f97458d7d71e45e102f8279ddf",
+      "bytes": 1552,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "tests/sql-list-optimizations/fixture/frozen/BEFORE_NATIVE_app_private_transaction_feedback_flags.sql",
+      "sha256": "a35f97c40d3d358c6ba3bdb2121750275a417d1f7e02409ae0f78988630812a5",
+      "gitBlobSHA": "bed188a0289379f76040ce0fd73cf29d8b73e21b",
+      "bytes": 11280,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "tests/sql-list-optimizations/fixture/frozen/BEFORE_NATIVE_list_my_transactions.sql",
+      "sha256": "9946a90d00cb0e4a1d67dd321293fad9b371d1d257b2e60456dd33554873c973",
+      "gitBlobSHA": "15635d2a7ce786fdc1fc59168a31ef33695dcb76",
+      "bytes": 716,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "tests/sql-list-optimizations/fixture/frozen/BEFORE_NATIVE_public_list_transactions_internal.sql",
+      "sha256": "d059bba046f481dd55bfff5b9d7800a4d426a7c14b7e1faccf42fc537afcb1b8",
+      "gitBlobSHA": "ec2f018289ac8bd64a310860bd9b38b424562d5f",
+      "bytes": 9437,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "tests/sql-list-optimizations/fixture/frozen/BEFORE_NATIVE_public_user_context_internal.sql",
+      "sha256": "a393c2a67e78b7217f95de17da611b41b63a28684ae3e75b55e26a1c12d00389",
+      "gitBlobSHA": "58983d5e2c63c34d0195a9b84fb8d967457d4442",
+      "bytes": 1501,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "tests/sql-list-optimizations/fixture/oracle-setup.mjs",
+      "sha256": "e22f608c60f247b848b21c3def2e687e9541f945469b2b8cf3a0d38af612eb5c",
+      "gitBlobSHA": "c84c7b6ac433c89e692e5ba13d05614fdb161cb5",
+      "bytes": 8508,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "tests/sql-list-optimizations/fixture/roster.json",
+      "sha256": "b07266a16157f345b834ae3e47159889f53033bc213da6b202cc9977f51a7908",
+      "gitBlobSHA": "7bf5dfc9d86033f8efab5be99bf1943bc38ccddb",
+      "bytes": 3267,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "tests/sql-list-optimizations/fixture/shape.mjs",
+      "sha256": "f7e8a6ba5f8a2c8580e4041ceead60f528750cade9932fa9ac031a98de97d0f5",
+      "gitBlobSHA": "bd680a2eae4ab35a3987f2200312148d7442d315",
+      "bytes": 6351,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "tests/sql-list-optimizations/focused.mjs",
+      "sha256": "8d5ec9a73f60a709f2e88f633b46632adee1325b25427865c282dbb097f0a309",
+      "gitBlobSHA": "4e57135c0b1007ab5f42330e25cbe1858f6dc422",
+      "bytes": 7133,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "tests/sql-list-optimizations/offline-guard.mjs",
+      "sha256": "a1d4db4e347b0cf74c2926c7721776eeab8f22d994ba4702f6334c8d3208b856",
+      "gitBlobSHA": "089b12f33b44c9d72df5e49da4b189e6c00a4c02",
+      "bytes": 617,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "tests/sql-list-optimizations/package.json",
+      "sha256": "666fd970e9ea5bd5add158a7faa752b633d3a2bb56638a7e9238fead7148ca67",
+      "gitBlobSHA": "1254396c59c7ec2be0c5ed1a7a54b4185ca4ce92",
+      "bytes": 349,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "tests/sql-list-optimizations/provenance.json",
+      "sha256": "68e15822cc4e2c0f155104418c1644d193cb7a8ad03862b317832ef85e8c6cbb",
+      "gitBlobSHA": "6e475d3d25e60c54b4a807707b467bed9976466d",
+      "bytes": 14068,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "tests/sql-list-optimizations/retained-acceptance.json",
+      "sha256": "0587097e318f25ff4ca42ca375c55974026fd200cb41c01fced5330ed62007ef",
+      "gitBlobSHA": "6e15d4b2047e504637ad6baac99eb0535300a80c",
+      "bytes": 3266,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "tests/sql-list-optimizations/run.mjs",
+      "sha256": "79c8a493e061790e422eefe61ab5630cbe3c6ad392331da31d51d2504edd6b89",
+      "gitBlobSHA": "69ea130f14a75617becc51c9f17beaecdab1021a",
+      "bytes": 2837,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "tests/sql-list-optimizations/source-pins.json",
+      "sha256": "a90a9dfa6a7dfbc0145f159291f2c083709585089cf559b783aaf34a42c6ff6a",
+      "gitBlobSHA": "42605ead9b9b9cb6a0a2a622241129352529eb82",
+      "bytes": 7431,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "tests/transaction_assistant_reply_regressions.mjs",
+      "sha256": "31ea8213ee687526be744701d07b13241e28ed199bb1c23121bd5482b2bdf112",
+      "gitBlobSHA": "13560c93fba3ad88e87f72f3f5e6e41f474519b1",
+      "bytes": 10729,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "tests/transaction_assistant_reply_sql.mjs",
+      "sha256": "1ccb3adbf395e4e496fc87e89f61e97899cf6837f7613ed38156a61d97db057e",
+      "gitBlobSHA": "52099dccbe61f08a788846d256cfb55ab0784176",
+      "bytes": 6516,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "tests/transaction_executive_custody.mjs",
+      "sha256": "9528f9e123605692e5a0e9e64942c7d43df3899d2d62c138a5fdb7c4083a7280",
+      "gitBlobSHA": "c17be072dfe829374f873376bb23a7fac04249f9",
+      "bytes": 32417,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "tests/transaction_feedback_cohort.mjs",
+      "sha256": "e6973c549d84f54bc9528e6f43e3d2b18681726584c7476cf6f9597e5bbdba56",
+      "gitBlobSHA": "c0b9e324376cf320bae76a0ffb17fe0f647b80c2",
+      "bytes": 1868,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "tests/transaction_feedback_cross_layer.mjs",
+      "sha256": "ddae14c2e1a4cd60a8c0d495c2ffe0522d2f8797614c362a8a2f72912654eb87",
+      "gitBlobSHA": "b0494aa2b44c6b6f2b37d72dd6333daf7de33f19",
+      "bytes": 2058,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "tests/transaction_feedback_edge_test.ts",
+      "sha256": "f848664fe524cb3f581ee3bbf8308f818ac3ecc48f636b85cc773cc83da3d3e9",
+      "gitBlobSHA": "1038230a5b72ef2bccea0c72e0e8d3136b947b64",
+      "bytes": 18242,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "tests/transaction_feedback_guards.mjs",
+      "sha256": "bfecd955f500c9bcb5c57464e265f446a21f2e37f65e16fcd3b6632ab86855b9",
+      "gitBlobSHA": "cb4896832a741ed5e5df86676a7fb9059e23517b",
+      "bytes": 1632,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "tests/transaction_feedback_notify.mjs",
+      "sha256": "f9180726482f46721f35795e9db2de29e55a49f966b012176a8fc7c52b6f4a76",
+      "gitBlobSHA": "1bb0cb8854fa8e3c6339f6a28bebf286fd301b7c",
+      "bytes": 1479,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "tests/transaction_feedback_ownership_bridge.mjs",
+      "sha256": "46b83b4e2701896ba6ef587673a4413835ff56a6240df674bd68b8a61912d472",
+      "gitBlobSHA": "b6a93ef9e1bd6f4c6b396d94e23b207305c2d85e",
+      "bytes": 7381,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "tests/transaction_feedback_receipt_bridge.py",
+      "sha256": "7c853d8ec4f67a3e32e4dcd3d32b2d98405195fc695d0be3243a121c0520ff23",
+      "gitBlobSHA": "d0761daec617a04935e8139b60f5a66f67a71fbc",
+      "bytes": 5233,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "tests/transaction_feedback_sql.mjs",
+      "sha256": "ecc5e91e50a3e17d76bcbf3d72427ab7c870ce2c1e114123cf8bc882d379c3bc",
+      "gitBlobSHA": "baff569c654ddb06ce1d8db7f403ba1c56bd04d8",
+      "bytes": 30514,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "tests/transaction_feedback_sql_fixture.mjs",
+      "sha256": "3b6d495ffb485a8885666106a606fe5f43a2cb4d1b9430c093871fb45d692715",
+      "gitBlobSHA": "77838a00f9bac06fb57d00717d477885daa4ec40",
+      "bytes": 8372,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "tests/transaction_feedback_ui.py",
+      "sha256": "d19053e183ba02d95790c285d46dff1c2276dbc3d8ac92e232022dbac673e2ed",
+      "gitBlobSHA": "daf4753ae36fb90539d7f77f967174dd48de570d",
+      "bytes": 59856,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "tests/transaction_refinements.py",
+      "sha256": "1f2f7aeb6cef1f771687b3d7f3992e7b84d71cc63ceaaaae54de2aab77648323",
+      "gitBlobSHA": "865ff5e537e1b9f1b46ca11eee9b9383451b6efd",
+      "bytes": 2294,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "tests/transaction_request_prevalidation_test.ts",
+      "sha256": "90b40589d3e40ee03d5b4b0e989a05a02c955810b7e62af8df26088d18e5d73c",
+      "gitBlobSHA": "689c505fc03496839ff37391b14224c7381e5517",
+      "bytes": 18491,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "tests/transaction_safe_url.py",
+      "sha256": "6784ef97cf332f12f146d532e987776663d0ef43a3ee4f6dbacb08715e3487af",
+      "gitBlobSHA": "5ba5085b6181fd2d75ed2d216041f17c9b107a8b",
+      "bytes": 723,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "tests/ui_contracts.py",
+      "sha256": "94f909f90ef083af52544be7d6c51dc6d48451fed41d6b5059cec9708358ecb9",
+      "gitBlobSHA": "c39543ca83c5c3d54e85bef21841e327a8b95106",
+      "bytes": 8612,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "tests/ui_public_deployment.py",
+      "sha256": "a6aced1d44fe9c8603d4968010619bab34d36da99d1398277b6f5c2d389d0654",
+      "gitBlobSHA": "8f70c1a35fed7170434a825565d34b30488f3ab8",
+      "bytes": 4506,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "tests/ui_regressions.py",
+      "sha256": "7a5d7d561d7a11696b5f6a4ec57df43baee79a3debe3559e71f66d12bbddfbdd",
+      "gitBlobSHA": "65ece94bb3223ff7b65182955218a3849cb0418e",
+      "bytes": 5937,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "tests/ui_renderer.py",
+      "sha256": "ad011ee6414637a90a034acdd6023c073f80bfae3fe7ae70d0ddbcb05363e784",
+      "gitBlobSHA": "cc0ff92b7f016b49d0e6b9e2d0a3fecea892a507",
+      "bytes": 20446,
+      "equalToAcceptedPR6": true
+    },
+    {
+      "path": "tests/ui_static.py",
+      "sha256": "0575d959b7b2c566cfd4779bb5e040408be7ec2cacdb3bd63cceeff62b8a6258",
+      "gitBlobSHA": "5a5e9b0ee393ca1cd47025840497d4f567e2565a",
+      "bytes": 3220,
+      "equalToAcceptedPR6": true
+    }
+  ],
+  "allRuntimeBytesEqual": true,
+  "retainedNativeGates": {
+    "load50x50": "PASS_2500_OF_2500_GENUINE_HTTP200",
+    "roleScopePermissionIDORAuthRLSLogoutDetails": "PASS_NATIVE",
+    "nativeAPI30": "PASS_COMPLETE_STABLE_PAYLOAD_30_OF_30",
+    "currentMainUI": "PASS_FOUR_GENUINE_SIX_GATE_JOURNEYS_TWO_VIEWPORTS",
+    "lateResponseFaults": "PASS_SIX_ACTUAL_TYPED_CASES",
+    "geometry": "PASS_SCOPED_24_OBSERVATIONS",
+    "SQLDestinationRegressions": "PASS_FULL_FIVE_WHOLE53_AND128_NAMED256_EXECUTIONS",
+    "advisors": "READONLY_33INFO_0WARN_0ERROR",
+    "intendedFullDefaultScan": "PASS_SCOPED_153_RAW2_REVIEWED_NONSECRET2_UNKNOWN0",
+    "actualStagedFullDefaultScan": "PASS_SCOPED_153_ACTUAL_GIT_BLOBS_RAW2_REVIEWED_NONSECRET2_UNKNOWN0",
+    "independentFinalSourceEvidenceReview": "APPROVED_EXACT_FROZEN_SCOPE",
+    "remoteTreeRefPRParity": "PASS",
+    "externalGitGuardianCheck": "SUCCESS"
+  },
+  "heavyLoadRerun": false,
+  "performance30Rerun": false,
+  "reason": "Only documentation moved; executable runtime/SQL/test closure equals accepted source bytes",
+  "qualifications": {
+    "freshDeno": "NOT_RUN_PRESERVED_EXECUTABLE_READ_DENIAL",
+    "historicalDeno": "344 invocations / 324 distinct / 20 repetitions; RETAINED_NOT_FRESH_CONDITIONAL",
+    "freshCPU_RAM": "UNAVAILABLE_PRESERVED_RUNTIME_DENIAL",
+    "routedBrowserCache": "NOT_COVERED",
+    "historical840": "NOT_REBRANDED_CURRENT_MAIN",
+    "poolSize": 10,
+    "poolAcquireSeconds": 10,
+    "authenticatedStatementSeconds": 8,
+    "productionWritesByOperation": 0,
+    "realStaffAccountMutations": 0
+  },
+  "originalVerificationRemainsHistorical": true
+}

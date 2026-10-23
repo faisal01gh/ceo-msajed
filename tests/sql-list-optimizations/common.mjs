@@ -1,0 +1,1 @@
+import fs from 'node:fs';import {createHash} from 'node:crypto';import {packageRoot,outputDir} from './config.mjs';export const root=packageRoot,work=root+'/',out=outputDir+'/';export const sha=x=>createHash('sha256').update(x).digest('hex');export const save=(n,x)=>fs.writeFileSync(out+n,JSON.stringify(x,null,2));

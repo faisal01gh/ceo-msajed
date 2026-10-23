@@ -1,0 +1,185 @@
+{
+  "repo": [
+    {
+      "path": "supabase/migrations/20261002141915_transactions_foundation_indexes.sql",
+      "bytes": 2199,
+      "sha256": "e25d9a3ebb78ecc3714b9dc8bc4cfe7729fc296be83f09facc81a9b0ffc24891"
+    },
+    {
+      "path": "supabase/migrations/20261002_transactions_foundation.sql",
+      "bytes": 29097,
+      "sha256": "6559f1ec024d15b4aa09f1e5bb3072858dbd5e2033711cb4647ed4498a09b3dc"
+    },
+    {
+      "path": "supabase/migrations/20261003150203_transactions_runtime_extensions.sql",
+      "bytes": 9096,
+      "sha256": "a7e46e4fe17ea267c9c669a76311f5e2f2abcd427e036121e0bfcbd177fd9300"
+    },
+    {
+      "path": "supabase/migrations/20261003153412_transaction_action_decision_actor.sql",
+      "bytes": 95,
+      "sha256": "11227b30e74873d54e1e9ff94023e9d599430080c607a26c2681f1552c50f1d2"
+    },
+    {
+      "path": "supabase/migrations/20261003153805_legacy_auth_directory.sql",
+      "bytes": 610,
+      "sha256": "05b926f9b2a16566fd025a85756246cff7b9de57fea64fae176b3b0a4c84f06c"
+    },
+    {
+      "path": "supabase/migrations/20261003155140_legacy_open_review_state.sql",
+      "bytes": 337,
+      "sha256": "df1d79152155796ccbf0721f7a6e1cb8e291cece76ae0e2816ba9f7c2ed6cbd1"
+    },
+    {
+      "path": "supabase/migrations/20261003165841_active_account_migration_registry.sql",
+      "bytes": 7299,
+      "sha256": "dc48f7d03ce68415231f0ab2cd11b10fdc9e77013a470ff2d33d6d23a70186ad"
+    },
+    {
+      "path": "supabase/migrations/20261003170538_resolve_open_legacy_transaction_context.sql",
+      "bytes": 8261,
+      "sha256": "a6ae0aafeb72eb91f1e79561a91223aefaed067e6cc49ee4320138dca7d5016d"
+    },
+    {
+      "path": "supabase/migrations/20261003170945_fast_transaction_listing_rpc.sql",
+      "bytes": 11318,
+      "sha256": "97752d16a29ac1f2ea4f816dc294e1abbd62da7f5056be4b28269ee0d2f86668"
+    },
+    {
+      "path": "supabase/migrations/20261003175332_reconcile_precreated_active_accounts.sql",
+      "bytes": 1567,
+      "sha256": "e4a1fb628ef9141c4d7237ef9c5344f86f88a1e5ca0edbb02cc3dd36e72ab0ab"
+    },
+    {
+      "path": "supabase/migrations/20261003175846_fast_user_context_rpc.sql",
+      "bytes": 1665,
+      "sha256": "136917db4ea601c8f7a758d1b4be3d7d833a65aa7d0ccfc2f3d4e4021b5feb1f"
+    },
+    {
+      "path": "supabase/migrations/20261003180229_direct_authenticated_transaction_reads.sql",
+      "bytes": 6568,
+      "sha256": "d8c12202ae4239f1cf5b13143f97351c7bb3f105094ee678fba626df95482c30"
+    },
+    {
+      "path": "supabase/migrations/20261003180434_slim_transaction_listing_payload.sql",
+      "bytes": 11323,
+      "sha256": "f9f7eea7b30f2aff0c8238374222e0c85fc7224fbd8dd816dba80701493a7078"
+    },
+    {
+      "path": "supabase/migrations/20261003180502_migration_role_indexes.sql",
+      "bytes": 222,
+      "sha256": "03e4d7c98cb3a72570ff8f4376f9c34df32bc91e0a099f5fd662ff994b1fb946"
+    },
+    {
+      "path": "supabase/migrations/20261004174500_permissions_transactions_section.sql",
+      "bytes": 9629,
+      "sha256": "c29a94b554b162facf64b35d81c5636fd0ddf0422b6b0ec55308fb7f9b2686c2"
+    },
+    {
+      "path": "supabase/migrations/20261004195600_full_editable_transaction_permissions.sql",
+      "bytes": 26965,
+      "sha256": "3cb14b7b85b5a0702f42d64bc0ac197d55dde86bd7b5f72ecad9b6e54464e7cb"
+    },
+    {
+      "path": "supabase/migrations/20261004201800_remove_generic_transaction_assign.sql",
+      "bytes": 182,
+      "sha256": "435f3002a631d6317f814bd4badd53ea03c5dcab56e2aff4598686521159dbe7"
+    },
+    {
+      "path": "supabase/migrations/20261004202500_harden_permissions_rpc_boundary.sql",
+      "bytes": 2745,
+      "sha256": "48b2f4d57403bf2c6a68954d55f271da33332c16198bb7524a6401faf8525491"
+    },
+    {
+      "path": "supabase/migrations/20261004203200_permissions_invoker_wrappers.sql",
+      "bytes": 3810,
+      "sha256": "45bcee021d7d71f3647bf36c4883b10dc31581c784e15201d9711f81f44d265c"
+    },
+    {
+      "path": "supabase/migrations/20261004210000_full_staff_registry_profiles.sql",
+      "bytes": 36075,
+      "sha256": "62eff6d7a860517cad546b12532d5b43d92d25c633cf222bd3af20eda37d62de"
+    },
+    {
+      "path": "supabase/migrations/20261004211500_transaction_action_notes.sql",
+      "bytes": 938,
+      "sha256": "daf3a2da3689579090947899c7fe932247973cd7c6c774fd8a41376ceea5af81"
+    },
+    {
+      "path": "supabase/migrations/20261004212500_profile_admin_name.sql",
+      "bytes": 2062,
+      "sha256": "71df4c824051afa7a37ec4100ada374269fb55ba853608d6044945505e6bc078"
+    },
+    {
+      "path": "supabase/migrations/20261004213500_profile_permission_setter.sql",
+      "bytes": 5361,
+      "sha256": "2bb48be70a7b54501785e8f2d3e27d3cd76d510cb61464981353890872af0e4d"
+    },
+    {
+      "path": "supabase/migrations/20261004214500_hide_job_titles_from_directory.sql",
+      "bytes": 714,
+      "sha256": "84322924e1ed33ce22ff801ce3a7abad00d49805176ab2f5390227266dbf2afc"
+    },
+    {
+      "path": "supabase/migrations/20261005182000_transaction_detail_edit_permissions.sql",
+      "bytes": 668,
+      "sha256": "701ce20317f378ec4eff435d30b179040c7afa45e113c6557ebbc5bb22ffdd15"
+    },
+    {
+      "path": "supabase/migrations/20261005185500_english_login_usernames.sql",
+      "bytes": 1525,
+      "sha256": "9c4de788bb6e5aab77e19b94e6166530a2207369f632d0550e0878dde8f88e21"
+    },
+    {
+      "path": "supabase/migrations/20261005191000_first_name_login_usernames.sql",
+      "bytes": 3025,
+      "sha256": "0ffd058fa1488b2a5e671fd854f9a39d3fcff17ecf14c124aa6c5fd7b44e06ac"
+    },
+    {
+      "path": "supabase/migrations/20261005200000_password_operations_and_safe_provisioning.sql",
+      "bytes": 40853,
+      "sha256": "008028c31b80a4e130cca3036e8428111b7ea9f1dd91d12fbb77ad450c60c240"
+    },
+    {
+      "path": "supabase/migrations/20261006193000_transaction_custody_read_state.sql",
+      "bytes": 28182,
+      "sha256": "12e269bd371fcad1760caa803c013552c0f46c9239708577a27a33fc11f5dc33"
+    },
+    {
+      "path": "supabase/migrations/20261006194500_transaction_assistant_reply.sql",
+      "bytes": 9562,
+      "sha256": "d70602489453eaddcee18e05f282ba71d8b753035673b305619f95b0b60e810b"
+    },
+    {
+      "path": "supabase/migrations/20261007190000_transaction_executive_custody.sql",
+      "bytes": 11508,
+      "sha256": "baf72f1102f7d0d5eab1f033ad9adae6fcec270f043f8647b39419485aee4195"
+    },
+    {
+      "path": "supabase/migrations/20261013190200_list_requester_context.sql",
+      "bytes": 20911,
+      "sha256": "553cd6dcc1ed5e0a76feb33f8e1c6b5ed8f488f8156e22e0aff2553373c67c4c"
+    },
+    {
+      "path": "supabase/migrations/20261018182622_list_feedback_context_fusion.sql",
+      "bytes": 10735,
+      "sha256": "38f346d7a0ef7fb720dcc013b21a584093a40cb2e452e1363e15f49b14711440"
+    },
+    {
+      "path": "supabase/migrations/20261020193505_list_statement_plan_reuse.sql",
+      "bytes": 9545,
+      "sha256": "331d8dedef334352d14ce370b159571f99f5c0817a3a30bb6f7e9c532e709cc8"
+    },
+    {
+      "path": "supabase/migrations/20261021194858_list_set_based_feedback_flags.sql",
+      "bytes": 21645,
+      "sha256": "08ee4406f9bc4c36125c783655d3a3012cd14a6d6875e93b45537f0d5128dea4"
+    }
+  ],
+  "migrations": [
+    "supabase/migrations/20261013190200_list_requester_context.sql",
+    "supabase/migrations/20261018182622_list_feedback_context_fusion.sql",
+    "supabase/migrations/20261020193505_list_statement_plan_reuse.sql",
+    "supabase/migrations/20261021194858_list_set_based_feedback_flags.sql"
+  ]
+}

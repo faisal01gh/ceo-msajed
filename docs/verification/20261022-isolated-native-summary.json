@@ -1,0 +1,207 @@
+{
+  "classification": "SETTLED_ISOLATED_RUNTIME_EVIDENCE_NOT_PRODUCTION_AUTHORITY",
+  "baseGitMain": "208ffad347a04a7bbbdcc48c5689d289f4070521",
+  "load": {
+    "actualExit": 0,
+    "bothEOF": true,
+    "uniqueGenuineNativeUIDsAndSIDs": 50,
+    "requestsPerUID": 50,
+    "planned": 2500,
+    "success": 2500,
+    "statusCounts": {
+      "200": 2500
+    },
+    "transportErrors": 0,
+    "serverPendingUnknown": 0,
+    "actualPeakHTTP": 2500,
+    "elapsedMs": 8347.827595,
+    "throughputCompletedPerSecond": 299.479112565453,
+    "latencyMs": {
+      "count": 2500,
+      "min": 157.93945299999996,
+      "avg": 4162.415798901198,
+      "p50": 4162.663258999999,
+      "p95": 7545.720122000001,
+      "p99": 7825.663475000001,
+      "max": 7970.378925000001
+    },
+    "preflightRequestsExcluded": 200,
+    "all50SupportedLogout204": 50,
+    "globalSessionsAfter": 0,
+    "poolConnections": 10,
+    "poolAcquireSeconds": 10,
+    "authenticatedStatementSeconds": 8,
+    "poolOrTimeoutRaised": false,
+    "ProductionWrites": false
+  },
+  "nativeUI": {
+    "classification": "ACTUAL_CURRENT_MAIN_NATIVE_UI_AND_FAULTS_PASS",
+    "genuineJourneys": 4,
+    "viewports": [
+      "desktop1365x900",
+      "mobile390x844"
+    ],
+    "actualPrimaryGates": 24,
+    "samePairSIDPerJourney": true,
+    "supportedLogout204": 4,
+    "globalSessionsAfterEach": 0,
+    "oldAccessAndRefreshRejectedForEach": true,
+    "ownedDetailsSeenPerJourney": 1,
+    "faults": [
+      {
+        "viewport": "desktop1365x900",
+        "cases": [
+          "T2-replacement",
+          "T2-profile",
+          "T1"
+        ],
+        "all200": true,
+        "T1Logout204": true
+      },
+      {
+        "viewport": "mobile390x844",
+        "cases": [
+          "T2-replacement",
+          "T2-profile",
+          "T1"
+        ],
+        "all200": true,
+        "T1Logout204": true
+      }
+    ],
+    "geometryObservationCount": 24,
+    "allDocumentRTL": true,
+    "documentOverflowCount": 0,
+    "absentRegionCount": 0,
+    "clippingCount": 0,
+    "hitMissCount": 0,
+    "sourceProducerCases": 100,
+    "parentInertMethods": 52,
+    "historical840NotRebranded": true,
+    "routeCache": "NOT_COVERED",
+    "CPU_RAM": "UNAVAILABLE_PRESERVED_DENIAL",
+    "newProductionOrRealStaffWrites": 0,
+    "preMintFailedRunGuardRetained": true,
+    "harnessSourceProvenance": [
+      {
+        "component": "primary_evidence.py",
+        "sha256": "ff224938acc96a268945139d21f110e0ae829e8ae8089ec303d893d99407d672",
+        "scope": "Parent-local QA harness, not a repository source path"
+      },
+      {
+        "component": "bridge.py",
+        "sha256": "28739ec30183a411f7f60ab7c6fc7d9a866d0b5773ab76323aedfcfc934af775",
+        "scope": "Parent-local QA harness, not a repository source path"
+      },
+      {
+        "component": "parent_runner.py",
+        "sha256": "e032c6a1df696e918ee611d6626a19c73e6bcdac8bdd23bf937d4fd833cfa24e",
+        "scope": "Parent-local QA harness, not a repository source path"
+      },
+      {
+        "component": "native_host.py",
+        "sha256": "a169f2667fbf6b67cde9275256af2bfb68b6e8cb2459496bd06de985ff9f0178",
+        "scope": "Parent-local QA harness, not a repository source path"
+      },
+      {
+        "component": "native_composition.py",
+        "sha256": "52f3c05865df1116380ad448ed5a536a9a50049adcbcf521f5768247b263f11b",
+        "scope": "Parent-local QA harness, not a repository source path"
+      },
+      {
+        "component": "consumer.mjs",
+        "sha256": "0cbf8c73668f6f173458244496c4317b2ef8b16e2231d8ca6b7520a387bba2e2",
+        "scope": "Parent-local QA harness, not a repository source path"
+      },
+      {
+        "component": "BEFORE_MANIFEST.json",
+        "sha256": "cd84c1f6190b32752f3fb653316ac489df1c3c5f14e19e43abfac13d05149e16",
+        "scope": "Parent-local QA harness, not a repository source path"
+      },
+      {
+        "component": "DETAILS_ABI.json",
+        "sha256": "f261bf3cbae468dba377da6424ddde8c6af2fbf4c915b9002fbb9e44dfad36ed",
+        "scope": "Parent-local QA harness, not a repository source path"
+      },
+      {
+        "component": "config.json",
+        "sha256": "f998cb8fb8a5506fae800a1c91bb1ae2c374df4ba7f1e6ffdab3201b56d130d7",
+        "scope": "Parent-local QA harness, not a repository source path"
+      },
+      {
+        "component": "consumer.mjs",
+        "sha256": "c92ad882a4b07ed54d2efb8a6ee7430950c48bfa750b9e54429df94501f58962",
+        "scope": "Parent-local QA harness, not a repository source path"
+      },
+      {
+        "component": "faults.mjs",
+        "sha256": "83323ab732761b4dddaeb8dad67a749d6e2bb218c23d4fa61e251d4c04fff78f",
+        "scope": "Parent-local QA harness, not a repository source path"
+      },
+      {
+        "component": "BEFORE_MANIFEST.json",
+        "sha256": "cd84c1f6190b32752f3fb653316ac489df1c3c5f14e19e43abfac13d05149e16",
+        "scope": "Parent-local QA harness, not a repository source path"
+      },
+      {
+        "component": "DETAILS_ABI.json",
+        "sha256": "f261bf3cbae468dba377da6424ddde8c6af2fbf4c915b9002fbb9e44dfad36ed",
+        "scope": "Parent-local QA harness, not a repository source path"
+      },
+      {
+        "component": "FAULT_EVIDENCE_SCHEMA.json",
+        "sha256": "10c51f2f5ee0090626417ff328ecabac9829a7b4b3e155714af43fc050d375b0",
+        "scope": "Parent-local QA harness, not a repository source path"
+      }
+    ]
+  },
+  "portableSQL": {
+    "namedCases": 128,
+    "executions": 256,
+    "awaitedDatabaseClosures": 4,
+    "physicalPackageFiles": 25,
+    "evidenceLayer": "SOURCE_OFFLINE_ACTUAL_DESTINATION"
+  },
+  "postLoad": {
+    "authScopeChecks": 100,
+    "roles": 5,
+    "roleTabCombinations": 80,
+    "childRLSWitnesses": 3,
+    "ownedDetailsHTTP": 200,
+    "foreignIDHTTP": 403,
+    "ownedRevision": 15,
+    "logout204": 14,
+    "oldAccessRefreshDenials": 28,
+    "apiSamples": 30,
+    "apiHTTP200": 30,
+    "apiLatencyMs": {
+      "min": 22.9918,
+      "avg": 34.0645567,
+      "p50": 27.5204,
+      "p95": 53.3141,
+      "p99": 55.6868,
+      "max": 55.6868
+    },
+    "notPairedHistoricalCausalProof": true
+  },
+  "advisors": {
+    "INFO": 33,
+    "WARN": 0,
+    "ERROR": 0,
+    "readOnly": true,
+    "speculativeDDL": false
+  },
+  "qualifications": {
+    "freshDeno": "NOT_RUN_PRESERVED_EXECUTABLE_READ_DENIAL",
+    "historicalDeno": "344 invocations / 324 distinct / 20 repetitions; RETAINED_NOT_FRESH_CONDITIONAL",
+    "freshCPU_RAM": "UNAVAILABLE_PRESERVED_RUNTIME_DENIAL",
+    "routedBrowserCache": "NOT_COVERED",
+    "historical840": "NOT_REBRANDED_CURRENT_MAIN",
+    "poolSize": 10,
+    "poolAcquireSeconds": 10,
+    "authenticatedStatementSeconds": 8,
+    "productionWritesByOperation": 0,
+    "realStaffAccountMutations": 0
+  },
+  "finalScanReviewGitPublication": "Separate gates must bind this exact final payload; this evidence file does not predict their outcomes."
+}

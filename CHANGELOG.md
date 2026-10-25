@@ -1,5 +1,18 @@
 # CHANGELOG — سجل التغييرات
 
+## 2026-10-25 — إزالة دالة cutover المؤقتة نهائيًا
+
+**CUTOVER_TEMP_FUNCTION_REMOVED = PASS**
+
+- بموافقة فيصل الصريحة، حُذفت `cutover-admin-once` من Production في `msajed-ceo-erp` (`movzojtnkkmdsjhmlgtq`) عبر Supabase Management API الرسمي؛ DELETE واحد أعاد HTTP200.
+- قبل الحذف: ثبتت v2 المعطلة من المصدر المنشور، واختبار GET فعلي عبر TLS متحقق أعاد HTTP410 و`{"error":"disabled"}` فقط.
+- بعد الحذف: قراءة مستقلة حديثة للقائمة الكاملة أعادت HTTP200؛ عدد Edge Functions صار 13 بدل14، وتطابقات `cutover-admin-once` تساوي0. هذا حذف للدالة، لا مجرد إبقائها tombstone.
+- بقيت metadata الدوال الثلاث عشرة الأخرى مطابقة تمامًا: `transactions-api` v40 ACTIVE؛ `source-reader` و`workspace-editor` v2؛ و`legacy-login` v2 و`legacy-read` v2 و`account-activate` v4 بقيت كما كانت. لم تُعدَّل أو تُنشر أي دالة أخرى.
+- قراءة DB بعد العملية: Auth=57، Profiles=57، Transactions=0. جميع استعلامات DB كانت SELECT مع read_only؛ لا تغيير DB أو Auth أو حسابات موظفين أو بيانات أعمال.
+- Security Advisor: الملاحظات الخمس المعروفة بقيت مطابقة بالهوية وبصمة metadata canonical، ولا Finding جديد ولا معالجة خارج النطاق.
+- تغيير المستودع لتسجيل هذه الإزالة فقط؛ لا Runtime أو migration أو configuration ضمنه، وقسم المهام يبقى مؤجلًا.
+
+
 ## الحالة الحاكمة — 2026-10-25: إقفال تجهيز الحسابات الرسمية
 
 **ACCOUNT_PROVISIONING = PASS**

@@ -1,5 +1,13 @@
 # Project State
 
+## تنبيه صيانة خارج نطاق النظام الجديد — 2026-10-26
+
+**النظام القديم `msajed-tasks`: SOURCE_MERGED / EDGE_NOT_DEPLOYED.** اعتمد فيصل نشر إصلاح تعطل موافقة تعديل اسم المهمة. دُمج [PR #10](https://github.com/faisal01gh/ceo-office-tasks/pull/10) في المستودع القديم عند `67baa62d569a5ad8cd12048f2075ede7bedf96a7`، واجتاز [CI بعد الدمج](https://github.com/faisal01gh/ceo-office-tasks/actions/runs/40299239172). لكن أداة نشر Edge أوقفت عملية النشر بفحص أمان، وأكدت القراءة اللاحقة أن `ceo-task-rename` الحية ما زالت v1 تحمل الإدراج المكرر إلى `app_state_history`. لم تنجح محاولة اعتماد مهمة ناجي بن زارع، والطلب ما زال `pending`، ولم تتغير بيانات الإنتاج الحقيقي أو النظام الجديد.
+
+**لا يُعلن PRODUCTION_RELEASE=PASS لهذه الصيانة.** يلزم نشر آمن مستقل ثم تحقق من مصدر Edge فعليًا؛ نتائج CI لا تثبت نشر الخدمة. التفاصيل: `docs/tasks/TASK_RENAME_APPROVAL_2026-10-13.md` وسجل التغييرات. لا يُعاد تنفيذ الموافقة بدل فيصل.
+
+---
+
 ## الحالة الحاكمة — 2026-10-25: إقفال تجهيز الحسابات الرسمية
 
 **ACCOUNT_PROVISIONING = PASS**

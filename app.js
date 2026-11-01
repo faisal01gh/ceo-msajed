@@ -1961,7 +1961,7 @@ function excelXml(rows){
     const style=r.length===1?"Section":(i===0||prev?.length===1?"Header":"Body");
     return '<Row ss:StyleID="'+style+'">'+r.map(xmlCell).join("")+'</Row>';
   }).join("");
-  const columns=(rows[0]?.[0]==="م"?[45,105,220,270,270,160,160,110,110,110,130]:[45,105,220,160,160,110,110,110,130]).map(width=>\'<Column ss:Width="\'+width+\'"/>\').join("");
+  const columns=(rows[0]?.[0]==="م"?[45,105,220,270,270,160,160,110,110,110,130]:[45,105,220,160,160,110,110,110,130]).map(width=>'<Column ss:Width="'+width+'"/>').join("");
   return '<?xml version="1.0"?><?mso-application progid="Excel.Sheet"?><Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"><Styles><Style ss:ID="Body"><Alignment ss:Horizontal="Right" ss:Vertical="Center"/><Font ss:FontName="Arial" ss:Size="11"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E5E7EB"/></Borders></Style><Style ss:ID="Header"><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Font ss:FontName="Arial" ss:Size="11" ss:Bold="1" ss:Color="#FFFFFF"/><Interior ss:Color="#0E7490" ss:Pattern="Solid"/></Style><Style ss:ID="Section"><Alignment ss:Horizontal="Right"/><Font ss:FontName="Arial" ss:Size="12" ss:Bold="1" ss:Color="#0B2E4F"/><Interior ss:Color="#EAF4F8" ss:Pattern="Solid"/></Style></Styles><Worksheet ss:Name="المعاملات"><Table>'+columns+'+body+'</Table><WorksheetOptions xmlns="urn:schemas-microsoft-com:office:excel"><DisplayRightToLeft/></WorksheetOptions></Worksheet></Workbook>';
 }
 function exportListExcel(){

@@ -139,7 +139,7 @@ select.field{padding-inline-end:28px;max-width:100%}
 .count{color:var(--muted);background:var(--surface-2);padding:3px 10px;border:1px solid var(--line);border-radius:999px;font-size:12px;font-weight:600;font-variant-numeric:tabular-nums}
 .table-wrap{overflow:auto;max-width:100%;background:var(--surface);scrollbar-width:thin;scrollbar-color:#9eb1c6 #eff3f7}
 .table-hint{margin:0;padding:8px 20px;font-size:12px;color:var(--muted);border-bottom:1px solid var(--line);background:var(--surface-2)}
-table{width:100%;border-collapse:separate;border-spacing:0;min-width:1110px;table-layout:auto}
+table{width:100%;border-collapse:separate;border-spacing:0;min-width:1510px;table-layout:auto}
 caption{text-align:start;padding:0}
 thead th{background:var(--surface-2);text-align:start;white-space:nowrap;color:var(--muted);font-size:12px;line-height:1.5;font-weight:600;padding:14px 12px;border-bottom:1px solid var(--line)}
 tbody td{border-bottom:1px solid #e9edf3;padding:17px 12px;font-size:13px;line-height:1.65;vertical-align:middle;text-align:start;color:var(--ink-2)}
@@ -148,6 +148,7 @@ tbody tr{background:var(--surface);transition:background .18s var(--ease)}
 tbody tr:hover,tbody tr:focus-within{background:#f0f5fc}
 .tx-number{color:var(--blue);font-weight:600;white-space:nowrap;direction:ltr;unicode-bidi:isolate;font-variant-numeric:tabular-nums}
 .tx-title{min-width:205px;max-width:300px;overflow-wrap:anywhere;font-size:14px;font-weight:600;color:var(--ink)}
+.tx-summary{min-width:230px;max-width:350px;white-space:pre-wrap;overflow-wrap:anywhere;vertical-align:top}
 .tx-date,.tx-days{white-space:nowrap;font-variant-numeric:tabular-nums}
 .actions{display:flex;gap:6px;flex-wrap:wrap}
 .badge{display:inline-flex;align-items:center;gap:5px;padding:4px 9px;border-radius:6px;font-size:12px;line-height:1.5;font-weight:600;white-space:nowrap}
@@ -376,7 +377,8 @@ body.modal-open{overflow:hidden}
   tbody td:nth-child(2)::before{display:none}
   tbody td:nth-child(1){direction:rtl}
   tbody td:nth-child(1) .number-value{direction:ltr;unicode-bidi:isolate}
-  tbody td:nth-child(6){grid-column:1/-1}
+  tbody td:nth-child(3),tbody td:nth-child(4),tbody td:nth-child(8){grid-column:1/-1}
+  tbody td.tx-summary{min-width:0;max-width:none}
   tbody td:last-child{grid-column:1/-1;border-top:1px solid var(--line)!important;padding-top:12px;margin-top:6px;flex-direction:row;align-items:center;justify-content:space-between}
   .actions .row-btn{min-width:90px}
   .badge{font-size:12px}

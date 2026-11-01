@@ -1024,13 +1024,14 @@ function transactionReadMarker(row){
 }
 function renderTable(){
   const host=document.getElementById("tableHost"),rows=listData.rows||[];
+  const withEmail=rows.some(r=>r.intake_method==="email");
   if(!rows.length){host.innerHTML=emptyState("لا توجد معاملات",searchText||activeFilterCount()?"جرّب تعديل البحث أو مسح الفلاتر.":"ستظهر هنا المعاملات المتاحة ضمن صلاحياتك.");return}
   host.innerHTML=`
   <p class="table-hint">يمكن تمرير الجدول أفقيًا للاطلاع على جميع الحقول.</p>
   <div class="table-wrap" role="region" aria-label="جدول المعاملات، جميع الحقول" tabindex="0"><table>
     <caption class="sr-only">المعاملات المتاحة ضمن العرض الحالي</caption>
     <thead><tr>
-      <th scope="col">رقم المعاملة</th><th scope="col">عنوان المعاملة</th><th scope="col">الموضوع</th><th scope="col">المطلوب</th><th scope="col">الإدارة المسؤولة</th><th scope="col">الإدارات المساندة</th>
+      <th scope="col">رقم المعاملة</th><th scope="col">عنوان المعاملة</th><th scope="col">الموضوع</th><th scope="col">المطلوب</th>${withEmail?'<th scope="col">عنوان الإيميل</th>':""}<th scope="col">الإدارة المسؤولة</th><th scope="col">الإدارات المساندة</th>
       <th scope="col">مسؤول المعاملة</th><th scope="col">المحال إليه حاليًا</th><th scope="col">الأولوية</th><th scope="col">الحالة</th>
       <th scope="col">عدد أيام المعاملة</th><th scope="col">آخر تحديث</th><th scope="col">الإجراءات</th>
     </tr></thead>
@@ -1043,6 +1044,7 @@ function renderTable(){
           <td class="tx-title" data-label="عنوان المعاملة">${esc(r.title)}${transactionReadMarker(r)}</td>
           <td class="tx-summary" data-label="الموضوع">${esc(subjectText||"—")}</td>
           <td class="tx-summary" data-label="المطلوب">${esc(requestedText||"—")}</td>
+          ${withEmail?'<td class="tx-summary tx-email" data-label="عنوان الإيميل" dir="ltr">'+esc(r.intake_method==="email"?(r.intake_email_address||"—"):"—")+'</td>':""}
           <td data-label="الإدارة المسؤولة">${esc(r.responsible_unit_name||"—")}</td>
           <td data-label="الإدارات المساندة">${Number(r.supporting_count||0)}</td>
           <td data-label="مسؤول المعاملة">${esc(r.responsible_name||"—")}</td>
@@ -1215,6 +1217,8 @@ async function openCreate(){
     <form id="createForm"><div class="form-grid">
       <div class="wide"><label>عنوان المعاملة</label><input class="field" name="title" required></div>
       <div class="wide"><label>موضوع المعاملة</label><textarea class="field" name="subject"></textarea></div>
+       <div><label>التوريد</label><select class="field" name="intake_method" id="intakeMethod"><option value="">غير محدد</option><option value="email">إيميل</option></select></div>
+       <div id="intakeEmailField" hidden><label>عنوان الإيميل</label><input class="field" name="intake_email_address" type="email" autocomplete="off" maxlength="254" placeholder="name@example.com"></div>
       <div><label>الأولوية</label><select class="field" name="priority"><option>عادي</option><option>عاجل</option><option>عاجل جدًا</option></select></div>
       <div><label>رابط المرفقات</label><input class="field" name="attachment_url" type="url"></div>
       ${departmentPart}
@@ -1222,6 +1226,15 @@ async function openCreate(){
     </div></form>
   `,`<button class="btn btn-green" id="saveCreate">حفظ</button><button class="btn btn-soft" data-exit>خروج</button>`);
   w.querySelector("[data-exit]").onclick=()=>w.remove();
+  const intakeMethod=w.querySelector("#intakeMethod"),intakeEmailField=w.querySelector("#intakeEmailField"),intakeEmail=w.querySelector('[name="intake_email_address"]');
+  const updateEmailField=()=>{
+    const selected=intakeMethod.value==="email";
+    intakeEmailField.hidden=!selected;
+    intakeEmail.required=selected;
+    if(!selected)intakeEmail.value="";
+  };
+  intakeMethod.onchange=updateEmailField;
+  updateEmailField();
   if(session.role==="manager"){
     const mode=w.querySelector("#createMode"),host=w.querySelector("#createRouteFields");
     const draw=()=>{
@@ -1256,11 +1269,12 @@ async function openCreate(){
     try{
       if(!createdId){
         const input={title,subject:fd.get("subject"),priority:fd.get("priority"),attachment_url:fd.get("attachment_url"),
+          intake_method:fd.get("intake_method")||"",intake_email_address:String(fd.get("intake_email_address")||"").trim(),
           ...(needsDepartment?{responsible_unit_id:selectedUnit}: {})};
         const created=await post(CONFIG.txFn,baseBody("create",input));
         if(!created?.row?.id)throw new Error("missing_created_id");
         createdId=created.row.id;createdInput=input;
-        form.querySelectorAll('[name="title"],[name="subject"],[name="priority"],[name="attachment_url"],[name="responsible_unit_id"],#createMode').forEach(el=>{el.disabled=true});
+        form.querySelectorAll('[name="title"],[name="subject"],[name="intake_method"],[name="intake_email_address"],[name="priority"],[name="attachment_url"],[name="responsible_unit_id"],#createMode').forEach(el=>{el.disabled=true});
       }
       if(mode==="assign"){
         await post(CONFIG.txFn,baseBody("route_manager_employees",{transaction_id:createdId,unit_id:fd.get("unit_id"),targets,directive}));
@@ -1643,6 +1657,7 @@ async function openDetails(id,invoker=document.activeElement,{readOnly=false}={}
       </div>
       <div class="details-grid">
         ${detailField("رقم المعاملة",'<bdi dir="ltr">'+esc(t.number)+'</bdi>')}
+        ${t.intake_method==="email"?detailField("التوريد","إيميل")+detailField("عنوان الإيميل",'<bdi dir="ltr">'+esc(t.intake_email_address||"—")+'</bdi>'):""}
         ${detailField("الحالة",'<span class="badge '+(t.status==="open"?"st-open":"st-closed")+'">'+esc(t.status==="closed"?"مغلقة":t.status==="cancelled"?"ملغاة":"مفتوحة")+'</span>')}
         ${detailField("الإدارة المسؤولة",esc(t.responsible_unit_name||t.legacy_department_name||"—"),unitClickable,"responsibleUnitField")}
         ${detailField("مسؤول المعاملة",esc(t.responsible_name||"—"),responsibleClickable,"responsibleField")}

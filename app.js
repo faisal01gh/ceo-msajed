@@ -1030,16 +1030,19 @@ function renderTable(){
   <div class="table-wrap" role="region" aria-label="جدول المعاملات، جميع الحقول" tabindex="0"><table>
     <caption class="sr-only">المعاملات المتاحة ضمن العرض الحالي</caption>
     <thead><tr>
-      <th scope="col">رقم المعاملة</th><th scope="col">عنوان المعاملة</th><th scope="col">الإدارة المسؤولة</th><th scope="col">الإدارات المساندة</th>
+      <th scope="col">رقم المعاملة</th><th scope="col">عنوان المعاملة</th><th scope="col">الموضوع</th><th scope="col">المطلوب</th><th scope="col">الإدارة المسؤولة</th><th scope="col">الإدارات المساندة</th>
       <th scope="col">مسؤول المعاملة</th><th scope="col">المحال إليه حاليًا</th><th scope="col">الأولوية</th><th scope="col">الحالة</th>
       <th scope="col">عدد أيام المعاملة</th><th scope="col">آخر تحديث</th><th scope="col">الإجراءات</th>
     </tr></thead>
     <tbody>
       ${rows.map(r=>{
         const [st,sc]=statusBadge(r);
+        const subjectText=String(r.subject||"").trim(),requestedText=String(r.requested_text||"").trim();
         return `<tr>
           <td class="tx-number" data-label="رقم المعاملة"><span class="number-value">${esc(r.number)}</span></td>
           <td class="tx-title" data-label="عنوان المعاملة">${esc(r.title)}${transactionReadMarker(r)}</td>
+          <td class="tx-summary" data-label="الموضوع">${esc(subjectText||"—")}</td>
+          <td class="tx-summary" data-label="المطلوب">${esc(requestedText||"—")}</td>
           <td data-label="الإدارة المسؤولة">${esc(r.responsible_unit_name||"—")}</td>
           <td data-label="الإدارات المساندة">${Number(r.supporting_count||0)}</td>
           <td data-label="مسؤول المعاملة">${esc(r.responsible_name||"—")}</td>
@@ -1958,10 +1961,11 @@ function excelXml(rows){
     const style=r.length===1?"Section":(i===0||prev?.length===1?"Header":"Body");
     return '<Row ss:StyleID="'+style+'">'+r.map(xmlCell).join("")+'</Row>';
   }).join("");
-  return '<?xml version="1.0"?><?mso-application progid="Excel.Sheet"?><Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"><Styles><Style ss:ID="Body"><Alignment ss:Horizontal="Right" ss:Vertical="Center"/><Font ss:FontName="Arial" ss:Size="11"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E5E7EB"/></Borders></Style><Style ss:ID="Header"><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Font ss:FontName="Arial" ss:Size="11" ss:Bold="1" ss:Color="#FFFFFF"/><Interior ss:Color="#0E7490" ss:Pattern="Solid"/></Style><Style ss:ID="Section"><Alignment ss:Horizontal="Right"/><Font ss:FontName="Arial" ss:Size="12" ss:Bold="1" ss:Color="#0B2E4F"/><Interior ss:Color="#EAF4F8" ss:Pattern="Solid"/></Style></Styles><Worksheet ss:Name="المعاملات"><Table><Column ss:Width="45"/><Column ss:Width="105"/><Column ss:Width="220"/><Column ss:Width="160"/><Column ss:Width="160"/><Column ss:Width="110"/><Column ss:Width="110"/><Column ss:Width="110"/><Column ss:Width="130"/>'+body+'</Table><WorksheetOptions xmlns="urn:schemas-microsoft-com:office:excel"><DisplayRightToLeft/></WorksheetOptions></Worksheet></Workbook>';
+  const columns=(rows[0]?.[0]==="م"?[45,105,220,270,270,160,160,110,110,110,130]:[45,105,220,160,160,110,110,110,130]).map(width=>'<Column ss:Width="'+width+'"/>').join("");
+  return '<?xml version="1.0"?><?mso-application progid="Excel.Sheet"?><Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"><Styles><Style ss:ID="Body"><Alignment ss:Horizontal="Right" ss:Vertical="Center"/><Font ss:FontName="Arial" ss:Size="11"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E5E7EB"/></Borders></Style><Style ss:ID="Header"><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Font ss:FontName="Arial" ss:Size="11" ss:Bold="1" ss:Color="#FFFFFF"/><Interior ss:Color="#0E7490" ss:Pattern="Solid"/></Style><Style ss:ID="Section"><Alignment ss:Horizontal="Right"/><Font ss:FontName="Arial" ss:Size="12" ss:Bold="1" ss:Color="#0B2E4F"/><Interior ss:Color="#EAF4F8" ss:Pattern="Solid"/></Style></Styles><Worksheet ss:Name="المعاملات"><Table>'+columns+body+'</Table><WorksheetOptions xmlns="urn:schemas-microsoft-com:office:excel"><DisplayRightToLeft/></WorksheetOptions></Worksheet></Workbook>';
 }
 function exportListExcel(){
-  const rows=[["م","رقم المعاملة","عنوان المعاملة","الإدارة المسؤولة","مسؤول المعاملة","الأولوية","الحالة","عدد الأيام","آخر تحديث"],...(listData.rows||[]).map((r,i)=>[i+1+(page-1)*Number(listData.page_size||50),r.number,r.title,r.responsible_unit_name||"",r.responsible_name||"",r.priority,r.status,r.days,fmtDate(r.last_activity_at)])];
+  const rows=[["م","رقم المعاملة","عنوان المعاملة","الموضوع","المطلوب","الإدارة المسؤولة","مسؤول المعاملة","الأولوية","الحالة","عدد الأيام","آخر تحديث"],...(listData.rows||[]).map((r,i)=>[i+1+(page-1)*Number(listData.page_size||50),r.number,r.title,r.subject||"",r.requested_text||"",r.responsible_unit_name||"",r.responsible_name||"",r.priority,r.status,r.days,fmtDate(r.last_activity_at)])];
   download("المعاملات.xls","application/vnd.ms-excel;charset=utf-8",excelXml(rows));
 }
 function exportTransactionExcel(d){
@@ -1983,8 +1987,8 @@ function printHtml(title,body){
   w.document.close();w.focus();setTimeout(()=>w.print(),200);
 }
 function printList(){
-  const rows=(listData.rows||[]).map((r,i)=>'<tr><td>'+esc(i+1+(page-1)*Number(listData.page_size||50))+'</td><td>'+esc(r.number)+'</td><td>'+esc(r.title)+'</td><td>'+esc(r.responsible_unit_name||"")+'</td><td>'+esc(r.priority)+'</td><td>'+esc(r.status)+'</td></tr>').join("");
-  printHtml("المعاملات",'<h1>المعاملات</h1><table><thead><tr><th>م</th><th>رقم المعاملة</th><th>العنوان</th><th>الإدارة</th><th>الأولوية</th><th>الحالة</th></tr></thead><tbody>'+rows+'</tbody></table>');
+  const rows=(listData.rows||[]).map((r,i)=>'<tr><td>'+esc(i+1+(page-1)*Number(listData.page_size||50))+'</td><td>'+esc(r.number)+'</td><td>'+esc(r.title)+'</td><td>'+esc(r.subject||"")+'</td><td>'+esc(r.requested_text||"")+'</td><td>'+esc(r.responsible_unit_name||"")+'</td><td>'+esc(r.priority)+'</td><td>'+esc(r.status)+'</td></tr>').join("");
+  printHtml("المعاملات",'<h1>المعاملات</h1><table><thead><tr><th>م</th><th>رقم المعاملة</th><th>العنوان</th><th>الموضوع</th><th>المطلوب</th><th>الإدارة</th><th>الأولوية</th><th>الحالة</th></tr></thead><tbody>'+rows+'</tbody></table>');
 }
 function printTransaction(d){
   const t=d.transaction;

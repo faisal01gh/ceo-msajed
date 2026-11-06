@@ -1,5 +1,20 @@
 # Handoff — الحالة الرسمية وتسليم المشروع
 
+## الحالة الحالية — 2026-11-06: اعتماد ونشر إصلاح ترحيل التقارير في النظام القديم
+
+**LEGACY_REPORT_ROLLOVER_DEPLOYED = PASS (CODE + LIVE READ-ONLY VERIFICATION)**
+
+- اعتمد فيصل صراحةً دمج ونشر إصلاح زر «تمّ — ترحيل للموعد التالي» في **النظام القديم فقط** بتاريخ 2026-11-06.
+- دُمج [PR #14 في ceo-office-tasks](https://github.com/faisal01gh/ceo-office-tasks/pull/14) في `main` بتاريخ 2026-11-06 عند commit `8de112a58dbbb35d0a827b82fb9ef41a5a967a28`.
+- السبب المثبت: صفحة المكتب تستخدم ربط حالة `let data` وجسر `window.__getCeoState()`، بينما `ceo/report-cycle-sync.js` كان يبحث عن `window.data.reports`، فيخرج دون ترحيل. أُصلح الوصول مع مراعاة استبدال الحالة بعد التزامن السحابي، وإظهار خطأ عند فقد التقرير، والتحذير عند فشل مزامنة القطاع.
+- أُزيلت الكتابات الخلفية الضمنية التي كانت يمكن أن تنتج عن التحميل أو عرض قائمة تقارير القطاعات؛ مزامنة التقرير عند إجراء المستخدم المقصود فقط. نسخة الوحدة `20261105-report-cycle-sync-v3`.
+- أصلحت بيئة الفحوص المرتبطة بالواجهة بتثبيت runner `ubuntu-24.04` بدل `ubuntu-latest` بعد فشل تثبيت Playwright بسبب منصة `ubuntu26.04-x64`. وأُضيف فحص Pull Request مع حصر فحص الإنتاج بعد الدمج.
+- [اختبار PR لترحيل التقارير](https://github.com/faisal01gh/ceo-office-tasks/actions/runs/42205651544) و[اختبار المتصفح والمهام](https://github.com/faisal01gh/ceo-office-tasks/actions/runs/42205651672): **PASS**.
+- [اختبار النسخة الحية بعد الدمج](https://github.com/faisal01gh/ceo-office-tasks/actions/runs/42205889676): **PASS**؛ `live_source_match=true` على ملفات `ceo/index.html` و`ceo/report-cycle-sync.js`، واستجابة `ceoreports v4` عبر استدعاء قراءة. Cloudflare Pages deployment على commit الدمج: **success**، وجميع فحوص commit الدمج المرتبطة بالواجهة والأمان: **PASS**.
+- **حدود التحقق:** لم يُضغط زر الترحيل على تقرير إنتاجي حقيقي، ولم تُعدَّل تقارير أو بيانات النظام القديم بواسطة التحقق، ولا قاعدة البيانات أو Edge Functions، ولم يتغير أي كود تشغيلي في `ceo-msajed` أو نظام `msajed-ceo-erp`. نجاح النشر والكود لا يُمثّل شهادة بترحيل تقرير إنتاجي فعلي.
+
+---
+
 ## الحالة الحالية — 2026-10-27: نشر إصلاح اعتماد تعديل اسم المهمة
 
 **LEGACY_RENAME_EDGE_DEPLOYED = PASS**

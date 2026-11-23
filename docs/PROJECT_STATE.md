@@ -1,5 +1,16 @@
 # Project State
 
+## تحديث موثّق — 2026-11-23: إصلاح واجهة اعتماد تحديثات المهام في النظام القديم
+
+**LEGACY_APPROVAL_HOTFIX_LIVE = VERIFIED; USER_PENDING_DRAFT = UNVERIFIED**
+
+- سبب رسالة «توجد تعديلات جارٍ حفظها» وتعليق الاعتماد: `cloudSaveTimer=-1` في واجهة النظام القديم فُهم بالخطأ على أنه حفظ جارٍ، مع أنه علامة حماية مسودة متوقف حفظها.
+- أُصلح مسار `date/nodate` لإجراء اعتماد ذري على الخادم مع إبقاء المسودة المحلية غير المحفوظة كما هي وعدم استبدالها. [PR #15](https://github.com/faisal01gh/ceo-office-tasks/pull/15) مدمج؛ تحقق [واجهة منشورة PASS](https://github.com/faisal01gh/ceo-office-tasks/actions/runs/45169016496)، [حماية الحفظ PASS](https://github.com/faisal01gh/ceo-office-tasks/actions/runs/45169016551). [PR #16](https://github.com/faisal01gh/ceo-office-tasks/pull/16) تحديث اختبار بصمة صفحة فقط، و[فحص main PASS](https://github.com/faisal01gh/ceo-office-tasks/actions/runs/45169351997).
+- لا يوجد دليل على حفظ مسودة مستخدم عالقة أو نجاح اعتماد من جلسة حقيقية. **لا تُحدّث صفحة بها مسودة غير مؤكدة الحفظ**؛ افتح الموقع في تبويب مستقل للاستفادة من النسخة الجديدة مع بقاء القديم دون مساس.
+- لم تُكتب بيانات إنتاج قديمة ولم يتغير أي Runtime أو DB أو Auth في `ceo-msajed` / `msajed-ceo-erp`. المرجع المعتمد: `docs/tasks/APPROVAL_INTEGRITY_2026-10-22.md`. تبقى حالة إعداد المعاملات والحسابات في النظام الجديد مستقلة ولا تُعاد فتحها هنا.
+
+---
+
 ## الحالة الحالية — 2026-10-27: نشر إصلاح اعتماد تعديل اسم المهمة
 
 **LEGACY_RENAME_EDGE_DEPLOYED = PASS**

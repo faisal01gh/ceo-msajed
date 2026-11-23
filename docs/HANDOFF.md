@@ -1,5 +1,17 @@
 # Handoff — الحالة الرسمية وتسليم المشروع
 
+## الحالة الأحدث — 2026-11-23: إصلاح تعليق اعتماد تحديثات المهام في النظام القديم
+
+**LEGACY_TASK_APPROVAL_HOTFIX = FRONTEND_DEPLOYED + LIVE_SOURCE_VERIFIED; LOCAL_DRAFT_UNVERIFIED**
+
+- في النظام القديم `ceo-office-tasks` فقط، عولج تعليق زر الاعتماد الذي كان يظهر «توجد تعديلات جارٍ حفظها»؛ السبب أن مؤقت الحفظ المعلّق `cloudSaveTimer=-1` كان يمنع اعتماد إجراء مستقل على قاعدة البيانات بلا نهاية.
+- دُمج [PR #15](https://github.com/faisal01gh/ceo-office-tasks/pull/15) عند `547853b08d84d0e099614f1cfc18276a742f1b99`: اعتماد `date/nodate` الذري على الخادم لا يتوقف عند تعليق مسودة محلية، ويحفظ المسودة في الذاكرة دون استبدالها بقراءة من الخادم؛ مع إعادة محاولة حفظ محدودة بعد التأكيد فقط.
+- [فحص الواجهة المنشورة](https://github.com/faisal01gh/ceo-office-tasks/actions/runs/45169016496): PASS، `HTTP 200` وتطابق `SHA-256` لملفَي صفحة المكتب ووحدة الاعتماد. [فحص الحفظ](https://github.com/faisal01gh/ceo-office-tasks/actions/runs/45169016551) PASS. [إصلاح اختبار الصفحة القديم PR #16](https://github.com/faisal01gh/ceo-office-tasks/pull/16) وفحصه النهائي على [main](https://github.com/faisal01gh/ceo-office-tasks/actions/runs/45169351997) PASS.
+- **لم يثبت حفظ أي مسودة عالقة من تبويب فيصل القديم أو اعتماد طلب إنتاجي فعلي.** لا يُعاد تحميل ذلك التبويب قبل تأمين تعديلاته؛ يمكن فتح النظام في تبويب جديد للاستفادة من الإصلاح. لا تعديل لبيانات أو مخطط Supabase القديم أو للكود التشغيلي أو البيانات في النظام الجديد.
+- المرجع: `docs/tasks/APPROVAL_INTEGRITY_2026-10-22.md` و`CHANGELOG.md`. سجل 6 نوفمبر أدناه تاريخي لمهمة إصلاح ترحيل التقارير ولا يشمل هذه الواقعة.
+
+---
+
 ## الحالة الحالية — 2026-11-06: اعتماد ونشر إصلاح ترحيل التقارير في النظام القديم
 
 **LEGACY_REPORT_ROLLOVER_DEPLOYED = PASS (CODE + LIVE READ-ONLY VERIFICATION)**

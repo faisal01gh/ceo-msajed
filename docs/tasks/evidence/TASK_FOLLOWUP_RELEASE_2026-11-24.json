@@ -1,0 +1,310 @@
+{
+  "status": "PASS",
+  "date_riyadh": "2026-11-24",
+  "approval": {
+    "approved_by": "فيصل",
+    "message": "يلا اعتمد",
+    "department_button_requirement": "زر بجوار كل مجموعة مهام إدارة لفيصل الزكري وفهد الرشيد، مع اختيار الإدارة نفسها تلقائيًا"
+  },
+  "repository": "faisal01gh/ceo-office-tasks",
+  "pull_request": 20,
+  "pull_request_url": "https://github.com/faisal01gh/ceo-office-tasks/pull/20",
+  "source_sha": "cbdcc3d6d423cd510d7fff6fe1abc56c4d5a2c08",
+  "merge_sha": "ebe4c1b29b3f1b5a40d0e89bec81be9aed31ce7c",
+  "frontend": {
+    "canonical_office_url": "https://ceo-office-tasks.pages.dev/ceo/",
+    "canonical_portal_url": "https://ceo-office-tasks.pages.dev/portal/",
+    "verified_at_riyadh": "2026-11-24T09:14:35+03:00",
+    "assets": [
+      {
+        "file": "ceo/index.html",
+        "status": 200,
+        "source_sha256": "d29dad1d53dbc8a7aa88b4da2392da5de439ced3c291c143eca520aebcfba977",
+        "live_sha256": "d29dad1d53dbc8a7aa88b4da2392da5de439ced3c291c143eca520aebcfba977",
+        "exact": true
+      },
+      {
+        "file": "ceo/task-report.js",
+        "status": 200,
+        "source_sha256": "ec9d4c3d34478f20785d12fd63d942b8d6d72cf10db0d4a31eca11685ebf2f37",
+        "live_sha256": "ec9d4c3d34478f20785d12fd63d942b8d6d72cf10db0d4a31eca11685ebf2f37",
+        "exact": true
+      },
+      {
+        "file": "ceo/task-mail-ui.js",
+        "status": 200,
+        "source_sha256": "35b2d61ad7641fc9e9cc10b86342d2d6f994eef41757171126c13cc9921cb143",
+        "live_sha256": "35b2d61ad7641fc9e9cc10b86342d2d6f994eef41757171126c13cc9921cb143",
+        "exact": true
+      },
+      {
+        "file": "shared/task-policy.js",
+        "status": 200,
+        "source_sha256": "8da9a85caf451404261194686930b2def1bd24ee456a3c8e436fab7f10af0ec9",
+        "live_sha256": "8da9a85caf451404261194686930b2def1bd24ee456a3c8e436fab7f10af0ec9",
+        "exact": true
+      },
+      {
+        "file": "shared/task-mail.js",
+        "status": 200,
+        "source_sha256": "4532f1f1406fd134b2c7fd01e964113b5f4ae98415247ccf6739181e81b76953",
+        "live_sha256": "4532f1f1406fd134b2c7fd01e964113b5f4ae98415247ccf6739181e81b76953",
+        "exact": true
+      },
+      {
+        "file": "portal/index.html",
+        "status": 200,
+        "source_sha256": "73d2e4b344247792b59b1a1e7d5353dc3d82c58f70a395b1308c221e0a923a27",
+        "live_sha256": "73d2e4b344247792b59b1a1e7d5353dc3d82c58f70a395b1308c221e0a923a27",
+        "exact": true
+      },
+      {
+        "file": "portal/task-mail-ui.js",
+        "status": 200,
+        "source_sha256": "2b2570ace9d2332f5dc55bf6cda866d20eb9f320056bd4344425f21979be41ca",
+        "live_sha256": "2b2570ace9d2332f5dc55bf6cda866d20eb9f320056bd4344425f21979be41ca",
+        "exact": true
+      },
+      {
+        "file": "portal/assistant-dashboard.js",
+        "status": 200,
+        "source_sha256": "02dd0423bf9f2c9a3e8ae2306e0c251779f53fb64c2cbcbaf743e2587907bfbc",
+        "live_sha256": "02dd0423bf9f2c9a3e8ae2306e0c251779f53fb64c2cbcbaf743e2587907bfbc",
+        "exact": true
+      }
+    ],
+    "cloudflare_check_id": 138257635785,
+    "cloudflare_conclusion": "success"
+  },
+  "backend": {
+    "project_ref": "urgkbbconlxeagfgyjee",
+    "function": "ceoportal",
+    "previous_version": 35,
+    "version": 36,
+    "status": "ACTIVE",
+    "verify_jwt": false,
+    "deployed_at_utc": "2026-11-24T06:12:27.425000+00:00",
+    "deployed_at_riyadh": "2026-11-24T09:12:27.425000+03:00",
+    "bundle_sha256": "8d8dfa1cb4d7e69a7baedfb07915f2ffe8e00d1015391fe03e9fb7f00f4178c4",
+    "sources": [
+      {
+        "file": "supabase/functions/ceoportal/index.ts",
+        "source_sha256": "a98aceeb6f4dabfeae9aa20c92be31a9c030e3437f934711ea739a3a29b40ba6",
+        "exact": true
+      },
+      {
+        "file": "shared/task-policy.js",
+        "source_sha256": "8da9a85caf451404261194686930b2def1bd24ee456a3c8e436fab7f10af0ec9",
+        "exact": true
+      }
+    ],
+    "other_functions_unchanged": 23,
+    "advisors": {
+      "security": {
+        "before": 4,
+        "after": 4,
+        "new_findings": 0
+      },
+      "performance": {
+        "before": 4,
+        "after": 4,
+        "new_findings": 0
+      }
+    },
+    "live_http": {
+      "preflight_status": 200,
+      "allowed_origin": "https://ceo-office-tasks.pages.dev",
+      "invalid_session_status": 401,
+      "invalid_session_error": "unauthorized",
+      "requests": 2,
+      "business_writes": 0,
+      "messages_sent": 0
+    }
+  },
+  "verification": {
+    "unit_tests": {
+      "total": 82,
+      "passed": 82
+    },
+    "main_workflow_runs": [
+      {
+        "id": 45338914966,
+        "name": "Transaction XLSX offline checks",
+        "conclusion": "success",
+        "url": "https://github.com/faisal01gh/ceo-office-tasks/actions/runs/45338914966"
+      },
+      {
+        "id": 45338914895,
+        "name": "Transaction presentation offline checks",
+        "conclusion": "success",
+        "url": "https://github.com/faisal01gh/ceo-office-tasks/actions/runs/45338914895"
+      },
+      {
+        "id": 45338914892,
+        "name": "Report cycle and sector sync verification",
+        "conclusion": "success",
+        "url": "https://github.com/faisal01gh/ceo-office-tasks/actions/runs/45338914892"
+      },
+      {
+        "id": 45338914914,
+        "name": "Assistant dashboard verification",
+        "conclusion": "success",
+        "url": "https://github.com/faisal01gh/ceo-office-tasks/actions/runs/45338914914"
+      },
+      {
+        "id": 45338914888,
+        "name": "Task reports, timing and mail verification",
+        "conclusion": "success",
+        "url": "https://github.com/faisal01gh/ceo-office-tasks/actions/runs/45338914888"
+      },
+      {
+        "id": 45338914963,
+        "name": "Task rename and action layout verification",
+        "conclusion": "success",
+        "url": "https://github.com/faisal01gh/ceo-office-tasks/actions/runs/45338914963"
+      },
+      {
+        "id": 45338914977,
+        "name": "Atomic task approval integrity",
+        "conclusion": "success",
+        "url": "https://github.com/faisal01gh/ceo-office-tasks/actions/runs/45338914977"
+      },
+      {
+        "id": 45338914843,
+        "name": "Transaction content search checks",
+        "conclusion": "success",
+        "url": "https://github.com/faisal01gh/ceo-office-tasks/actions/runs/45338914843"
+      },
+      {
+        "id": 45338914844,
+        "name": "Autosave guard compatibility review",
+        "conclusion": "success",
+        "url": "https://github.com/faisal01gh/ceo-office-tasks/actions/runs/45338914844"
+      }
+    ],
+    "main_checks_total_including_cloudflare": 10,
+    "browser_mail": {
+      "status": "PASS",
+      "office_authenticated_ready_gate": true,
+      "portal_fresh_scoped_snapshot": true,
+      "unchanged_portal_data_and_draft": true,
+      "exact_department_selection": true,
+      "oldest_first": true,
+      "recorded_latest_action": true,
+      "blank_update_column": true,
+      "rich_clipboard_and_native_paste": true,
+      "stale_session_and_scope_copy_blocked": true,
+      "per_department_buttons_for_both_named_accounts": true,
+      "selected_department_preloaded": true,
+      "no_cross_department_fallback": true,
+      "external_requests": 0,
+      "messages_sent": 0,
+      "browser_errors": 0
+    },
+    "pdf": {
+      "status": "PASS",
+      "pymupdf_version": "1.26.6",
+      "print_margins_mm": 12,
+      "pdfs": [
+        {
+          "file": "task-report-native.pdf",
+          "pages": 2,
+          "summary_pages": 1,
+          "departments_checked": 1,
+          "action_markers_checked": 0,
+          "words_within_print_bounds": 222,
+          "minimum_text_clearance_mm": 12.092,
+          "status": "PASS"
+        },
+        {
+          "file": "task-report-preview.pdf",
+          "pages": 2,
+          "summary_pages": 1,
+          "departments_checked": 3,
+          "action_markers_checked": 0,
+          "words_within_print_bounds": 370,
+          "minimum_text_clearance_mm": 12.092,
+          "status": "PASS"
+        },
+        {
+          "file": "task-report-long.pdf",
+          "pages": 13,
+          "summary_pages": 0,
+          "departments_checked": 0,
+          "action_markers_checked": 38,
+          "words_within_print_bounds": 3630,
+          "minimum_text_clearance_mm": 13.12,
+          "status": "PASS"
+        },
+        {
+          "file": "task-report-pagination.pdf",
+          "pages": 5,
+          "summary_pages": 0,
+          "departments_checked": 0,
+          "action_markers_checked": 54,
+          "words_within_print_bounds": 1360,
+          "minimum_text_clearance_mm": 13.118,
+          "status": "PASS"
+        },
+        {
+          "file": "task-report-summary-18.pdf",
+          "pages": 6,
+          "summary_pages": 1,
+          "departments_checked": 18,
+          "action_markers_checked": 0,
+          "words_within_print_bounds": 2274,
+          "minimum_text_clearance_mm": 12.092,
+          "status": "PASS"
+        },
+        {
+          "file": "task-report-summary-19.pdf",
+          "pages": 7,
+          "summary_pages": 2,
+          "departments_checked": 19,
+          "action_markers_checked": 0,
+          "words_within_print_bounds": 2489,
+          "minimum_text_clearance_mm": 12.092,
+          "status": "PASS"
+        },
+        {
+          "file": "task-report-summary-20.pdf",
+          "pages": 7,
+          "summary_pages": 2,
+          "departments_checked": 20,
+          "action_markers_checked": 0,
+          "words_within_print_bounds": 2616,
+          "minimum_text_clearance_mm": 12.092,
+          "status": "PASS"
+        }
+      ]
+    },
+    "visual_review": [
+      "asst-department-mail-buttons.png",
+      "sec-department-mail-buttons.png"
+    ],
+    "browser_data": "synthetic fixtures using native department header and card functions",
+    "live_reads": "unauthenticated static assets and synthetic invalid session; no real employee login",
+    "business_data_writes": 0,
+    "messages_sent": 0,
+    "schema_changes": 0
+  },
+  "artifacts": {
+    "review": {
+      "id": 14895440596,
+      "run_id": 45338384621,
+      "sha256": "9bcf29fa4af1860ef500b56f9857a9cdc56e30620c0f7b9986e3038f9311f359"
+    },
+    "main": {
+      "id": 14894512782,
+      "run_id": 45338914888,
+      "job_id": 138257561370,
+      "sha256": "ead57ed205e7db3348ee62ad4ab4f9a6d6e2e08c85cfe1dd48307db449531259"
+    }
+  },
+  "scope_notes": [
+    "النظام القديم فقط؛ لا تعديل runtime أو قاعدة بيانات النظام الجديد.",
+    "النص المعتمد ينتهي بعبارة شاكرين ومقدّرين لكم تعاونكم وجهودكم.",
+    "لا إرسال بريد؛ النسخ إلى الحافظة فقط.",
+    "عند خلو الإدارة المحددة من المهام المفتوحة لا تفتح إدارة أخرى تلقائيًا."
+  ]
+}

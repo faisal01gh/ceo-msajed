@@ -2,7 +2,7 @@
   "schema_version": 1,
   "recorded_date_riyadh": "2026-11-26",
   "feature": "Department WhatsApp active-task follow-up copy and exact demo-account access",
-  "status": "IMPLEMENTED; REVIEW_VERIFIED; AWAITING_DEPLOYMENT_APPROVAL",
+  "status": "USER_REJECTED_DESIGN; WORK_STOPPED; NOT_APPROVED_FOR_DEPLOYMENT",
   "runtime": {
     "repository": "faisal01gh/ceo-office-tasks",
     "base_main": "ebe4c1b29b3f1b5a40d0e89bec81be9aed31ce7c",
@@ -49,7 +49,8 @@
         "path": "tests/task-mail.test.cjs",
         "git_blob_sha": "e2219f5f012ed8ed99bdc5e26669465f0b4971bc"
       }
-    ]
+    ],
+    "pull_request_draft": true
   },
   "documentation": {
     "repository": "faisal01gh/ceo-msajed",
@@ -234,8 +235,11 @@
     "production_main": "ebe4c1b29b3f1b5a40d0e89bec81be9aed31ce7c",
     "production_deployment": false,
     "production_assets_verified": false,
-    "approval_pending": true,
-    "approval_rule": "https://github.com/faisal01gh/ceo-msajed/blob/main/README.md"
+    "approval_pending": false,
+    "approval_rule": "https://github.com/faisal01gh/ceo-msajed/blob/main/README.md",
+    "publication_blocked_by_user": true,
+    "design_approval": "REJECTED",
+    "branch_preview_purpose": "Reference for the rejected design; not a deployment candidate"
   },
   "scope_limits": {
     "synthetic_browser_data": true,
@@ -505,5 +509,14 @@
     },
     "raw_task_titles_and_reasons_committed": false,
     "credentials_read": false
+  },
+  "user_review": {
+    "date_riyadh": "2026-11-26",
+    "decision": "Stop work; design changes not accepted",
+    "quoted_request": "لا وقف انت اضفت اشياء من عندك في التصميم غير مقبولة",
+    "work_stopped": true,
+    "design_accepted": false,
+    "technical_checks_do_not_imply_design_approval": true,
+    "runtime_changes_after_stop": 0
   }
 }

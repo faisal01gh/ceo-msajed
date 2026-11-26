@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
   "recorded_date_riyadh": "2026-11-26",
-  "feature": "Department WhatsApp follow-up copy: daily urgent and all open tasks",
+  "feature": "Department WhatsApp active-task follow-up copy and exact demo-account access",
   "status": "IMPLEMENTED; REVIEW_VERIFIED; AWAITING_DEPLOYMENT_APPROVAL",
   "runtime": {
     "repository": "faisal01gh/ceo-office-tasks",
     "base_main": "ebe4c1b29b3f1b5a40d0e89bec81be9aed31ce7c",
-    "reviewed_head": "96bf3901c36f4cbdea4b5156ac4813ecd2082419",
-    "reviewed_tree": "d2ff9cc0ca5c6ec8441162a8551b8755ad01fbfd",
+    "reviewed_head": "5c5fc5dfb0f36bc92879940d10af95002335e188",
+    "reviewed_tree": "60d5e320f45d0780ad09b1ec009bcc0647db2d73",
     "branch": "feat/department-whatsapp-followup-20261126",
     "pull_request": 21,
     "pull_request_url": "https://github.com/faisal01gh/ceo-office-tasks/pull/21",
@@ -15,11 +15,11 @@
     "changed_files": [
       {
         "path": "shared/task-mail.js",
-        "git_blob_sha": "510692eb6ba789cede5c85a5212e1a4600d0e70f"
+        "git_blob_sha": "66610f4f540f3fe7214c2bef64a4960bbde56ae1"
       },
       {
         "path": "portal/task-mail-ui.js",
-        "git_blob_sha": "1c5dc9143dd40ca1bc8298316beee79eb187eb25"
+        "git_blob_sha": "ee10916a2553813b2205987b26715af3dc0c0d66"
       },
       {
         "path": "ceo/task-mail-ui.js",
@@ -27,7 +27,7 @@
       },
       {
         "path": "portal/index.html",
-        "git_blob_sha": "59e9278e8045a49020dbfce6b78b20938e1d2b2e"
+        "git_blob_sha": "faf388c8c47bb08b8d8f1fcd92d57d9ed187df59"
       },
       {
         "path": "ceo/index.html",
@@ -35,15 +35,19 @@
       },
       {
         "path": "tests/task-mail-browser.cjs",
-        "git_blob_sha": "479650995308aa3435db929f89cf7296134dbc75"
+        "git_blob_sha": "177b54113c397906e586c2d86de0dd0924abc9e4"
       },
       {
         "path": "tests/task-whatsapp.test.cjs",
-        "git_blob_sha": "156e96a33efd001db3bb601870ca0e952d473da1"
+        "git_blob_sha": "ccdfbe51a7c7c2da6d1c9c93017f7e34fa0d59b0"
       },
       {
         "path": ".github/workflows/task-report.yml",
         "git_blob_sha": "2259ceb545737b3197fb3365621d4aedde998421"
+      },
+      {
+        "path": "tests/task-mail.test.cjs",
+        "git_blob_sha": "e2219f5f012ed8ed99bdc5e26669465f0b4971bc"
       }
     ]
   },
@@ -63,10 +67,14 @@
       {
         "display_name": "فهد الرشيد",
         "role": "sec"
+      },
+      {
+        "display_name": "تجربة",
+        "role": "asst"
       }
     ],
-    "daily": "Open CEO-assigned tasks in the selected department with exact daily priority, regardless of creation date",
-    "all": "All open CEO-assigned tasks in the selected department; old weekly values are normal",
+    "daily": "Active open CEO-assigned tasks in the selected department with exact daily priority, regardless of creation date; excludes current temporary pause and CEO hold",
+    "all": "All active open CEO-assigned tasks in the selected department; excludes current temporary pause and CEO hold; old weekly values are normal",
     "placements": [
       "department cards",
       "department task group headings",
@@ -82,16 +90,44 @@
     "department_name_in_copied_text": false,
     "task_title_label_in_copied_text": false,
     "numbered_task_titles": true,
-    "template_revision": "User requested numbered actual titles followed by blank new-update fields; no department heading or title label."
+    "template_revision": "User requested numbered actual titles followed by blank new-update fields; no department heading or title label.",
+    "current_state_rules": {
+      "office_fields": [
+        "paused === true",
+        "ceoHold === true"
+      ],
+      "portal_fields": [
+        "temp_pause.active === true",
+        "ceo_hold.active === true"
+      ],
+      "state_preserved_through_department_grouping": true,
+      "returned_or_resumed_tasks_reincluded": true,
+      "pending_requests_do_not_override_current_flags": true,
+      "historical_action_text_does_not_determine_current_state": true,
+      "suspended_only_department_retained_with_copy_disabled": true,
+      "email_and_pdf_task_membership_unchanged": true
+    },
+    "demo_account": {
+      "display_name": "تجربة",
+      "role": "asst",
+      "buttons": [
+        "department email",
+        "daily urgent WhatsApp",
+        "all active department WhatsApp"
+      ],
+      "existing_authenticated_sector_and_department_scope_retained": true,
+      "similarly_named_manager_accounts_not_enabled": true,
+      "frontend_feature_gate": "Exact normalized display_name and role returned by the authenticated portal; does not grant data access"
+    }
   },
   "verification": {
-    "unit_tests": 94,
-    "passed": 94,
+    "unit_tests": 96,
+    "passed": 96,
     "failed": 0,
-    "run_id": 45877849408,
-    "job_id": 140109367766,
-    "run_url": "https://github.com/faisal01gh/ceo-office-tasks/actions/runs/45877849408",
-    "job_url": "https://github.com/faisal01gh/ceo-office-tasks/actions/runs/45877849408/job/140109367766",
+    "run_id": 45880121469,
+    "job_id": 140117068171,
+    "run_url": "https://github.com/faisal01gh/ceo-office-tasks/actions/runs/45880121469",
+    "job_url": "https://github.com/faisal01gh/ceo-office-tasks/actions/runs/45880121469/job/140117068171",
     "browser": {
       "status": "PASS",
       "office_authenticated_ready_gate": true,
@@ -107,7 +143,7 @@
       "selected_department_preloaded": true,
       "no_cross_department_fallback": true,
       "whatsapp_daily_priority_only": true,
-      "whatsapp_all_open_tasks": true,
+      "whatsapp_all_active_tasks": true,
       "whatsapp_both_named_accounts_and_all_department_positions": true,
       "whatsapp_fresh_source_independent_of_visible_filter": true,
       "whatsapp_plain_clipboard_exact": true,
@@ -115,79 +151,85 @@
       "whatsapp_empty_daily_does_not_switch_department": true,
       "whatsapp_stale_scope_copy_blocked": true,
       "whatsapp_mobile_layout": true,
+      "whatsapp_paused_and_ceo_held_excluded": true,
+      "whatsapp_resumed_and_pending_requests_retained": true,
+      "whatsapp_only_suspended_department_copy_disabled": true,
+      "demo_account_buttons_enabled_with_existing_asst_scope": true,
       "external_requests": 0,
       "messages_sent": 0,
       "browser_errors": 0
     },
     "checks": [
       {
-        "id": 140109441811,
+        "id": 140117121323,
         "name": "Cloudflare Pages",
         "status": "completed",
         "conclusion": "success",
-        "url": "https://dash.cloudflare.com/?to=/905c7218c2bfee250014689eff0c28b1/pages/view/ceo-office-tasks/9c1c97be-aeaf-4094-b1be-0555ad4f1e0a"
+        "url": "https://dash.cloudflare.com/?to=/905c7218c2bfee250014689eff0c28b1/pages/view/ceo-office-tasks/1db29cb3-c2d1-43dd-86be-1dbf9483d8e8"
       },
       {
-        "id": 140109369101,
+        "id": 140117068687,
         "name": "verify",
         "status": "completed",
         "conclusion": "success",
-        "url": "https://github.com/faisal01gh/ceo-office-tasks/actions/runs/45877849413/job/140109369101"
+        "url": "https://github.com/faisal01gh/ceo-office-tasks/actions/runs/45880121475/job/140117068687"
       },
       {
-        "id": 140109367766,
+        "id": 140117068647,
         "name": "verify",
         "status": "completed",
         "conclusion": "success",
-        "url": "https://github.com/faisal01gh/ceo-office-tasks/actions/runs/45877849408/job/140109367766"
+        "url": "https://github.com/faisal01gh/ceo-office-tasks/actions/runs/45880121576/job/140117068647"
       },
       {
-        "id": 140109367756,
-        "name": "verify",
-        "status": "completed",
-        "conclusion": "success",
-        "url": "https://github.com/faisal01gh/ceo-office-tasks/actions/runs/45877849369/job/140109367756"
-      },
-      {
-        "id": 140109367677,
+        "id": 140117068370,
         "name": "offline",
         "status": "completed",
         "conclusion": "success",
-        "url": "https://github.com/faisal01gh/ceo-office-tasks/actions/runs/45877849485/job/140109367677"
+        "url": "https://github.com/faisal01gh/ceo-office-tasks/actions/runs/45880121567/job/140117068370"
       },
       {
-        "id": 140109367473,
+        "id": 140117068221,
+        "name": "offline",
+        "status": "completed",
+        "conclusion": "success",
+        "url": "https://github.com/faisal01gh/ceo-office-tasks/actions/runs/45880121457/job/140117068221"
+      },
+      {
+        "id": 140117068171,
+        "name": "verify",
+        "status": "completed",
+        "conclusion": "success",
+        "url": "https://github.com/faisal01gh/ceo-office-tasks/actions/runs/45880121469/job/140117068171"
+      },
+      {
+        "id": 140117067958,
         "name": "content-search",
         "status": "completed",
         "conclusion": "success",
-        "url": "https://github.com/faisal01gh/ceo-office-tasks/actions/runs/45877849374/job/140109367473"
-      },
-      {
-        "id": 140109367401,
-        "name": "offline",
-        "status": "completed",
-        "conclusion": "success",
-        "url": "https://github.com/faisal01gh/ceo-office-tasks/actions/runs/45877849383/job/140109367401"
+        "url": "https://github.com/faisal01gh/ceo-office-tasks/actions/runs/45880121551/job/140117067958"
       }
     ],
     "checks_passed": 7,
     "artifact": {
-      "id": 15145209481,
-      "sha256": "8453c8565011841fa6a0d7137d0691af794a18136bc0f19b071a53943fbe140a",
+      "id": 15146643582,
+      "sha256": "d94e84b1ab58607a82208a668ca84f52c04099e95337617ad4d3a74be9066a44",
       "download_hash_verified": true
     },
     "visual_review": {
       "performed": true,
       "images": [
-        "task-mail/whatsapp-daily-dialog.png"
+        "task-mail/demo-department-mail-buttons.png",
+        "task-mail/demo-whatsapp-mobile-dialog.png"
       ],
-      "copied_plain_text_reviewed": "task-mail/whatsapp-all-preview.txt",
-      "phone_layout_browser_test_width_px": 390
+      "copied_plain_text_reviewed": "task-mail/whatsapp-daily-preview.txt",
+      "phone_layout_browser_test_width_px": 390,
+      "result": "Three buttons visible beside departments for the demo account; mobile WhatsApp modal stays within the viewport horizontally"
     },
     "existing_email_and_pdf_regression": "PASS"
   },
   "publication": {
-    "branch_preview_url": "https://9c1c97be.ceo-office-tasks.pages.dev/portal/",
+    "branch_preview_url": "https://1db29cb3.ceo-office-tasks.pages.dev/portal/",
     "cloudflare_branch_preview": "SUCCESS",
     "production_main": "ebe4c1b29b3f1b5a40d0e89bec81be9aed31ce7c",
     "production_deployment": false,
@@ -199,14 +241,16 @@
     "synthetic_browser_data": true,
     "real_employee_login": false,
     "real_business_records_modified": 0,
-    "sql_calls": 0,
+    "sql_calls": 4,
     "backend_changes": false,
     "schema_changes": false,
     "edge_function_deployments": 0,
     "new_system_runtime_changes": false,
     "email_sent": 0,
     "whatsapp_sent": 0,
-    "external_requests_in_browser_tests": 0
+    "external_requests_in_browser_tests": 0,
+    "sql_read_only": true,
+    "account_role_or_scope_changes": false
   },
   "message_template": "السلام عليكم ورحمة الله وبركاته\nأسعد الله أوقاتك بكل خير.\n\nإشارةً لتوجيه مساعد الرئيس للشؤون الإدارية والمالية، نأمل تزويدنا بتحديث المهام التالية بنهاية عمل اليوم بشكل عاجل.\n\n*١. {task_title}*\n*التحديث الجديد:*\n",
   "previous_reviews": [
@@ -319,6 +363,147 @@
         "existing_email_and_pdf_regression": "PASS"
       },
       "branch_preview_url": "https://4e3b482c.ceo-office-tasks.pages.dev/portal/"
+    },
+    {
+      "reviewed_head": "96bf3901c36f4cbdea4b5156ac4813ecd2082419",
+      "reviewed_tree": "d2ff9cc0ca5c6ec8441162a8551b8755ad01fbfd",
+      "template": "Numbered task titles and blank updates, before current active-state exclusion and exact demo-account access",
+      "verification": {
+        "unit_tests": 94,
+        "passed": 94,
+        "failed": 0,
+        "run_id": 45877849408,
+        "job_id": 140109367766,
+        "run_url": "https://github.com/faisal01gh/ceo-office-tasks/actions/runs/45877849408",
+        "job_url": "https://github.com/faisal01gh/ceo-office-tasks/actions/runs/45877849408/job/140109367766",
+        "browser": {
+          "status": "PASS",
+          "office_authenticated_ready_gate": true,
+          "portal_fresh_scoped_snapshot": true,
+          "unchanged_portal_data_and_draft": true,
+          "exact_department_selection": true,
+          "oldest_first": true,
+          "recorded_latest_action": true,
+          "blank_update_column": true,
+          "rich_clipboard_and_native_paste": true,
+          "stale_session_and_scope_copy_blocked": true,
+          "per_department_buttons_for_both_named_accounts": true,
+          "selected_department_preloaded": true,
+          "no_cross_department_fallback": true,
+          "whatsapp_daily_priority_only": true,
+          "whatsapp_all_open_tasks": true,
+          "whatsapp_both_named_accounts_and_all_department_positions": true,
+          "whatsapp_fresh_source_independent_of_visible_filter": true,
+          "whatsapp_plain_clipboard_exact": true,
+          "whatsapp_blank_updates": true,
+          "whatsapp_empty_daily_does_not_switch_department": true,
+          "whatsapp_stale_scope_copy_blocked": true,
+          "whatsapp_mobile_layout": true,
+          "external_requests": 0,
+          "messages_sent": 0,
+          "browser_errors": 0
+        },
+        "checks": [
+          {
+            "id": 140109441811,
+            "name": "Cloudflare Pages",
+            "status": "completed",
+            "conclusion": "success",
+            "url": "https://dash.cloudflare.com/?to=/905c7218c2bfee250014689eff0c28b1/pages/view/ceo-office-tasks/9c1c97be-aeaf-4094-b1be-0555ad4f1e0a"
+          },
+          {
+            "id": 140109369101,
+            "name": "verify",
+            "status": "completed",
+            "conclusion": "success",
+            "url": "https://github.com/faisal01gh/ceo-office-tasks/actions/runs/45877849413/job/140109369101"
+          },
+          {
+            "id": 140109367766,
+            "name": "verify",
+            "status": "completed",
+            "conclusion": "success",
+            "url": "https://github.com/faisal01gh/ceo-office-tasks/actions/runs/45877849408/job/140109367766"
+          },
+          {
+            "id": 140109367756,
+            "name": "verify",
+            "status": "completed",
+            "conclusion": "success",
+            "url": "https://github.com/faisal01gh/ceo-office-tasks/actions/runs/45877849369/job/140109367756"
+          },
+          {
+            "id": 140109367677,
+            "name": "offline",
+            "status": "completed",
+            "conclusion": "success",
+            "url": "https://github.com/faisal01gh/ceo-office-tasks/actions/runs/45877849485/job/140109367677"
+          },
+          {
+            "id": 140109367473,
+            "name": "content-search",
+            "status": "completed",
+            "conclusion": "success",
+            "url": "https://github.com/faisal01gh/ceo-office-tasks/actions/runs/45877849374/job/140109367473"
+          },
+          {
+            "id": 140109367401,
+            "name": "offline",
+            "status": "completed",
+            "conclusion": "success",
+            "url": "https://github.com/faisal01gh/ceo-office-tasks/actions/runs/45877849383/job/140109367401"
+          }
+        ],
+        "checks_passed": 7,
+        "artifact": {
+          "id": 15145209481,
+          "sha256": "8453c8565011841fa6a0d7137d0691af794a18136bc0f19b071a53943fbe140a",
+          "download_hash_verified": true
+        },
+        "visual_review": {
+          "performed": true,
+          "images": [
+            "task-mail/whatsapp-daily-dialog.png"
+          ],
+          "copied_plain_text_reviewed": "task-mail/whatsapp-all-preview.txt",
+          "phone_layout_browser_test_width_px": 390
+        },
+        "existing_email_and_pdf_regression": "PASS"
+      },
+      "branch_preview_url": "https://9c1c97be.ceo-office-tasks.pages.dev/portal/"
     }
-  ]
+  ],
+  "reference_reads": {
+    "project_ref": "urgkbbconlxeagfgyjee",
+    "purpose": "Read current task states and resolve the exact requested demo account",
+    "read_only": true,
+    "query_count": 4,
+    "queries": [
+      "Strategy department current task flags",
+      "Visible open task state totals",
+      "Profile table column names and types only",
+      "Exact demo account identity and existing role/scope"
+    ],
+    "state_revision": 19457,
+    "global_visible_open_tasks": {
+      "total": 88,
+      "temporarily_paused": 7,
+      "raised_to_ceo": 12,
+      "active_for_department": 69
+    },
+    "strategy_department_open_tasks": {
+      "total": 4,
+      "temporarily_paused": 0,
+      "raised_to_ceo": 3,
+      "active_for_department": 1
+    },
+    "demo_account": {
+      "username": "تجربة",
+      "display_name": "تجربة",
+      "role": "asst",
+      "active": true
+    },
+    "raw_task_titles_and_reasons_committed": false,
+    "credentials_read": false
+  }
 }
